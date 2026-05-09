@@ -67,6 +67,23 @@
     margin-top: -4px;
   }
 
+  nav {
+    display: flex;
+    gap: 1.5rem;
+    align-items: center;
+  }
+
+  nav a {
+    font-size: 0.65rem;
+    letter-spacing: 0.2em;
+    color: var(--muted);
+    text-decoration: none;
+    text-transform: uppercase;
+    transition: color 0.3s;
+  }
+
+  nav a:hover { color: var(--gold); }
+
   .status-dot {
     display: flex;
     align-items: center;
@@ -204,20 +221,26 @@
     color: var(--gold);
   }
 
-  .accuracy-panel {
-    margin-top: 2.5rem;
-    padding: 1.5rem;
+  /* Accuracy panels */
+  .accuracy-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 1px;
+    background: var(--rule);
     border: 1px solid var(--rule);
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
+    margin-top: 2.5rem;
     animation: fadeUp 1s 0.9s ease forwards;
     opacity: 0;
   }
 
+  .accuracy-cell {
+    background: var(--black);
+    padding: 1.5rem;
+  }
+
   .accuracy-label {
     font-size: 0.6rem;
-    letter-spacing: 0.25em;
+    letter-spacing: 0.2em;
     text-transform: uppercase;
     color: var(--muted);
     margin-bottom: 0.5rem;
@@ -225,25 +248,20 @@
 
   .accuracy-number {
     font-family: 'Cormorant Garamond', serif;
-    font-size: 3rem;
+    font-size: 2.5rem;
     font-weight: 600;
     color: var(--gold);
     line-height: 1;
   }
 
   .accuracy-sub {
-    font-size: 0.65rem;
+    font-size: 0.6rem;
     color: var(--muted);
     margin-top: 0.3rem;
-  }
-
-  .accuracy-trend {
     font-family: 'IBM Plex Mono', monospace;
-    font-size: 0.7rem;
-    color: var(--positive);
-    letter-spacing: 0.1em;
   }
 
+  /* Watchlist */
   .watchlist {
     margin-top: 2.5rem;
     border: 1px solid var(--rule);
@@ -258,12 +276,14 @@
     letter-spacing: 0.3em;
     color: var(--gold);
     text-transform: uppercase;
+    display: flex;
+    justify-content: space-between;
   }
 
   .watchlist-row {
     padding: 1rem 1.5rem;
-    display: flex;
-    justify-content: space-between;
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
     align-items: center;
     border-bottom: 1px solid var(--rule);
     transition: background 0.3s;
@@ -278,17 +298,72 @@
     color: var(--white);
   }
 
+  .watchlist-company {
+    font-size: 0.7rem;
+    color: var(--muted);
+  }
+
   .watchlist-sector {
     font-size: 0.65rem;
     color: var(--muted);
     letter-spacing: 0.1em;
+    text-align: right;
   }
 
-  .loading {
+  /* Self rating history */
+  .rating-history {
+    margin-top: 2.5rem;
+    border: 1px solid var(--rule);
+    animation: fadeUp 1s 1.1s ease forwards;
+    opacity: 0;
+  }
+
+  .rating-row {
+    padding: 1rem 1.5rem;
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr 1fr;
+    align-items: center;
+    border-bottom: 1px solid var(--rule);
+    font-size: 0.72rem;
+  }
+
+  .rating-row:last-child { border-bottom: none; }
+
+  .rating-ticker {
+    font-family: 'IBM Plex Mono', monospace;
+    color: var(--white);
+  }
+
+  .rating-return {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.7rem;
+  }
+
+  .rating-return.positive { color: var(--positive); }
+  .rating-return.negative { color: var(--danger); }
+
+  .beat-badge {
+    font-size: 0.55rem;
+    letter-spacing: 0.1em;
+    padding: 0.2rem 0.5rem;
+    text-transform: uppercase;
+  }
+
+  .beat-badge.yes {
+    border: 1px solid rgba(58,107,74,0.4);
+    color: var(--positive);
+  }
+
+  .beat-badge.no {
+    border: 1px solid rgba(139,58,58,0.4);
+    color: var(--danger);
+  }
+
+  .empty-state {
     padding: 2rem;
     text-align: center;
     font-size: 0.7rem;
-    letter-spacing: 0.2em;
+    letter-spacing: 0.15em;
     color: var(--muted);
     text-transform: uppercase;
   }
@@ -332,6 +407,15 @@
     0%, 100% { opacity: 1; }
     50% { opacity: 0.3; }
   }
+
+  @media (max-width: 600px) {
+    main { padding: 2rem 1.5rem; }
+    header { padding: 1.5rem; flex-wrap: wrap; gap: 1rem; }
+    .accuracy-grid { grid-template-columns: 1fr; }
+    .watchlist-row { grid-template-columns: 1fr 1fr; }
+    .watchlist-company { display: none; }
+    .rating-row { grid-template-columns: 1fr 1fr 1fr; }
+  }
 </style>
 </head>
 <body>
@@ -341,6 +425,10 @@
     AU
     <span>PRIVATE INTELLIGENCE</span>
   </div>
+  <nav>
+    <a href="index.html">Brief</a>
+    <a href="admin.html">Admin</a>
+  </nav>
   <div class="status-dot">
     <div class="dot"></div>
     System Active
@@ -357,25 +445,58 @@
 
   <div class="gold-rule"></div>
 
-  <div class="section-label">Current Picks — Week of May 2026</div>
-
+  <div class="section-label">Current Picks</div>
   <div class="picks-grid" id="picks-container">
-    <div class="loading">Initializing intelligence system...</div>
+    <div class="empty-state">No picks generated yet. Analysis pending.</div>
   </div>
 
-  <div class="accuracy-panel">
-    <div>
-      <div class="accuracy-label">System Accuracy — 90 Days</div>
-      <div class="accuracy-number">—</div>
-      <div class="accuracy-sub">Accumulating track record</div>
+  <div class="gold-rule"></div>
+
+  <div class="section-label">System Accuracy</div>
+  <div class="accuracy-grid">
+    <div class="accuracy-cell">
+      <div class="accuracy-label">Total Picks</div>
+      <div class="accuracy-number" id="total-picks">—</div>
+      <div class="accuracy-sub">All time</div>
     </div>
-    <div class="accuracy-trend">INITIALIZING</div>
+    <div class="accuracy-cell">
+      <div class="accuracy-label">Beat Market</div>
+      <div class="accuracy-number" id="beat-market">—</div>
+      <div class="accuracy-sub">vs S&P 500</div>
+    </div>
+    <div class="accuracy-cell">
+      <div class="accuracy-label">Avg Accuracy</div>
+      <div class="accuracy-number" id="avg-accuracy">—</div>
+      <div class="accuracy-sub">90 day score</div>
+    </div>
   </div>
 
+  <div class="gold-rule"></div>
+
+  <div class="section-label">Watchlist</div>
   <div class="watchlist">
-    <div class="watchlist-header">Watchlist</div>
+    <div class="watchlist-header">
+      <span>Ticker</span>
+      <span>Company</span>
+      <span style="text-align:right">Sector</span>
+    </div>
     <div id="watchlist-container">
-      <div class="loading">Loading...</div>
+      <div class="empty-state">Loading...</div>
+    </div>
+  </div>
+
+  <div class="gold-rule"></div>
+
+  <div class="section-label">Rating History</div>
+  <div class="rating-history">
+    <div class="watchlist-header">
+      <span>Ticker</span>
+      <span>30D Return</span>
+      <span>90D Return</span>
+      <span style="text-align:right">Beat Market</span>
+    </div>
+    <div id="rating-container">
+      <div class="empty-state">No ratings yet. Accumulating track record.</div>
     </div>
   </div>
 
@@ -389,32 +510,13 @@
 <script>
   const SUPABASE_URL = 'https://zpcbbwynvvyldavxzjng.supabase.co';
   const SUPABASE_KEY = 'sb_publishable_K80lcfk8LsQNqo5enznRRA_lrzf2U9K';
-
   const { createClient } = supabase;
   const db = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-  async function loadWatchlist() {
-    const { data, error } = await db.from('stocks').select('*').order('added_at', { ascending: false });
-    const container = document.getElementById('watchlist-container');
-    if (error || !data.length) {
-      container.innerHTML = '<div class="loading">No stocks loaded</div>';
-      return;
-    }
-    container.innerHTML = data.map(s => `
-      <div class="watchlist-row">
-        <div class="watchlist-ticker">${s.ticker}</div>
-        <div class="watchlist-sector">${s.sector || '—'}</div>
-      </div>
-    `).join('');
-  }
-
   async function loadPicks() {
-    const { data, error } = await db.from('picks').select('*').order('picked_at', { ascending: false }).limit(5);
+    const { data } = await db.from('picks').select('*').order('picked_at', { ascending: false }).limit(5);
     const container = document.getElementById('picks-container');
-    if (error || !data || !data.length) {
-      container.innerHTML = '<div class="loading">No picks generated yet. Analysis pending.</div>';
-      return;
-    }
+    if (!data || !data.length) return;
     container.innerHTML = data.map(p => `
       <div class="pick-card">
         <div class="pick-score ${p.score >= 75 ? 'high' : 'mid'}">${p.score}</div>
@@ -429,8 +531,45 @@
     `).join('');
   }
 
-  loadWatchlist();
+  async function loadAccuracy() {
+    const { data } = await db.from('aurum_accuracy').select('*').single();
+    if (!data) return;
+    document.getElementById('total-picks').textContent = data.total_picks || '—';
+    document.getElementById('beat-market').textContent = data.beats_market || '—';
+    document.getElementById('avg-accuracy').textContent = data.avg_accuracy ? data.avg_accuracy + '%' : '—';
+  }
+
+  async function loadWatchlist() {
+    const { data } = await db.from('stocks').select('*').order('added_at', { ascending: false });
+    const container = document.getElementById('watchlist-container');
+    if (!data || !data.length) return;
+    container.innerHTML = data.map(s => `
+      <div class="watchlist-row">
+        <div class="watchlist-ticker">${s.ticker}</div>
+        <div class="watchlist-company">${s.company_name || '—'}</div>
+        <div class="watchlist-sector">${s.sector || '—'}</div>
+      </div>
+    `).join('');
+  }
+
+  async function loadRatings() {
+    const { data } = await db.from('self_ratings').select('*').order('rated_at', { ascending: false }).limit(10);
+    const container = document.getElementById('rating-container');
+    if (!data || !data.length) return;
+    container.innerHTML = data.map(r => `
+      <div class="rating-row">
+        <div class="rating-ticker">${r.ticker}</div>
+        <div class="rating-return ${r.return_30d >= 0 ? 'positive' : 'negative'}">${r.return_30d ? r.return_30d + '%' : '—'}</div>
+        <div class="rating-return ${r.return_90d >= 0 ? 'positive' : 'negative'}">${r.return_90d ? r.return_90d + '%' : '—'}</div>
+        <div><span class="beat-badge ${r.beat_market ? 'yes' : 'no'}">${r.beat_market ? 'Yes' : 'No'}</span></div>
+      </div>
+    `).join('');
+  }
+
   loadPicks();
+  loadAccuracy();
+  loadWatchlist();
+  loadRatings();
 </script>
 
 </body>
