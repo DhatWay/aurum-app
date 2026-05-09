@@ -536,6 +536,11 @@ Respond in this exact JSON format with no extra text:
 
   loadAlgorithms();
 </script>
-
+  
+<script>
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/aurum-app/sw.js');
+  }
+</script>
 </body>
 </html>
