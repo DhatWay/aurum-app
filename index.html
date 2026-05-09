@@ -4,10 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>AURUM — Private Market Intelligence</title>
-  <link rel="manifest" href="/aurum-app/manifest.json">
-<meta name="theme-color" content="#C9A84C">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="AURUM">
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;600&family=DM+Sans:wght@300;400;500&family=IBM+Plex+Mono:wght@300;400&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
@@ -28,7 +24,7 @@
     background: var(--black);
     color: var(--white);
     font-family: 'DM Sans', sans-serif;
-    font-weight: 300;
+    font-weight: 600;
     min-height: 100vh;
     overflow-x: hidden;
   }
@@ -64,7 +60,7 @@
   .logo span {
     color: var(--white);
     opacity: 0.3;
-    font-weight: 300;
+    font-weight: 600;
     font-size: 0.7rem;
     letter-spacing: 0.2em;
     display: block;
@@ -130,7 +126,7 @@
   .hero h1 {
     font-family: 'Cormorant Garamond', serif;
     font-size: clamp(2.5rem, 8vw, 5rem);
-    font-weight: 300;
+    font-weight: 600;
     line-height: 1.05;
     color: var(--white);
     margin-bottom: 1.5rem;
@@ -156,7 +152,7 @@
     margin: 2.5rem 0;
   }
 
-  .section-label {
+.section-label {
     font-size: 0.6rem;
     letter-spacing: 0.3em;
     color: var(--gold);
@@ -429,7 +425,7 @@
     AU
     <span>PRIVATE INTELLIGENCE</span>
   </div>
-  <nav>
+<nav>
   <a href="index.html">Brief</a>
   <a href="simulator.html">Simulator</a>
   <a href="admin.html">Admin</a>
@@ -576,10 +572,6 @@
   loadWatchlist();
   loadRatings();
 </script>
-  <script>
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/aurum-app/sw.js');
-  }
-</script>
+
 </body>
 </html>
