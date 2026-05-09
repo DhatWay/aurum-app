@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>AURUM — Private Market Intelligence</title>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;600&family=DM+Sans:wght@300;400;500&family=IBM+Plex+Mono:wght@300;400&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
   :root {
     --black: #080808;
@@ -28,7 +29,6 @@
     overflow-x: hidden;
   }
 
-  /* Grain overlay */
   body::before {
     content: '';
     position: fixed;
@@ -39,7 +39,6 @@
     opacity: 0.4;
   }
 
-  /* Header */
   header {
     display: flex;
     justify-content: space-between;
@@ -87,14 +86,12 @@
     animation: pulse 2s infinite;
   }
 
-  /* Main */
   main {
     padding: 3rem 2.5rem;
     max-width: 900px;
     margin: 0 auto;
   }
 
-  /* Hero */
   .hero {
     margin-bottom: 4rem;
     animation: fadeUp 1s 0.3s ease forwards;
@@ -131,7 +128,6 @@
     max-width: 420px;
   }
 
-  /* Rule */
   .gold-rule {
     width: 100%;
     height: 1px;
@@ -139,7 +135,6 @@
     margin: 2.5rem 0;
   }
 
-  /* Section label */
   .section-label {
     font-size: 0.6rem;
     letter-spacing: 0.3em;
@@ -148,7 +143,6 @@
     margin-bottom: 1.5rem;
   }
 
-  /* Mock picks */
   .picks-grid {
     display: grid;
     gap: 1px;
@@ -168,9 +162,7 @@
     transition: background 0.3s ease;
   }
 
-  .pick-card:hover {
-    background: rgba(201,168,76,0.03);
-  }
+  .pick-card:hover { background: rgba(201,168,76,0.03); }
 
   .pick-score {
     font-family: 'Cormorant Garamond', serif;
@@ -181,10 +173,7 @@
     min-width: 60px;
   }
 
-  .pick-score.high { color: var(--gold); }
   .pick-score.mid { color: var(--muted); }
-
-  .pick-info {}
 
   .pick-ticker {
     font-family: 'IBM Plex Mono', monospace;
@@ -198,11 +187,6 @@
     font-size: 0.72rem;
     color: var(--muted);
     line-height: 1.6;
-    letter-spacing: 0.02em;
-  }
-
-  .pick-meta {
-    text-align: right;
   }
 
   .pick-status {
@@ -220,7 +204,6 @@
     color: var(--gold);
   }
 
-  /* Accuracy panel */
   .accuracy-panel {
     margin-top: 2.5rem;
     padding: 1.5rem;
@@ -252,7 +235,6 @@
     font-size: 0.65rem;
     color: var(--muted);
     margin-top: 0.3rem;
-    letter-spacing: 0.05em;
   }
 
   .accuracy-trend {
@@ -262,7 +244,55 @@
     letter-spacing: 0.1em;
   }
 
-  /* Footer */
+  .watchlist {
+    margin-top: 2.5rem;
+    border: 1px solid var(--rule);
+    animation: fadeUp 1s 1s ease forwards;
+    opacity: 0;
+  }
+
+  .watchlist-header {
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid var(--rule);
+    font-size: 0.6rem;
+    letter-spacing: 0.3em;
+    color: var(--gold);
+    text-transform: uppercase;
+  }
+
+  .watchlist-row {
+    padding: 1rem 1.5rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--rule);
+    transition: background 0.3s;
+  }
+
+  .watchlist-row:last-child { border-bottom: none; }
+  .watchlist-row:hover { background: rgba(201,168,76,0.03); }
+
+  .watchlist-ticker {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.85rem;
+    color: var(--white);
+  }
+
+  .watchlist-sector {
+    font-size: 0.65rem;
+    color: var(--muted);
+    letter-spacing: 0.1em;
+  }
+
+  .loading {
+    padding: 2rem;
+    text-align: center;
+    font-size: 0.7rem;
+    letter-spacing: 0.2em;
+    color: var(--muted);
+    text-transform: uppercase;
+  }
+
   footer {
     padding: 2rem 2.5rem;
     border-top: 1px solid var(--rule);
@@ -288,7 +318,6 @@
     letter-spacing: 0.3em;
   }
 
-  /* Animations */
   @keyframes fadeDown {
     from { opacity: 0; transform: translateY(-10px); }
     to { opacity: 1; transform: translateY(0); }
@@ -330,41 +359,8 @@
 
   <div class="section-label">Current Picks — Week of May 2026</div>
 
-  <div class="picks-grid">
-
-    <div class="pick-card">
-      <div class="pick-score high">87</div>
-      <div class="pick-info">
-        <div class="pick-ticker">NVDA</div>
-        <div class="pick-brief">Macro alignment strong. Congressional accumulation detected. Sentiment elevated but not overextended.</div>
-      </div>
-      <div class="pick-meta">
-        <div class="pick-status monitoring">Monitoring</div>
-      </div>
-    </div>
-
-    <div class="pick-card">
-      <div class="pick-score high">81</div>
-      <div class="pick-info">
-        <div class="pick-ticker">JPM</div>
-        <div class="pick-brief">Rate environment favorable. Institutional accumulation steady. Political signals neutral.</div>
-      </div>
-      <div class="pick-meta">
-        <div class="pick-status monitoring">Monitoring</div>
-      </div>
-    </div>
-
-    <div class="pick-card">
-      <div class="pick-score mid">64</div>
-      <div class="pick-info">
-        <div class="pick-ticker">XOM</div>
-        <div class="pick-brief">Energy sector momentum present. Geopolitical risk elevated. Watching for confirmation.</div>
-      </div>
-      <div class="pick-meta">
-        <div class="pick-status">Watching</div>
-      </div>
-    </div>
-
+  <div class="picks-grid" id="picks-container">
+    <div class="loading">Initializing intelligence system...</div>
   </div>
 
   <div class="accuracy-panel">
@@ -376,12 +372,66 @@
     <div class="accuracy-trend">INITIALIZING</div>
   </div>
 
+  <div class="watchlist">
+    <div class="watchlist-header">Watchlist</div>
+    <div id="watchlist-container">
+      <div class="loading">Loading...</div>
+    </div>
+  </div>
+
 </main>
 
 <footer>
   <p>AURUM © 2026 — Private Use Only</p>
   <div class="footer-au">AU</div>
 </footer>
+
+<script>
+  const SUPABASE_URL = 'https://zpcbbwynvvyldavxzjng.supabase.co';
+  const SUPABASE_KEY = 'sb_publishable_K80lcfk8LsQNqo5enznRRA_lrzf2U9K';
+
+  const { createClient } = supabase;
+  const db = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+  async function loadWatchlist() {
+    const { data, error } = await db.from('stocks').select('*').order('added_at', { ascending: false });
+    const container = document.getElementById('watchlist-container');
+    if (error || !data.length) {
+      container.innerHTML = '<div class="loading">No stocks loaded</div>';
+      return;
+    }
+    container.innerHTML = data.map(s => `
+      <div class="watchlist-row">
+        <div class="watchlist-ticker">${s.ticker}</div>
+        <div class="watchlist-sector">${s.sector || '—'}</div>
+      </div>
+    `).join('');
+  }
+
+  async function loadPicks() {
+    const { data, error } = await db.from('picks').select('*').order('picked_at', { ascending: false }).limit(5);
+    const container = document.getElementById('picks-container');
+    if (error || !data || !data.length) {
+      container.innerHTML = '<div class="loading">No picks generated yet. Analysis pending.</div>';
+      return;
+    }
+    container.innerHTML = data.map(p => `
+      <div class="pick-card">
+        <div class="pick-score ${p.score >= 75 ? 'high' : 'mid'}">${p.score}</div>
+        <div class="pick-info">
+          <div class="pick-ticker">${p.ticker}</div>
+          <div class="pick-brief">${p.brief || '—'}</div>
+        </div>
+        <div class="pick-meta">
+          <div class="pick-status monitoring">Monitoring</div>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  loadWatchlist();
+  loadPicks();
+</script>
 
 </body>
 </html>
