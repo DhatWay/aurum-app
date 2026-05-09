@@ -571,6 +571,10 @@
   loadWatchlist();
   loadRatings();
 </script>
-
+  <script>
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/aurum-app/sw.js');
+  }
+</script>
 </body>
 </html>
