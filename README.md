@@ -1,1 +1,2 @@
-# aurum-app
+# AURUM
+Private Market Intelligence System
