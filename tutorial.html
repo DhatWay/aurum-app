@@ -1,0 +1,841 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AURUM — Tutorial</title>
+<link rel="manifest" href="/aurum-app/manifest.json">
+<meta name="theme-color" content="#C9A84C">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;600&family=DM+Sans:wght@300;400;500&family=IBM+Plex+Mono:wght@300;400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --black: #080808;
+    --gold: #C9A84C;
+    --white: #F0EDE6;
+    --muted: #6B6560;
+    --danger: #8B3A3A;
+    --positive: #3A6B4A;
+    --rule: rgba(201,168,76,0.2);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--black);
+    color: var(--white);
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 400;
+    font-size: 20px;
+    min-height: 100vh;
+    line-height: 1.7;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 999;
+    opacity: 0.4;
+  }
+
+  header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 1rem;
+    padding: 2rem 2.5rem;
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .logo {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 1.8rem;
+    font-weight: 600;
+    letter-spacing: 0.3em;
+    color: var(--gold);
+  }
+
+  .logo span {
+    color: var(--white);
+    opacity: 0.3;
+    font-weight: 300;
+    font-size: 0.7rem;
+    letter-spacing: 0.2em;
+    display: block;
+    margin-top: -4px;
+  }
+
+  .hamburger {
+    background: transparent;
+    border: 1px solid var(--rule);
+    color: var(--gold);
+    font-size: 1.2rem;
+    padding: 0.4rem 0.8rem;
+    cursor: pointer;
+    z-index: 1001;
+    position: relative;
+  }
+
+  .nav-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(8,8,8,0.97);
+    z-index: 1000;
+    display: none;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 2.5rem;
+  }
+
+  .nav-overlay.open { display: flex; }
+
+  .nav-overlay a {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 2.5rem;
+    font-weight: 300;
+    color: var(--muted);
+    text-decoration: none;
+    letter-spacing: 0.2em;
+    transition: color 0.3s;
+  }
+
+  .nav-overlay a:hover { color: var(--gold); }
+  .nav-overlay a.active { color: var(--gold); }
+
+  .nav-close {
+    position: absolute;
+    top: 2rem;
+    right: 2.5rem;
+    background: transparent;
+    border: none;
+    color: var(--muted);
+    font-size: 1.5rem;
+    cursor: pointer;
+  }
+
+  main {
+    padding: 3rem 2.5rem;
+    max-width: 860px;
+    margin: 0 auto;
+  }
+
+  .page-title {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: clamp(2.5rem, 7vw, 4rem);
+    font-weight: 300;
+    color: var(--white);
+    margin-bottom: 0.5rem;
+    line-height: 1.1;
+  }
+
+  .page-title em { color: var(--gold); font-style: normal; }
+
+  .page-sub {
+    font-size: 1.1rem;
+    color: var(--muted);
+    margin-bottom: 3rem;
+    line-height: 1.7;
+    max-width: 600px;
+  }
+
+  .gold-rule {
+    width: 100%;
+    height: 1px;
+    background: var(--rule);
+    margin: 3rem 0;
+  }
+
+  /* Progress tracker */
+  .progress-bar {
+    display: flex;
+    gap: 0.4rem;
+    margin-bottom: 3rem;
+    flex-wrap: wrap;
+  }
+
+  .progress-step {
+    width: 32px;
+    height: 3px;
+    background: var(--rule);
+    transition: background 0.5s;
+  }
+
+  .progress-step.done { background: var(--gold); }
+  .progress-step.active { background: var(--gold); opacity: 0.5; }
+
+  /* Step cards */
+  .step-card {
+    border: 1px solid var(--rule);
+    padding: 2.5rem;
+    margin-bottom: 1px;
+    display: none;
+    animation: fadeUp 0.5s ease forwards;
+  }
+
+  .step-card.active { display: block; }
+
+  .step-number {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.8rem;
+    letter-spacing: 0.3em;
+    color: var(--gold);
+    text-transform: uppercase;
+    margin-bottom: 1rem;
+  }
+
+  .step-title {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 2.2rem;
+    font-weight: 400;
+    color: var(--white);
+    margin-bottom: 1rem;
+    line-height: 1.2;
+  }
+
+  .step-title em { color: var(--gold); font-style: normal; }
+
+  .step-body {
+    font-size: 1rem;
+    color: var(--muted);
+    line-height: 1.8;
+    margin-bottom: 2rem;
+  }
+
+  .step-body strong {
+    color: var(--white);
+    font-weight: 500;
+  }
+
+  /* Feature list inside steps */
+  .feature-list {
+    border: 1px solid var(--rule);
+    margin: 1.5rem 0;
+  }
+
+  .feature-item {
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid var(--rule);
+    display: flex;
+    gap: 1rem;
+    align-items: flex-start;
+  }
+
+  .feature-item:last-child { border-bottom: none; }
+
+  .feature-icon {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--gold);
+    letter-spacing: 0.1em;
+    white-space: nowrap;
+    padding-top: 0.2rem;
+    min-width: 60px;
+  }
+
+  .feature-text {
+    font-size: 0.95rem;
+    color: var(--muted);
+    line-height: 1.6;
+  }
+
+  .feature-text strong { color: var(--white); }
+
+  /* Algorithm display */
+  .algo-list {
+    display: grid;
+    gap: 1px;
+    background: var(--rule);
+    border: 1px solid var(--rule);
+    margin: 1.5rem 0;
+  }
+
+  .algo-item {
+    background: var(--black);
+    padding: 1rem 1.5rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .algo-item-name {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.85rem;
+    color: var(--gold);
+    margin-bottom: 0.2rem;
+  }
+
+  .algo-item-desc {
+    font-size: 0.85rem;
+    color: var(--muted);
+  }
+
+  .algo-layer {
+    font-size: 0.6rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    padding: 0.2rem 0.5rem;
+    border: 1px solid var(--rule);
+    color: var(--muted);
+    white-space: nowrap;
+  }
+
+  .algo-layer.master {
+    border-color: rgba(201,168,76,0.4);
+    color: var(--gold);
+  }
+
+  /* Navigation buttons */
+  .step-nav {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 2rem;
+    gap: 1rem;
+  }
+
+  .btn-nav {
+    background: transparent;
+    border: 1px solid var(--rule);
+    color: var(--muted);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.85rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    padding: 0.8rem 1.5rem;
+    cursor: pointer;
+    transition: all 0.3s;
+  }
+
+  .btn-nav:hover { border-color: var(--gold); color: var(--gold); }
+  .btn-nav.primary { border-color: var(--gold); color: var(--gold); }
+  .btn-nav.primary:hover { background: var(--gold); color: var(--black); }
+  .btn-nav:disabled { opacity: 0.2; cursor: not-allowed; }
+
+  .step-counter {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.8rem;
+    color: var(--muted);
+    letter-spacing: 0.1em;
+  }
+
+  /* Highlight box */
+  .highlight-box {
+    border: 1px solid rgba(201,168,76,0.3);
+    background: rgba(201,168,76,0.03);
+    padding: 1.5rem;
+    margin: 1.5rem 0;
+  }
+
+  .highlight-label {
+    font-size: 0.7rem;
+    letter-spacing: 0.25em;
+    color: var(--gold);
+    text-transform: uppercase;
+    margin-bottom: 0.8rem;
+  }
+
+  .highlight-text {
+    font-size: 1rem;
+    color: var(--white);
+    line-height: 1.7;
+    font-family: 'Cormorant Garamond', serif;
+    font-style: italic;
+  }
+
+  /* Completion screen */
+  .completion {
+    text-align: center;
+    padding: 3rem 0;
+    display: none;
+  }
+
+  .completion.visible { display: block; }
+
+  .completion-au {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 5rem;
+    font-weight: 600;
+    color: var(--gold);
+    letter-spacing: 0.3em;
+    margin-bottom: 1rem;
+    animation: fadeUp 1s ease forwards;
+  }
+
+  .completion-title {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 2rem;
+    font-weight: 300;
+    color: var(--white);
+    margin-bottom: 1rem;
+  }
+
+  .completion-sub {
+    font-size: 1rem;
+    color: var(--muted);
+    margin-bottom: 2.5rem;
+    line-height: 1.7;
+  }
+
+  .btn-start {
+    background: transparent;
+    border: 1px solid var(--gold);
+    color: var(--gold);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.85rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    padding: 1rem 2.5rem;
+    cursor: pointer;
+    transition: all 0.3s;
+    text-decoration: none;
+    display: inline-block;
+  }
+
+  .btn-start:hover { background: var(--gold); color: var(--black); }
+
+  footer {
+    padding: 2rem 2.5rem;
+    border-top: 1px solid var(--rule);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 4rem;
+  }
+
+  footer p {
+    font-size: 0.8rem;
+    letter-spacing: 0.15em;
+    color: var(--muted);
+    text-transform: uppercase;
+  }
+
+  .footer-au {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 1rem;
+    color: var(--rule);
+    letter-spacing: 0.3em;
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(15px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @media (max-width: 600px) {
+    main { padding: 2rem 1.5rem; }
+    header { padding: 1.5rem; }
+    .step-card { padding: 1.5rem; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    AU
+    <span>PRIVATE INTELLIGENCE</span>
+  </div>
+  <button class="hamburger" onclick="openNav()">☰</button>
+</header>
+
+<div class="nav-overlay" id="nav-overlay">
+  <button class="nav-close" onclick="closeNav()">✕</button>
+  <a href="index.html">Brief</a>
+  <a href="news.html">News</a>
+  <a href="history.html">History</a>
+  <a href="sectors.html">Sectors</a>
+  <a href="simulator.html">Simulator</a>
+  <a href="tutorial.html" class="active">Tutorial</a>
+  <a href="admin.html">Admin</a>
+</div>
+
+<main>
+
+  <div class="page-title">Welcome to <em>AURUM.</em></div>
+  <div class="page-sub">A private market intelligence system powered by AI. This tutorial walks you through every feature — start to finish.</div>
+
+  <div class="progress-bar" id="progress-bar"></div>
+
+  <!-- Step 1 -->
+  <div class="step-card active" id="step-1">
+    <div class="step-number">Step 01 of 08</div>
+    <div class="step-title">What is <em>AURUM?</em></div>
+    <div class="step-body">
+      AURUM is a <strong>private stock intelligence system</strong> — not a trading app, not a screener. It thinks, watches, scores, and grades itself over time.<br><br>
+      Most stock apps give you charts and price alerts. AURUM gives you <strong>synthesized intelligence</strong> — pulling from news, political signals, economic data, insider activity, and options flow — then running it through 11 custom algorithms to produce a formal briefing on each stock you're watching.<br><br>
+      The self-rating system is what makes AURUM unique. Every pick is logged with its entry price. Over 30, 60, and 90 days AURUM grades its own accuracy. That track record is the product.
+    </div>
+    <div class="highlight-box">
+      <div class="highlight-label">The Core Principle</div>
+      <div class="highlight-text">"Intelligence. Refined." — AURUM doesn't guess. It synthesizes, scores, and proves itself over time.</div>
+    </div>
+    <div class="step-nav">
+      <button class="btn-nav" disabled>← Previous</button>
+      <span class="step-counter">1 / 8</span>
+      <button class="btn-nav primary" onclick="nextStep()">Next →</button>
+    </div>
+  </div>
+
+  <!-- Step 2 -->
+  <div class="step-card" id="step-2">
+    <div class="step-number">Step 02 of 08</div>
+    <div class="step-title">The <em>Brief</em> Page</div>
+    <div class="step-body">
+      The Brief is AURUM's main dashboard. Every week it updates with fresh AI-generated picks, signal breakdowns, and probability spreads. Think of it as your private intelligence report delivered every Monday.
+    </div>
+    <div class="feature-list">
+      <div class="feature-item">
+        <div class="feature-icon">PICKS</div>
+        <div class="feature-text"><strong>Current Picks</strong> — AI scored stocks with reasoning. Each pick shows a score from 0-100, a formal brief, and signal breakdown bars.</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">SPREAD</div>
+        <div class="feature-text"><strong>Probability Spread</strong> — Bull case, base case, bear case with probabilities. Like a point spread for stocks. Confidence rated High, Medium, Low, or Conflicted.</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">ACCURACY</div>
+        <div class="feature-text"><strong>System Accuracy</strong> — Total picks made, how many beat the market, average accuracy score. This grows more meaningful every week.</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">WATCHLIST</div>
+        <div class="feature-text"><strong>Watchlist</strong> — Every stock AURUM is actively monitoring. Added through the Admin panel on your instruction.</div>
+      </div>
+    </div>
+    <div class="step-nav">
+      <button class="btn-nav" onclick="prevStep()">← Previous</button>
+      <span class="step-counter">2 / 8</span>
+      <button class="btn-nav primary" onclick="nextStep()">Next →</button>
+    </div>
+  </div>
+
+  <!-- Step 3 -->
+  <div class="step-card" id="step-3">
+    <div class="step-number">Step 03 of 08</div>
+    <div class="step-title">The <em>Intelligence</em> Feed</div>
+    <div class="step-body">
+      The News page aggregates real time headlines from multiple sources — scored against AURUM's algorithms and filtered by sentiment. Every article is tagged bullish, bearish, or neutral based on signal alignment.
+    </div>
+    <div class="feature-list">
+      <div class="feature-item">
+        <div class="feature-icon">SOURCES</div>
+        <div class="feature-text"><strong>Multi-Source Intelligence</strong> — Yahoo Finance, Google News, Reddit, SEC EDGAR, Alpha Vantage. Paid tiers (Bloomberg, Reuters, Benzinga) activate when API keys are added.</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">SCORE</div>
+        <div class="feature-text"><strong>Sentiment Scoring</strong> — Every headline is algorithmically scored for bullish or bearish language and cross-referenced with your watchlist stocks.</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">AUTO</div>
+        <div class="feature-text"><strong>Automatic Daily Fetch</strong> — News refreshes every morning at 8am automatically. No action needed from you.</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">FILTER</div>
+        <div class="feature-text"><strong>Signal Filters</strong> — Filter by All, Bullish, Bearish, or Neutral. Only see the signals that matter to your current thesis.</div>
+      </div>
+    </div>
+    <div class="step-nav">
+      <button class="btn-nav" onclick="prevStep()">← Previous</button>
+      <span class="step-counter">3 / 8</span>
+      <button class="btn-nav primary" onclick="nextStep()">Next →</button>
+    </div>
+  </div>
+
+  <!-- Step 4 -->
+  <div class="step-card" id="step-4">
+    <div class="step-number">Step 04 of 08</div>
+    <div class="step-title">The <em>11 Algorithms</em></div>
+    <div class="step-body">
+      AURUM runs on 11 custom algorithms — each one measuring a different signal. They feed into each other and culminate in the Probability Spread Model, AURUM's master intelligence layer.
+    </div>
+    <div class="algo-list">
+      <div class="algo-item">
+        <div>
+          <div class="algo-item-name">momentum_detector</div>
+          <div class="algo-item-desc">Price velocity and volume trend scoring</div>
+        </div>
+        <div class="algo-layer">Core</div>
+      </div>
+      <div class="algo-item">
+        <div>
+          <div class="algo-item-name">sentiment_detector</div>
+          <div class="algo-item-desc">News and social sentiment weighted scoring</div>
+        </div>
+        <div class="algo-layer">Core</div>
+      </div>
+      <div class="algo-item">
+        <div>
+          <div class="algo-item-name">political_signal_detector</div>
+          <div class="algo-item-desc">Congressional trades and policy signals</div>
+        </div>
+        <div class="algo-layer">Core</div>
+      </div>
+      <div class="algo-item">
+        <div>
+          <div class="algo-item-name">macro_detector</div>
+          <div class="algo-item-desc">Interest rates, inflation, GDP alignment</div>
+        </div>
+        <div class="algo-layer">Core</div>
+      </div>
+      <div class="algo-item">
+        <div>
+          <div class="algo-item-name">options_flow_detector</div>
+          <div class="algo-item-desc">Unusual options activity — smart money signals</div>
+        </div>
+        <div class="algo-layer">Enhanced</div>
+      </div>
+      <div class="algo-item">
+        <div>
+          <div class="algo-item-name">insider_transaction_tracker</div>
+          <div class="algo-item-desc">CEO/CFO personal stock purchases weighted 2x</div>
+        </div>
+        <div class="algo-layer">Enhanced</div>
+      </div>
+      <div class="algo-item">
+        <div>
+          <div class="algo-item-name">macro_regime_detector</div>
+          <div class="algo-item-desc">Identifies economic regime and adjusts sector scoring</div>
+        </div>
+        <div class="algo-layer">Enhanced</div>
+      </div>
+      <div class="algo-item">
+        <div>
+          <div class="algo-item-name">sentiment_velocity</div>
+          <div class="algo-item-desc">Rate of sentiment change — acceleration vs peak</div>
+        </div>
+        <div class="algo-layer">Enhanced</div>
+      </div>
+      <div class="algo-item">
+        <div>
+          <div class="algo-item-name">earnings_cycle_detector</div>
+          <div class="algo-item-desc">Flags earnings proximity and applies volatility penalty</div>
+        </div>
+        <div class="algo-layer">Enhanced</div>
+      </div>
+      <div class="algo-item">
+        <div>
+          <div class="algo-item-name">correlation_filter</div>
+          <div class="algo-item-desc">Detects over-concentration in correlated positions</div>
+        </div>
+        <div class="algo-layer">Enhanced</div>
+      </div>
+      <div class="algo-item">
+        <div>
+          <div class="algo-item-name">probability_spread_model</div>
+          <div class="algo-item-desc">Master synthesis — bull/base/bear cases with confidence</div>
+        </div>
+        <div class="algo-layer master">Master</div>
+      </div>
+    </div>
+    <div class="step-nav">
+      <button class="btn-nav" onclick="prevStep()">← Previous</button>
+      <span class="step-counter">4 / 8</span>
+      <button class="btn-nav primary" onclick="nextStep()">Next →</button>
+    </div>
+  </div>
+
+  <!-- Step 5 -->
+  <div class="step-card" id="step-5">
+    <div class="step-number">Step 05 of 08</div>
+    <div class="step-title">The <em>Simulator</em></div>
+    <div class="step-body">
+      The Paper Trading Simulator lets you test AURUM's picks with simulated money before committing real capital. Every position tracks real gain and loss based on prices you enter. The portfolio grades itself over time.
+    </div>
+    <div class="feature-list">
+      <div class="feature-item">
+        <div class="feature-icon">OPEN</div>
+        <div class="feature-text"><strong>Open a Position</strong> — Select a watchlist stock, enter your entry price and number of shares. AURUM tracks it from that moment forward.</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">TRACK</div>
+        <div class="feature-text"><strong>Live G/L Tracking</strong> — Update the current price anytime to see real gain or loss in dollars and percentage. Portfolio totals update automatically.</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">CLOSE</div>
+        <div class="feature-text"><strong>Close Positions</strong> — When you close a position the result is locked in. Your portfolio history builds over time.</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">RESET</div>
+        <div class="feature-text"><strong>Reset Anytime</strong> — Start fresh with $10,000 whenever you want. Previous simulation data is cleared cleanly.</div>
+      </div>
+    </div>
+    <div class="step-nav">
+      <button class="btn-nav" onclick="prevStep()">← Previous</button>
+      <span class="step-counter">5 / 8</span>
+      <button class="btn-nav primary" onclick="nextStep()">Next →</button>
+    </div>
+  </div>
+
+  <!-- Step 6 -->
+  <div class="step-card" id="step-6">
+    <div class="step-number">Step 06 of 08</div>
+    <div class="step-title">The <em>Admin</em> Panel</div>
+    <div class="step-body">
+      The Admin panel is AURUM's control center. You manage your watchlist, improve algorithms in plain English, and set price alerts — all from one place.
+    </div>
+    <div class="feature-list">
+      <div class="feature-item">
+        <div class="feature-icon">WATCH</div>
+        <div class="feature-text"><strong>Manage Watchlist</strong> — Add stocks to AURUM's monitoring universe. Only add stocks when advised — every ticker on the list gets analyzed weekly.</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">ALGO</div>
+        <div class="feature-text"><strong>Algorithm Improvement</strong> — Describe a change in plain English. AURUM rewrites the algorithm and presents it for your approval before anything deploys.</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">ALERT</div>
+        <div class="feature-text"><strong>Price Alerts</strong> — Set alerts for when a stock moves up or down beyond your threshold. AURUM flags it automatically.</div>
+      </div>
+    </div>
+    <div class="highlight-box">
+      <div class="highlight-label">Important</div>
+      <div class="highlight-text">Never add stocks to the watchlist arbitrarily. Every stock added gets analyzed by all 11 algorithms weekly — quality over quantity.</div>
+    </div>
+    <div class="step-nav">
+      <button class="btn-nav" onclick="prevStep()">← Previous</button>
+      <span class="step-counter">6 / 8</span>
+      <button class="btn-nav primary" onclick="nextStep()">Next →</button>
+    </div>
+  </div>
+
+  <!-- Step 7 -->
+  <div class="step-card" id="step-7">
+    <div class="step-number">Step 07 of 08</div>
+    <div class="step-title">The <em>Self-Rating</em> System</div>
+    <div class="step-body">
+      This is what separates AURUM from every other stock tool. The self-rating system logs every pick at the moment it's made — then grades AURUM's accuracy 30, 60, and 90 days later against actual market performance.
+    </div>
+    <div class="feature-list">
+      <div class="feature-item">
+        <div class="feature-icon">LOG</div>
+        <div class="feature-text"><strong>Every pick is logged</strong> — Ticker, score, brief, entry price, and timestamp. Nothing is cherry-picked after the fact.</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">GRADE</div>
+        <div class="feature-text"><strong>Automatic grading</strong> — At 30, 60, and 90 days AURUM compares pick performance against the S&P 500. Did it beat the market or not?</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">LEARN</div>
+        <div class="feature-text"><strong>System improves</strong> — After 6-12 months of data the self-rating reveals which signals predicted correctly. Algorithms get refined based on real evidence.</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">TRUST</div>
+        <div class="feature-text"><strong>Verified track record</strong> — The accuracy percentage on the Brief page is real — earned over time, not projected. That's what makes it trustworthy.</div>
+      </div>
+    </div>
+    <div class="step-nav">
+      <button class="btn-nav" onclick="prevStep()">← Previous</button>
+      <span class="step-counter">7 / 8</span>
+      <button class="btn-nav primary" onclick="nextStep()">Next →</button>
+    </div>
+  </div>
+
+  <!-- Step 8 -->
+  <div class="step-card" id="step-8">
+    <div class="step-number">Step 08 of 08</div>
+    <div class="step-title">The <em>Weekly Rhythm</em></div>
+    <div class="step-body">
+      AURUM runs on a precise automated schedule. You don't need to do anything — the system wakes up, works, and delivers. Here's exactly what happens every week without you touching anything.
+    </div>
+    <div class="feature-list">
+      <div class="feature-item">
+        <div class="feature-icon">8AM</div>
+        <div class="feature-text"><strong>Daily — News Fetch</strong> — AURUM pulls fresh headlines from all active sources, scores them, and stores them in the intelligence feed.</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">MON 9AM</div>
+        <div class="feature-text"><strong>Monday — Weekly Analysis</strong> — All 11 algorithms run against your watchlist. Picks are generated, scored, and stored. Probability spreads calculated.</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">MON 10AM</div>
+        <div class="feature-text"><strong>Monday — Brief Email</strong> — A formal intelligence brief lands in your inbox. Picks, accuracy, watchlist, top news — all formatted in AURUM's luxury aesthetic.</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">ONGOING</div>
+        <div class="feature-text"><strong>Self-Rating — Continuous</strong> — At 30, 60, 90 day marks AURUM automatically grades its own picks against real market performance.</div>
+      </div>
+    </div>
+    <div class="highlight-box">
+      <div class="highlight-label">Your Role</div>
+      <div class="highlight-text">Review the Monday brief. Monitor the watchlist. Use the simulator to test picks before acting. Trust the track record as it builds. That's it.</div>
+    </div>
+    <div class="step-nav">
+      <button class="btn-nav" onclick="prevStep()">← Previous</button>
+      <span class="step-counter">8 / 8</span>
+      <button class="btn-nav primary" onclick="completeTutorial()">Complete →</button>
+    </div>
+  </div>
+
+  <!-- Completion -->
+  <div class="completion" id="completion">
+    <div class="completion-au">AU</div>
+    <div class="completion-title">You're ready.</div>
+    <div class="completion-sub">AURUM is running. The system is live. Your first weekly brief arrives Monday morning.<br>Intelligence. Refined.</div>
+    <a href="index.html" class="btn-start">Enter AURUM</a>
+  </div>
+
+</main>
+
+<footer>
+  <p>AURUM © 2026 — Private Use Only</p>
+  <div class="footer-au">AU</div>
+</footer>
+
+<script>
+  let currentStep = 1;
+  const totalSteps = 8;
+
+  function buildProgress() {
+    const bar = document.getElementById('progress-bar');
+    bar.innerHTML = '';
+    for (let i = 1; i <= totalSteps; i++) {
+      const step = document.createElement('div');
+      step.className = 'progress-step' + (i < currentStep ? ' done' : i === currentStep ? ' active' : '');
+      bar.appendChild(step);
+    }
+  }
+
+  function showStep(n) {
+    document.querySelectorAll('.step-card').forEach(c => c.classList.remove('active'));
+    const card = document.getElementById(`step-${n}`);
+    if (card) card.classList.add('active');
+    buildProgress();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function nextStep() {
+    if (currentStep < totalSteps) {
+      currentStep++;
+      showStep(currentStep);
+    }
+  }
+
+  function prevStep() {
+    if (currentStep > 1) {
+      currentStep--;
+      showStep(currentStep);
+    }
+  }
+
+  function completeTutorial() {
+    document.querySelectorAll('.step-card').forEach(c => c.classList.remove('active'));
+    document.getElementById('progress-bar').innerHTML = '';
+    document.getElementById('completion').classList.add('visible');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  buildProgress();
+
+  function openNav() { document.getElementById('nav-overlay').classList.add('open'); }
+  function closeNav() { document.getElementById('nav-overlay').classList.remove('open'); }
+
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/aurum-app/sw.js');
+  }
+</script>
+
+</body>
+</html>
