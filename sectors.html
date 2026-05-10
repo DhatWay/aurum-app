@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AURUM — Sectors</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;600&family=DM+Sans:wght@300;400;500&family=IBM+Plex+Mono:wght@300;400&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root {
+    --black: #080808;
+    --gold: #C9A84C;
+    --white: #F0EDE6;
+    --muted: #6B6560;
+    --danger: #8B3A3A;
+    --positive: #3A6B4A;
+    --rule: rgba(201,168,76,0.2);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--black);
+    color: var(--white);
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 400;
+    font-size: 18px;
+    min-height: 100vh;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 999;
+    opacity: 0.4;
+  }
+
+  header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 1rem;
+    padding: 2rem 2.5rem;
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .logo {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 1.8rem;
+    font-weight: 600;
+    letter-spacing: 0.3em;
+    color: var(--gold);
+  }
+
+  .logo span {
+    color: var(--white);
+    opacity: 0.3;
+    font-weight: 300;
+    font-size: 0.7rem;
+    letter-spacing: 0.2em;
+    display: block;
+    margin-top: -4px;
+  }
+
+  nav a {
+    font-size: 0.75rem;
+    letter-spacing: 0.2em;
+    color: var(--muted);
+    text-decoration: none;
+    text-transform: uppercase;
+    transition: color 0.3s;
+    margin-left: 1.5rem;
+  }
+
+  nav a:hover { color: var(--gold); }
+  nav a.active { color: var(--gold); }
+
+  main {
+    padding: 3rem 2.5rem;
+    max-width: 900px;
+    margin: 0 auto;
+  }
+
+  .page-title {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: clamp(2rem, 6vw, 3.5rem);
+    font-weight: 300;
+    color: var(--white);
+    margin-bottom: 0.5rem;
+  }
+
+  .page-title em { color: var(--gold); font-style: normal; }
+
+  .page-sub {
+    font-size: 0.9rem;
+    color: var(--muted);
+    margin-bottom: 3rem;
+    line-height: 1.7;
+  }
+
+  .gold-rule {
+    width: 100%;
+    height: 1px;
+    background: var(--rule);
+    margin: 2.5rem 0;
+  }
+
+  .section-label {
+    font-size: 0.85rem;
+    letter-spacing: 0.3em;
+    color: var(--gold);
+    text-transform: uppercase;
+    margin-bottom: 1.5rem;
+  }
+
+  /* Sector grid */
+  .sector-grid {
+    display: grid;
+    gap: 1px;
+    background: var(--rule);
+    border: 1px solid var(--rule);
+    margin-bottom: 2.5rem;
+  }
+
+  .sector-card {
+    background: var(--black);
+    padding: 1.5rem;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    gap: 1rem;
+    transition: background 0.3s;
+  }
+
+  .sector-card:hover { background: rgba(201,168,76,0.03); }
+
+  .sector-name {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 1.4rem;
+    font-weight: 400;
+    color: var(--white);
+    margin-bottom: 0.3rem;
+  }
+
+  .sector-stocks {
+    font-size: 0.75rem;
+    color: var(--muted);
+    font-family: 'IBM Plex Mono', monospace;
+    letter-spacing: 0.05em;
+  }
+
+  .sector-right { text-align: right; }
+
+  .sector-avg-score {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 2.5rem;
+    font-weight: 600;
+    color: var(--gold);
+    line-height: 1;
+  }
+
+  .sector-avg-score.mid { color: var(--muted); }
+
+  .sector-label {
+    font-size: 0.6rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-top: 0.2rem;
+  }
+
+  /* Score bar */
+  .score-bar-wrap {
+    margin-top: 0.8rem;
+    grid-column: 1 / -1;
+  }
+
+  .score-bar-track {
+    width: 100%;
+    height: 2px;
+    background: var(--rule);
+    position: relative;
+  }
+
+  .score-bar-fill {
+    height: 100%;
+    background: var(--gold);
+    transition: width 1s ease;
+  }
+
+  .score-bar-fill.mid { background: var(--muted); }
+
+  /* Summary stats */
+  .summary-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 1px;
+    background: var(--rule);
+    border: 1px solid var(--rule);
+    margin-bottom: 2.5rem;
+  }
+
+  .summary-cell {
+    background: var(--black);
+    padding: 1.5rem;
+  }
+
+  .summary-label {
+    font-size: 0.65rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 0.5rem;
+  }
+
+  .summary-value {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 2rem;
+    font-weight: 600;
+    color: var(--gold);
+    line-height: 1;
+  }
+
+  .summary-sub {
+    font-size: 0.65rem;
+    color: var(--muted);
+    margin-top: 0.3rem;
+    font-family: 'IBM Plex Mono', monospace;
+  }
+
+  /* Stock breakdown */
+  .breakdown-table {
+    border: 1px solid var(--rule);
+  }
+
+  .breakdown-header {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr 1fr;
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid var(--rule);
+    font-size: 0.65rem;
+    letter-spacing: 0.2em;
+    color: var(--gold);
+    text-transform: uppercase;
+  }
+
+  .breakdown-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr 1fr;
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid var(--rule);
+    align-items: center;
+    transition: background 0.3s;
+  }
+
+  .breakdown-row:last-child { border-bottom: none; }
+  .breakdown-row:hover { background: rgba(201,168,76,0.03); }
+
+  .breakdown-ticker {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.9rem;
+    color: var(--white);
+  }
+
+  .breakdown-sector {
+    font-size: 0.75rem;
+    color: var(--muted);
+  }
+
+  .breakdown-score {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 1.4rem;
+    font-weight: 600;
+    color: var(--gold);
+  }
+
+  .breakdown-score.mid { color: var(--muted); }
+
+  .sector-badge {
+    font-size: 0.6rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 0.25rem 0.6rem;
+    border: 1px solid var(--rule);
+    color: var(--muted);
+    text-align: center;
+  }
+
+  .empty-state {
+    padding: 3rem;
+    text-align: center;
+    font-size: 0.85rem;
+    letter-spacing: 0.15em;
+    color: var(--muted);
+    text-transform: uppercase;
+  }
+
+  footer {
+    padding: 2rem 2.5rem;
+    border-top: 1px solid var(--rule);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 4rem;
+  }
+
+  footer p {
+    font-size: 0.75rem;
+    letter-spacing: 0.15em;
+    color: var(--muted);
+    text-transform: uppercase;
+  }
+
+  .footer-au {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 1rem;
+    color: var(--rule);
+    letter-spacing: 0.3em;
+  }
+
+  @media (max-width: 600px) {
+    main { padding: 2rem 1.5rem; }
+    header { padding: 1.5rem; }
+    .summary-grid { grid-template-columns: 1fr 1fr; }
+    .breakdown-header { grid-template-columns: 1fr 1fr 1fr; }
+    .breakdown-row { grid-template-columns: 1fr 1fr 1fr; }
+    .breakdown-sector { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    AU
+    <span>PRIVATE INTELLIGENCE</span>
+  </div>
+  <nav>
+    <a href="index.html">Brief</a>
+    <a href="history.html">History</a>
+    <a href="sectors.html" class="active">Sectors</a>
+    <a href="simulator.html">Simulator</a>
+    <a href="admin.html">Admin</a>
+  </nav>
+</header>
+
+<main>
+
+  <div class="page-title">Sector <em>Intelligence.</em></div>
+  <div class="page-sub">Performance breakdown by sector across your entire watchlist.</div>
+
+  <div class="section-label">Summary</div>
+  <div class="summary-grid">
+    <div class="summary-cell">
+      <div class="summary-label">Sectors Tracked</div>
+      <div class="summary-value" id="sector-count">—</div>
+      <div class="summary-sub">Active</div>
+    </div>
+    <div class="summary-cell">
+      <div class="summary-label">Top Sector</div>
+      <div class="summary-value" id="top-sector">—</div>
+      <div class="summary-sub">Highest avg score</div>
+    </div>
+    <div class="summary-cell">
+      <div class="summary-label">Total Stocks</div>
+      <div class="summary-value" id="total-stocks">—</div>
+      <div class="summary-sub">On watchlist</div>
+    </div>
+  </div>
+
+  <div class="gold-rule"></div>
+
+  <div class="section-label">By Sector</div>
+  <div class="sector-grid" id="sector-container">
+    <div class="empty-state">Loading sector data...</div>
+  </div>
+
+  <div class="gold-rule"></div>
+
+  <div class="section-label">Full Watchlist Breakdown</div>
+  <div class="breakdown-table">
+    <div class="breakdown-header">
+      <span>Ticker</span>
+      <span>Sector</span>
+      <span>Score</span>
+      <span>Status</span>
+    </div>
+    <div id="breakdown-container">
+      <div class="empty-state">Loading...</div>
+    </div>
+  </div>
+
+</main>
+
+<footer>
+  <p>AURUM © 2026 — Private Use Only</p>
+  <div class="footer-au">AU</div>
+</footer>
+
+<script>
+  const SUPABASE_URL = 'https://zpcbbwynvvyldavxzjng.supabase.co';
+  const SUPABASE_KEY = 'sb_publishable_K80lcfk8LsQNqo5enznRRA_lrzf2U9K';
+  const { createClient } = supabase;
+  const db = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+  async function loadSectors() {
+    const { data: stocks } = await db.from('stocks').select('*');
+    const { data: picks } = await db.from('picks').select('*');
+
+    if (!stocks || !stocks.length) {
+      document.getElementById('sector-container').innerHTML = '<div class="empty-state">No stocks on watchlist.</div>';
+      return;
+    }
+
+    // Map picks to stocks
+    const pickMap = {};
+    if (picks) picks.forEach(p => { pickMap[p.ticker] = p; });
+
+    // Group by sector
+    const sectors = {};
+    stocks.forEach(s => {
+      const sector = s.sector || 'Uncategorized';
+      if (!sectors[sector]) sectors[sector] = { stocks: [], scores: [] };
+      sectors[sector].stocks.push(s);
+      if (pickMap[s.ticker]) sectors[sector].scores.push(pickMap[s.ticker].score);
+    });
+
+    // Summary stats
+    const sectorNames = Object.keys(sectors);
+    document.getElementById('sector-count').textContent = sectorNames.length;
+    document.getElementById('total-stocks').textContent = stocks.length;
+
+    let topSector = '';
+    let topScore = 0;
+    sectorNames.forEach(name => {
+      const avg = sectors[name].scores.length
+        ? sectors[name].scores.reduce((a, b) => a + b, 0) / sectors[name].scores.length
+        : 0;
+      if (avg > topScore) { topScore = avg; topSector = name; }
+    });
+    document.getElementById('top-sector').textContent = topSector || '—';
+
+    // Render sectors
+    document.getElementById('sector-container').innerHTML = sectorNames.map(name => {
+      const s = sectors[name];
+      const avg = s.scores.length
+        ? Math.round(s.scores.reduce((a, b) => a + b, 0) / s.scores.length)
+        : 0;
+      const tickers = s.stocks.map(st => st.ticker).join(', ');
+      const isHigh = avg >= 75;
+      return `
+        <div class="sector-card">
+          <div>
+            <div class="sector-name">${name}</div>
+            <div class="sector-stocks">${tickers}</div>
+            <div class="score-bar-wrap">
+              <div class="score-bar-track">
+                <div class="score-bar-fill ${isHigh ? '' : 'mid'}" style="width:${avg}%"></div>
+              </div>
+            </div>
+          </div>
+          <div class="sector-right">
+            <div class="sector-avg-score ${isHigh ? '' : 'mid'}">${avg || '—'}</div>
+            <div class="sector-label">Avg Score</div>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    // Render breakdown
+    document.getElementById('breakdown-container').innerHTML = stocks.map(s => {
+      const pick = pickMap[s.ticker];
+      const score = pick ? pick.score : null;
+      return `
+        <div class="breakdown-row">
+          <div class="breakdown-ticker">${s.ticker}</div>
+          <div class="breakdown-sector">${s.sector || '—'}</div>
+          <div class="breakdown-score ${score && score >= 75 ? '' : 'mid'}">${score || '—'}</div>
+          <div><span class="sector-badge">${pick ? 'Picked' : 'Watching'}</span></div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  loadSectors();
+
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/aurum-app/sw.js');
+  }
+</script>
+
+</body>
+</html>
