@@ -511,11 +511,11 @@
     for (const ticker of tickers) {
       try {
         // Yahoo Finance RSS via CORS proxy
-        const yahooUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(`https://finance.yahoo.com/rss/headline?s=${ticker}`)}`;
+        const yahooUrl = `https://corsproxy.io/?${encodeURIComponent(`https://finance.yahoo.com/rss/headline?s=${ticker}`)}`;
         const res = await fetch(yahooUrl);
-        const data = await res.json();
+        const data2 = await res2.json();
         const parser = new DOMParser();
-        const xml = parser.parseFromString(data.contents, 'text/xml');
+        const xml = parser.parseFromString(data, 'text/xml');
         const items = xml.querySelectorAll('item');
 
         items.forEach((item, i) => {
@@ -552,11 +552,11 @@
 
       try {
         // Google News RSS
-        const googleUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(`https://news.google.com/rss/search?q=${ticker}+stock&hl=en-US&gl=US&ceid=US:en`)}`;
+        const googleUrl = `https://corsproxy.io/?${encodeURIComponent(`https://news.google.com/rss/search?q=${ticker}+stock&hl=en-US&gl=US&ceid=US:en`)}`;
         const res2 = await fetch(googleUrl);
         const data2 = await res2.json();
         const parser2 = new DOMParser();
-        const xml2 = parser2.parseFromString(data2.contents, 'text/xml');
+        const xml2 = parser2.parseFromString(data2, 'text/xml');
         const items2 = xml2.querySelectorAll('item');
 
         items2.forEach((item, i) => {
