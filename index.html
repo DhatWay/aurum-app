@@ -669,6 +669,7 @@
     if (!data || !data.length) return;
     container.innerHTML = data.map(p => {
       const signals = p.signals || {};
+      const spread = signals.spread || null;
       return `
       <div class="pick-card">
         <div class="pick-score ${p.score >= 75 ? 'high' : 'mid'}">${p.score}</div>
@@ -681,6 +682,28 @@
             ${signals.sentiment ? `<div class="signal-bar"><span class="signal-name">Sentiment</span><div class="signal-track"><div class="signal-fill" style="width:${signals.sentiment}%"></div></div><span class="signal-val">${signals.sentiment}</span></div>` : ''}
             ${signals.political ? `<div class="signal-bar"><span class="signal-name">Political</span><div class="signal-track"><div class="signal-fill" style="width:${signals.political}%"></div></div><span class="signal-val">${signals.political}</span></div>` : ''}
             ${signals.macro ? `<div class="signal-bar"><span class="signal-name">Macro</span><div class="signal-track"><div class="signal-fill" style="width:${signals.macro}%"></div></div><span class="signal-val">${signals.macro}</span></div>` : ''}
+          </div>` : ''}
+          ${spread ? `
+          <div class="spread-display">
+            <div class="spread-case bull">
+              <div class="spread-label">Bull Case</div>
+              <div class="spread-return positive">+${spread.bull_case_return}%</div>
+              <div class="spread-prob">${spread.bull_probability}% prob</div>
+            </div>
+            <div class="spread-case base">
+              <div class="spread-label">Base Case</div>
+              <div class="spread-return ${spread.base_case_return >= 0 ? 'positive' : 'negative'}">${spread.base_case_return >= 0 ? '+' : ''}${spread.base_case_return}%</div>
+              <div class="spread-prob">${spread.base_probability}% prob</div>
+            </div>
+            <div class="spread-case bear">
+              <div class="spread-label">Bear Case</div>
+              <div class="spread-return negative">${spread.bear_case_return}%</div>
+              <div class="spread-prob">${spread.bear_probability}% prob</div>
+            </div>
+          </div>
+          <div class="spread-confidence">
+            <span class="confidence-label">Confidence</span>
+            <span class="confidence-value ${spread.confidence ? spread.confidence.toLowerCase() : ''}">${spread.confidence || '—'}</span>
           </div>` : ''}
         </div>
         <div class="pick-meta">
