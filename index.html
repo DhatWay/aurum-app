@@ -454,6 +454,44 @@
     .watchlist-company { display: none; }
     .rating-row { grid-template-columns: 1fr 1fr 1fr; }
   }
+ .signal-breakdown {
+    margin-top: 0.8rem;
+    display: grid;
+    gap: 0.4rem;
+  }
+
+  .signal-bar {
+    display: grid;
+    grid-template-columns: 80px 1fr 30px;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .signal-name {
+    font-size: 0.6rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .signal-track {
+    height: 2px;
+    background: var(--rule);
+    position: relative;
+  }
+
+  .signal-fill {
+    height: 100%;
+    background: var(--gold);
+    opacity: 0.6;
+  }
+
+  .signal-val {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.6rem;
+    color: var(--muted);
+    text-align: right;
+  } 
 </style>
 </head>
 <body>
@@ -557,18 +595,27 @@
     const { data } = await db.from('picks').select('*').order('picked_at', { ascending: false }).limit(5);
     const container = document.getElementById('picks-container');
     if (!data || !data.length) return;
-    container.innerHTML = data.map(p => `
+    container.innerHTML = data.map(p => {
+      const signals = p.signals || {};
+      return `
       <div class="pick-card">
         <div class="pick-score ${p.score >= 75 ? 'high' : 'mid'}">${p.score}</div>
         <div class="pick-info">
           <div class="pick-ticker">${p.ticker}</div>
           <div class="pick-brief">${p.brief || '—'}</div>
+          ${signals.momentum || signals.sentiment ? `
+          <div class="signal-breakdown">
+            ${signals.momentum ? `<div class="signal-bar"><span class="signal-name">Momentum</span><div class="signal-track"><div class="signal-fill" style="width:${signals.momentum}%"></div></div><span class="signal-val">${signals.momentum}</span></div>` : ''}
+            ${signals.sentiment ? `<div class="signal-bar"><span class="signal-name">Sentiment</span><div class="signal-track"><div class="signal-fill" style="width:${signals.sentiment}%"></div></div><span class="signal-val">${signals.sentiment}</span></div>` : ''}
+            ${signals.political ? `<div class="signal-bar"><span class="signal-name">Political</span><div class="signal-track"><div class="signal-fill" style="width:${signals.political}%"></div></div><span class="signal-val">${signals.political}</span></div>` : ''}
+            ${signals.macro ? `<div class="signal-bar"><span class="signal-name">Macro</span><div class="signal-track"><div class="signal-fill" style="width:${signals.macro}%"></div></div><span class="signal-val">${signals.macro}</span></div>` : ''}
+          </div>` : ''}
         </div>
         <div class="pick-meta">
           <div class="pick-status monitoring">Monitoring</div>
         </div>
       </div>
-    `).join('');
+    `;}).join('');
   }
 
   async function loadAccuracy() {
