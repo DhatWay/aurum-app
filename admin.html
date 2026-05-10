@@ -472,7 +472,46 @@ header {
 
     <div class="success-msg" id="deploy-success">Algorithm updated successfully.</div>
   </div>
+<div class="gold-rule"></div>
 
+  <!-- Price Alerts -->
+  <div class="section-label">Price Alerts</div>
+  <div class="add-stock-panel">
+    <div class="improve-title">Set Alert</div>
+    <div class="improve-sub">AURUM will flag when a stock moves beyond your threshold. Set alerts for any stock on your watchlist.</div>
+    <div class="inline-fields">
+      <div>
+        <div class="field-label">Ticker</div>
+        <select id="alert-ticker" style="width:100%;background:transparent;border:1px solid var(--rule);color:var(--white);font-family:'DM Sans',sans-serif;font-size:0.8rem;padding:0.8rem 1rem;outline:none;appearance:none;">
+          <option value="">— Select —</option>
+        </select>
+      </div>
+      <div>
+        <div class="field-label">Alert Type</div>
+        <select id="alert-type" style="width:100%;background:transparent;border:1px solid var(--rule);color:var(--white);font-family:'DM Sans',sans-serif;font-size:0.8rem;padding:0.8rem 1rem;outline:none;appearance:none;">
+          <option value="up">Price Up %</option>
+          <option value="down">Price Down %</option>
+        </select>
+      </div>
+      <div>
+        <div class="field-label">Threshold %</div>
+        <input type="number" id="alert-threshold" placeholder="e.g. 5" style="width:100%;background:transparent;border:1px solid var(--rule);color:var(--white);font-family:'DM Sans',sans-serif;font-size:0.8rem;padding:0.8rem 1rem;outline:none;">
+      </div>
+    </div>
+    <div style="margin-bottom:1rem;">
+      <div class="field-label">Entry Price ($)</div>
+      <input type="number" id="alert-entry" placeholder="e.g. 135.50" style="width:100%;background:transparent;border:1px solid var(--rule);color:var(--white);font-family:'DM Sans',sans-serif;font-size:0.8rem;padding:0.8rem 1rem;outline:none;">
+    </div>
+    <button class="btn" onclick="setAlert()">Set Price Alert</button>
+    <div class="success-msg" id="alert-success">Alert set successfully.</div>
+  </div>
+
+  <div class="gold-rule"></div>
+
+  <div class="section-label">Active Alerts</div>
+  <div class="algo-grid" id="alerts-container">
+    <div style="padding:1.5rem;font-size:0.8rem;color:var(--muted)">Loading alerts...</div>
+  </div>
 </main>
 
 <script>
@@ -609,6 +648,52 @@ Respond in this exact JSON format with no extra text:
   }
  function openNav() { document.getElementById('nav-overlay').classList.add('open'); }
   function closeNav() { document.getElementById('nav-overlay').classList.remove('open'); } 
+  async function loadAlertStocks() {
+    const { data } = await db.from('stocks').select('*');
+    if (!data) return;
+    const select = document.getElementById('alert-ticker');
+    select.innerHTML = '<option value="">— Select —</option>' +
+      data.map(s => `<option value="${s.ticker}">${s.ticker}</option>`).join('');
+  }
+
+  async function setAlert() {
+    const ticker = document.getElementById('alert-ticker').value;
+    const alertType = document.getElementById('alert-type').value;
+    const threshold = parseFloat(document.getElementById('alert-threshold').value);
+    const entryPrice = parseFloat(document.getElementById('alert-entry').value);
+    if (!ticker || !threshold || !entryPrice) return;
+
+    const { error } = await db.from('price_alerts').insert({
+      ticker,
+      alert_type: alertType,
+      threshold_pct: threshold,
+      entry_price: entryPrice
+    });
+
+    if (!error) {
+      document.getElementById('alert-success').classList.add('visible');
+      setTimeout(() => document.getElementById('alert-success').classList.remove('visible'), 3000);
+      loadAlerts();
+    }
+  }
+
+  async function loadAlerts() {
+    const { data } = await db.from('price_alerts').select('*').eq('triggered', false).order('created_at', { ascending: false });
+    const container = document.getElementById('alerts-container');
+    if (!data || !data.length) {
+      container.innerHTML = '<div style="padding:1.5rem;font-size:0.8rem;color:var(--muted)">No active alerts.</div>';
+      return;
+    }
+    container.innerHTML = data.map(a => `
+      <div class="algo-card">
+        <div>
+          <div class="algo-name">${a.ticker}</div>
+          <div class="algo-desc">Alert when price moves ${a.alert_type === 'up' ? 'up' : 'down'} ${a.threshold_pct}% from $${a.entry_price}</div>
+          <div class="algo-meta">Set: ${new Date(a.created_at).toLocaleDateString()}</div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:0.5rem;align-items:flex-end;">
+          <div class="algo-status">${a.alert_type === 'up' ? '▲' : '▼'} ${a.threshold_pct}%</div>
+          <button onclick="deleteAlert('${a.id}')" style="back
 </script>
 </body>
 </html>
