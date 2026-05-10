@@ -1,0 +1,755 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AURUM — Help</title>
+<link rel="manifest" href="/aurum-app/manifest.json">
+<meta name="theme-color" content="#C9A84C">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;600&family=DM+Sans:wght@300;400;500&family=IBM+Plex+Mono:wght@300;400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --black: #080808;
+    --gold: #C9A84C;
+    --white: #F0EDE6;
+    --muted: #6B6560;
+    --danger: #8B3A3A;
+    --positive: #3A6B4A;
+    --rule: rgba(201,168,76,0.2);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--black);
+    color: var(--white);
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 400;
+    font-size: 20px;
+    min-height: 100vh;
+    line-height: 1.7;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 999;
+    opacity: 0.4;
+  }
+
+  header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 1rem;
+    padding: 2rem 2.5rem;
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .logo {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 1.8rem;
+    font-weight: 600;
+    letter-spacing: 0.3em;
+    color: var(--gold);
+  }
+
+  .logo span {
+    color: var(--white);
+    opacity: 0.3;
+    font-weight: 300;
+    font-size: 0.7rem;
+    letter-spacing: 0.2em;
+    display: block;
+    margin-top: -4px;
+  }
+
+  .hamburger {
+    background: transparent;
+    border: 1px solid var(--rule);
+    color: var(--gold);
+    font-size: 1.2rem;
+    padding: 0.4rem 0.8rem;
+    cursor: pointer;
+    z-index: 1001;
+    position: relative;
+  }
+
+  .nav-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(8,8,8,0.97);
+    z-index: 1000;
+    display: none;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 2.5rem;
+  }
+
+  .nav-overlay.open { display: flex; }
+
+  .nav-overlay a {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 2.5rem;
+    font-weight: 300;
+    color: var(--muted);
+    text-decoration: none;
+    letter-spacing: 0.2em;
+    transition: color 0.3s;
+  }
+
+  .nav-overlay a:hover { color: var(--gold); }
+  .nav-overlay a.active { color: var(--gold); }
+
+  .nav-close {
+    position: absolute;
+    top: 2rem;
+    right: 2.5rem;
+    background: transparent;
+    border: none;
+    color: var(--muted);
+    font-size: 1.5rem;
+    cursor: pointer;
+  }
+
+  main {
+    padding: 3rem 2.5rem;
+    max-width: 860px;
+    margin: 0 auto;
+  }
+
+  .page-title {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: clamp(2.5rem, 7vw, 4rem);
+    font-weight: 300;
+    color: var(--white);
+    margin-bottom: 0.5rem;
+    line-height: 1.1;
+  }
+
+  .page-title em { color: var(--gold); font-style: normal; }
+
+  .page-sub {
+    font-size: 1.1rem;
+    color: var(--muted);
+    margin-bottom: 2rem;
+    line-height: 1.7;
+    max-width: 600px;
+  }
+
+  /* Search */
+  .search-wrap {
+    margin-bottom: 3rem;
+  }
+
+  .search-input {
+    width: 100%;
+    background: transparent;
+    border: 1px solid var(--rule);
+    color: var(--white);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 1rem;
+    padding: 1rem 1.5rem;
+    outline: none;
+    transition: border 0.3s;
+  }
+
+  .search-input:focus { border-color: var(--gold); }
+  .search-input::placeholder { color: var(--muted); }
+
+  .gold-rule {
+    width: 100%;
+    height: 1px;
+    background: var(--rule);
+    margin: 3rem 0;
+  }
+
+  /* Section */
+  .help-section {
+    margin-bottom: 3rem;
+  }
+
+  .help-section-title {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 1.8rem;
+    font-weight: 400;
+    color: var(--white);
+    margin-bottom: 1.5rem;
+    padding-bottom: 0.8rem;
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .help-section-title em { color: var(--gold); font-style: normal; }
+
+  /* FAQ items */
+  .faq-item {
+    border: 1px solid var(--rule);
+    margin-bottom: 1px;
+    overflow: hidden;
+  }
+
+  .faq-question {
+    padding: 1.2rem 1.5rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    transition: background 0.3s;
+    gap: 1rem;
+  }
+
+  .faq-question:hover { background: rgba(201,168,76,0.03); }
+
+  .faq-question-text {
+    font-size: 1rem;
+    color: var(--white);
+    font-weight: 500;
+    line-height: 1.4;
+  }
+
+  .faq-icon {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 1rem;
+    color: var(--gold);
+    flex-shrink: 0;
+    transition: transform 0.3s;
+  }
+
+  .faq-item.open .faq-icon { transform: rotate(45deg); }
+
+  .faq-answer {
+    padding: 0 1.5rem;
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.4s ease, padding 0.3s;
+    font-size: 0.95rem;
+    color: var(--muted);
+    line-height: 1.8;
+  }
+
+  .faq-item.open .faq-answer {
+    max-height: 500px;
+    padding: 0 1.5rem 1.5rem;
+  }
+
+  .faq-answer strong { color: var(--white); }
+
+  .faq-answer .mono {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.85rem;
+    color: var(--gold);
+    background: rgba(201,168,76,0.05);
+    padding: 0.2rem 0.5rem;
+    border: 1px solid var(--rule);
+  }
+
+  /* Glossary */
+  .glossary-grid {
+    display: grid;
+    gap: 1px;
+    background: var(--rule);
+    border: 1px solid var(--rule);
+  }
+
+  .glossary-item {
+    background: var(--black);
+    padding: 1.2rem 1.5rem;
+    display: grid;
+    grid-template-columns: 180px 1fr;
+    gap: 1.5rem;
+    align-items: start;
+  }
+
+  .glossary-term {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.85rem;
+    color: var(--gold);
+    letter-spacing: 0.05em;
+    padding-top: 0.1rem;
+  }
+
+  .glossary-def {
+    font-size: 0.95rem;
+    color: var(--muted);
+    line-height: 1.6;
+  }
+
+  .glossary-def strong { color: var(--white); }
+
+  /* Quick links */
+  .quick-links {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1px;
+    background: var(--rule);
+    border: 1px solid var(--rule);
+    margin-bottom: 3rem;
+  }
+
+  .quick-link {
+    background: var(--black);
+    padding: 1.5rem;
+    text-decoration: none;
+    transition: background 0.3s;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .quick-link:hover { background: rgba(201,168,76,0.03); }
+
+  .quick-link-name {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 1.3rem;
+    color: var(--white);
+    margin-bottom: 0.2rem;
+  }
+
+  .quick-link-desc {
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+
+  .quick-link-arrow {
+    font-family: 'IBM Plex Mono', monospace;
+    color: var(--gold);
+    font-size: 1rem;
+  }
+
+  footer {
+    padding: 2rem 2.5rem;
+    border-top: 1px solid var(--rule);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 4rem;
+  }
+
+  footer p {
+    font-size: 0.8rem;
+    letter-spacing: 0.15em;
+    color: var(--muted);
+    text-transform: uppercase;
+  }
+
+  .footer-au {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 1rem;
+    color: var(--rule);
+    letter-spacing: 0.3em;
+  }
+
+  .no-results {
+    padding: 2rem;
+    text-align: center;
+    font-size: 0.9rem;
+    color: var(--muted);
+    letter-spacing: 0.1em;
+    display: none;
+  }
+
+  @media (max-width: 600px) {
+    main { padding: 2rem 1.5rem; }
+    header { padding: 1.5rem; }
+    .glossary-item { grid-template-columns: 1fr; gap: 0.5rem; }
+    .quick-links { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    AU
+    <span>PRIVATE INTELLIGENCE</span>
+  </div>
+  <button class="hamburger" onclick="openNav()">☰</button>
+</header>
+
+<div class="nav-overlay" id="nav-overlay">
+  <button class="nav-close" onclick="closeNav()">✕</button>
+  <a href="index.html">Brief</a>
+  <a href="news.html">News</a>
+  <a href="history.html">History</a>
+  <a href="sectors.html">Sectors</a>
+  <a href="simulator.html">Simulator</a>
+  <a href="tutorial.html">Tutorial</a>
+  <a href="help.html" class="active">Help</a>
+  <a href="admin.html">Admin</a>
+</div>
+
+<main>
+
+  <div class="page-title">AURUM <em>Help.</em></div>
+  <div class="page-sub">Everything you need to know about how AURUM works — features, algorithms, terms, and answers to common questions.</div>
+
+  <div class="search-wrap">
+    <input type="text" class="search-input" id="search-input" placeholder="Search help topics..." oninput="searchHelp()">
+  </div>
+
+  <div id="no-results" class="no-results">No results found. Try a different search term.</div>
+
+  <!-- Quick Links -->
+  <div class="help-section" id="section-quicklinks">
+    <div class="help-section-title">Quick <em>Navigation</em></div>
+    <div class="quick-links">
+      <a href="index.html" class="quick-link">
+        <div>
+          <div class="quick-link-name">Brief</div>
+          <div class="quick-link-desc">Weekly picks and accuracy</div>
+        </div>
+        <div class="quick-link-arrow">→</div>
+      </a>
+      <a href="news.html" class="quick-link">
+        <div>
+          <div class="quick-link-name">News</div>
+          <div class="quick-link-desc">Intelligence feed</div>
+        </div>
+        <div class="quick-link-arrow">→</div>
+      </a>
+      <a href="simulator.html" class="quick-link">
+        <div>
+          <div class="quick-link-name">Simulator</div>
+          <div class="quick-link-desc">Paper trading</div>
+        </div>
+        <div class="quick-link-arrow">→</div>
+      </a>
+      <a href="admin.html" class="quick-link">
+        <div>
+          <div class="quick-link-name">Admin</div>
+          <div class="quick-link-desc">Watchlist and algorithms</div>
+        </div>
+        <div class="quick-link-arrow">→</div>
+      </a>
+      <a href="history.html" class="quick-link">
+        <div>
+          <div class="quick-link-name">History</div>
+          <div class="quick-link-desc">Pick archive</div>
+        </div>
+        <div class="quick-link-arrow">→</div>
+      </a>
+      <a href="sectors.html" class="quick-link">
+        <div>
+          <div class="quick-link-name">Sectors</div>
+          <div class="quick-link-desc">Sector intelligence</div>
+        </div>
+        <div class="quick-link-arrow">→</div>
+      </a>
+    </div>
+  </div>
+
+  <div class="gold-rule"></div>
+
+  <!-- General FAQ -->
+  <div class="help-section" id="section-general">
+    <div class="help-section-title">General <em>Questions</em></div>
+
+    <div class="faq-item" data-keywords="aurum what is how does work">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">What exactly is AURUM?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">AURUM is a <strong>private market intelligence system</strong>. It aggregates news, economic data, political signals, and sentiment — runs it through 11 custom algorithms — and produces a formal intelligence brief on stocks you're watching. It doesn't trade. It thinks, scores, and grades itself over time.</div>
+    </div>
+
+    <div class="faq-item" data-keywords="picks generated when how often weekly monday">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">When does AURUM generate picks?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">Picks are generated every <strong>Monday at 9am</strong> automatically. The weekly analysis runs all 11 algorithms against your watchlist and produces scored picks with formal briefs. You don't need to do anything — it happens without you.</div>
+    </div>
+
+    <div class="faq-item" data-keywords="email brief when monday receive">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">When do I receive the weekly brief email?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">Every <strong>Monday at 10am</strong> AURUM emails a full intelligence brief to your registered email. It includes current picks, system accuracy, watchlist, and top news headlines — formatted in AURUM's luxury aesthetic.</div>
+    </div>
+
+    <div class="faq-item" data-keywords="score what mean 87 numbers rating">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">What does the pick score mean?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">The score (0-100) represents <strong>AURUM's composite confidence</strong> in a stock based on all active signal inputs. A score of <span class="mono">80+</span> means strong alignment across multiple signals. <span class="mono">60-79</span> means moderate alignment. Below <span class="mono">60</span> means AURUM is watching but not high conviction. The score alone is not a buy signal — read the brief and probability spread too.</div>
+    </div>
+
+    <div class="faq-item" data-keywords="accuracy self rating grade how measured">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">How does AURUM grade its own accuracy?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">Every pick is logged at the moment it's made with the entry price and timestamp. At <strong>30, 60, and 90 days</strong> AURUM compares the pick's performance against the S&P 500. If the pick outperformed the market it's marked as a win. The accuracy percentage on the Brief page reflects this verified track record — not projections.</div>
+    </div>
+
+    <div class="faq-item" data-keywords="cost money api credits how much">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">What does AURUM cost to run?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">At current scale AURUM runs for approximately <strong>$15/month</strong> — almost entirely Claude API usage for the weekly analysis. News fetching uses free APIs. Hosting is free via GitHub Pages. Supabase database is free tier. Email is free via Resend. The cost scales up only when you add paid data sources like Benzinga or Bloomberg.</div>
+    </div>
+
+  </div>
+
+  <div class="gold-rule"></div>
+
+  <!-- Algorithms FAQ -->
+  <div class="help-section" id="section-algorithms">
+    <div class="help-section-title">The <em>Algorithms</em></div>
+
+    <div class="faq-item" data-keywords="momentum detector price velocity volume">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">What does the Momentum Detector do?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">Measures <strong>price velocity</strong> over the last 14 days combined with volume trends. A stock moving up fast with increasing volume scores higher than one drifting up on thin volume. Flags strong directional movement candidates for AURUM's analysis cycle.</div>
+    </div>
+
+    <div class="faq-item" data-keywords="sentiment detector news social score bullish bearish">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">What does the Sentiment Detector do?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">Combines <strong>news sentiment (60% weight)</strong> and <strong>social sentiment (40% weight)</strong> into a single score. Returns bullish, bearish, or neutral signal. News is weighted more heavily because it reflects institutional awareness while social reflects retail momentum.</div>
+    </div>
+
+    <div class="faq-item" data-keywords="political signal congressional trades policy">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">What does the Political Signal Detector do?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">Tracks <strong>congressional trading activity</strong> and policy event signals. When members of Congress are buying a stock that's a meaningful signal — they often have advance knowledge of favorable legislation. Adjusts score up when congressional buying exceeds selling, down when the reverse is true.</div>
+    </div>
+
+    <div class="faq-item" data-keywords="options flow unusual smart money calls puts">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">What does the Options Flow Detector do?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">Detects <strong>unusual options activity</strong> — when call or put volume significantly exceeds historical averages. This is often smart money positioning before a major price move. Weighted 2x in the probability spread model because it's one of the most reliable leading indicators available.</div>
+    </div>
+
+    <div class="faq-item" data-keywords="insider transaction ceo cfo buying personal">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">What does the Insider Transaction Tracker do?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">Tracks <strong>SEC Form 4 filings</strong> — when executives buy or sell their own company stock with personal funds. CEO and CFO purchases are weighted heavily because insiders rarely buy their own stock unless they believe it's undervalued. Weighted 2x in the probability spread model alongside options flow.</div>
+    </div>
+
+    <div class="faq-item" data-keywords="macro regime sector stagflation recession growth">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">What does the Macro Regime Detector do?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">Identifies the current <strong>macroeconomic regime</strong> — high rate growth, low rate growth, stagflation risk, recession, or yield curve inversion — and applies sector-specific adjustments. In a high rate environment finance scores higher and tech scores lower. In recession healthcare and utilities outperform. AURUM adjusts automatically.</div>
+    </div>
+
+    <div class="faq-item" data-keywords="probability spread bull bear base case confidence">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">What is the Probability Spread Model?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">AURUM's <strong>master intelligence layer</strong>. It synthesizes all 10 signal outputs — applying smart money weighting, macro regime adjustments, earnings cycle penalties, and sentiment velocity — into a full probability distribution. Produces bull case, base case, and bear case return estimates with probability percentages and a confidence rating. Think of it like a point spread for stocks.</div>
+    </div>
+
+    <div class="faq-item" data-keywords="improve algorithm change plain english admin">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">How do I improve an algorithm?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">Go to the <strong>Admin panel</strong> → Algorithm Improvement section. Select the algorithm you want to change. Describe the improvement in plain English — for example <em>"The momentum detector flags too many small cap stocks. I only want large cap above $10B market cap."</em> AURUM rewrites the code and presents it for your approval before anything deploys. You never need to touch code directly.</div>
+    </div>
+
+  </div>
+
+  <div class="gold-rule"></div>
+
+  <!-- Features FAQ -->
+  <div class="help-section" id="section-features">
+    <div class="help-section-title">Features & <em>Pages</em></div>
+
+    <div class="faq-item" data-keywords="watchlist add stock who advises">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">How do I add stocks to the watchlist?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">Go to <strong>Admin → Manage Watchlist</strong>. Enter the ticker, company name, and sector. Only add stocks when advised — either by AURUM's analysis or by Claude directly. Every stock added gets analyzed weekly by all 11 algorithms. Quality over quantity — a focused watchlist produces sharper intelligence.</div>
+    </div>
+
+    <div class="faq-item" data-keywords="simulator paper trading fake money how use">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">How does the Paper Trading Simulator work?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">The Simulator gives you <strong>$10,000 in simulated capital</strong>. Open positions by selecting a watchlist stock, entering your entry price and number of shares. Update the current price anytime to see real gain or loss calculations. Close positions when done. The portfolio tracks your total return over time — letting you validate AURUM's picks before committing real money.</div>
+    </div>
+
+    <div class="faq-item" data-keywords="news feed fetch sources how often update">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">How does the News Feed work?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">AURUM automatically fetches news every morning at <strong>8am</strong> from Yahoo Finance, Google News, Reddit, SEC EDGAR, and Alpha Vantage. Each headline is scored for sentiment and cross-referenced with your watchlist. You can also tap <strong>Fetch Now</strong> on the News page for an immediate refresh. Paid sources (Bloomberg, Reuters, Benzinga) activate when API keys are added.</div>
+    </div>
+
+    <div class="faq-item" data-keywords="price alert set threshold notify">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">How do Price Alerts work?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">Go to <strong>Admin → Price Alerts</strong>. Select a watchlist stock, choose whether you want to alert on upward or downward movement, set your percentage threshold, and enter your entry price. AURUM monitors and flags when the threshold is reached. Alerts are visible in the Admin panel and can be removed anytime.</div>
+    </div>
+
+    <div class="faq-item" data-keywords="sectors page performance breakdown">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">What does the Sectors page show?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">The Sectors page groups your watchlist stocks by sector — Technology, Finance, Energy, etc. — and shows the <strong>average AURUM score per sector</strong>. This helps you see where AURUM's collective intelligence is most bullish and whether your watchlist is too concentrated in one sector. The score bar shows relative strength visually.</div>
+    </div>
+
+    <div class="faq-item" data-keywords="history archive picks past all time filter">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">What is the Pick History Archive?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">The History page logs <strong>every pick AURUM has ever made</strong> — score, brief, signal breakdown, date, and outcome. Filter by All, Real, Simulated, or Score 80+. This is your verified track record — the foundation of AURUM's credibility over time. Nothing is deleted or hidden.</div>
+    </div>
+
+  </div>
+
+  <div class="gold-rule"></div>
+
+  <!-- Glossary -->
+  <div class="help-section" id="section-glossary">
+    <div class="help-section-title">Glossary of <em>Terms</em></div>
+    <div class="glossary-grid">
+      <div class="glossary-item">
+        <div class="glossary-term">Composite Score</div>
+        <div class="glossary-def">AURUM's 0-100 rating for a stock. Synthesizes all active signal inputs into a single number representing overall conviction.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="glossary-term">Probability Spread</div>
+        <div class="glossary-def">Bull case, base case, and bear case return estimates with probability percentages. Modeled after how professional traders think about position risk.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="glossary-term">Signal Conflict</div>
+        <div class="glossary-def">When AURUM's algorithms disagree significantly — spread of 35+ points between highest and lowest signal. Reduces confidence rating to Conflicted.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="glossary-term">Smart Money</div>
+        <div class="glossary-def">Institutional investors, hedge funds, and corporate insiders whose positioning often predicts price movement. Options flow and insider transactions are AURUM's smart money signals.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="glossary-term">Macro Regime</div>
+        <div class="glossary-def">The current macroeconomic environment — high rate growth, low rate growth, stagflation risk, recession, or yield curve inversion. Different regimes favor different sectors.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="glossary-term">Sentiment Velocity</div>
+        <div class="glossary-def">The rate of change in sentiment — not just whether it's positive but whether it's accelerating or decelerating. Accelerating positive sentiment is a stronger signal than peaked sentiment.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="glossary-term">Self-Rating</div>
+        <div class="glossary-def">AURUM's system for grading its own accuracy. Picks are logged at entry price and compared against actual performance at 30, 60, and 90 days.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="glossary-term">Beat Market</div>
+        <div class="glossary-def">A pick that outperformed the S&P 500 return over the same period. The primary benchmark for AURUM's self-rating system.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="glossary-term">Correlation Risk</div>
+        <div class="glossary-def">When two or more watchlist stocks move almost identically. High correlation means your watchlist provides less diversification than it appears.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="glossary-term">Earnings Cycle</div>
+        <div class="glossary-def">The period around a company's quarterly earnings report. AURUM applies a volatility penalty to picks within 7-14 days of earnings due to elevated uncertainty.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="glossary-term">Options Flow</div>
+        <div class="glossary-def">The volume and direction of options contracts being traded. Unusual call volume suggests bullish smart money positioning. Unusual put volume suggests bearish positioning.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="glossary-term">Form 4</div>
+        <div class="glossary-def">SEC filing required when corporate insiders buy or sell their own company stock. AURUM monitors these filings via EDGAR as part of the insider transaction tracker.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="glossary-term">Paper Trading</div>
+        <div class="glossary-def">Simulated trading with virtual money. Used to test AURUM's picks without risking real capital. AURUM's simulator starts with $10,000 in simulated funds.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="glossary-term">Tier 1 Source</div>
+        <div class="glossary-def">Highest quality news sources — Yahoo Finance, Alpha Vantage, SEC EDGAR, Bloomberg, Reuters. Weighted more heavily in sentiment analysis.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="glossary-term">Plug and Play</div>
+        <div class="glossary-def">AURUM's architecture for paid data sources. The endpoint is already built — adding an API key activates the source immediately without any additional coding.</div>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<footer>
+  <p>AURUM © 2026 — Private Use Only</p>
+  <div class="footer-au">AU</div>
+</footer>
+
+<script>
+  function toggleFaq(el) {
+    const item = el.parentElement;
+    const isOpen = item.classList.contains('open');
+    document.querySelectorAll('.faq-item.open').forEach(i => i.classList.remove('open'));
+    if (!isOpen) item.classList.add('open');
+  }
+
+  function searchHelp() {
+    const query = document.getElementById('search-input').value.toLowerCase().trim();
+    const items = document.querySelectorAll('.faq-item');
+    const glossaryItems = document.querySelectorAll('.glossary-item');
+    let anyVisible = false;
+
+    if (!query) {
+      items.forEach(i => { i.style.display = ''; });
+      glossaryItems.forEach(i => { i.style.display = ''; });
+      document.querySelectorAll('.help-section').forEach(s => s.style.display = '');
+      document.getElementById('no-results').style.display = 'none';
+      return;
+    }
+
+    items.forEach(item => {
+      const keywords = item.getAttribute('data-keywords') || '';
+      const text = item.textContent.toLowerCase();
+      const match = keywords.includes(query) || text.includes(query);
+      item.style.display = match ? '' : 'none';
+      if (match) anyVisible = true;
+    });
+
+    glossaryItems.forEach(item => {
+      const text = item.textContent.toLowerCase();
+      const match = text.includes(query);
+      item.style.display = match ? '' : 'none';
+      if (match) anyVisible = true;
+    });
+
+    document.getElementById('no-results').style.display = anyVisible ? 'none' : 'block';
+  }
+
+  function openNav() { document.getElementById('nav-overlay').classList.add('open'); }
+  function closeNav() { document.getElementById('nav-overlay').classList.remove('open'); }
+
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/aurum-app/sw.js');
+  }
+</script>
+
+</body>
+</html>
