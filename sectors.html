@@ -67,18 +67,54 @@
   }
 
   nav a {
-    font-size: 0.75rem;
-    letter-spacing: 0.2em;
-    color: var(--muted);
-    text-decoration: none;
-    text-transform: uppercase;
-    transition: color 0.3s;
-    margin-left: 1.5rem;
+.hamburger {
+    background: transparent;
+    border: 1px solid var(--rule);
+    color: var(--gold);
+    font-size: 1.2rem;
+    padding: 0.4rem 0.8rem;
+    cursor: pointer;
+    z-index: 1001;
+    position: relative;
   }
 
-  nav a:hover { color: var(--gold); }
-  nav a.active { color: var(--gold); }
+  .nav-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(8,8,8,0.97);
+    z-index: 1000;
+    display: none;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 2.5rem;
+  }
 
+  .nav-overlay.open { display: flex; }
+
+  .nav-overlay a {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 2.5rem;
+    font-weight: 300;
+    color: var(--muted);
+    text-decoration: none;
+    letter-spacing: 0.2em;
+    transition: color 0.3s;
+  }
+
+  .nav-overlay a:hover { color: var(--gold); }
+  .nav-overlay a.active { color: var(--gold); }
+
+  .nav-close {
+    position: absolute;
+    top: 2rem;
+    right: 2.5rem;
+    background: transparent;
+    border: none;
+    color: var(--muted);
+    font-size: 1.5rem;
+    cursor: pointer;
+  }
   main {
     padding: 3rem 2.5rem;
     max-width: 900px;
@@ -339,13 +375,17 @@
     AU
     <span>PRIVATE INTELLIGENCE</span>
   </div>
-  <nav>
-    <a href="index.html">Brief</a>
-    <a href="history.html">History</a>
-    <a href="sectors.html" class="active">Sectors</a>
-    <a href="simulator.html">Simulator</a>
-    <a href="admin.html">Admin</a>
-  </nav>
+  <button class="hamburger" onclick="openNav()">☰</button>
+</header>
+
+<div class="nav-overlay" id="nav-overlay">
+  <button class="nav-close" onclick="closeNav()">✕</button>
+  <a href="index.html">Brief</a>
+  <a href="history.html">History</a>
+  <a href="sectors.html" class="active">Sectors</a>
+  <a href="simulator.html">Simulator</a>
+  <a href="admin.html">Admin</a>
+</div>
 </header>
 
 <main>
@@ -491,6 +531,8 @@
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/aurum-app/sw.js');
   }
+ function openNav() { document.getElementById('nav-overlay').classList.add('open'); }
+  function closeNav() { document.getElementById('nav-overlay').classList.remove('open'); } 
 </script>
 
 </body>
