@@ -89,10 +89,29 @@
 
   .nav-overlay.open { display: flex; }
 
-  .nav-overlay a {
+.nav-overlay a {
     font-family: 'Cormorant Garamond', serif;
     font-size: 2.5rem;
-    font-we
+    font-weight: 300;
+    color: var(--muted);
+    text-decoration: none;
+    letter-spacing: 0.2em;
+    transition: color 0.3s;
+  }
+
+  .nav-overlay a:hover { color: var(--gold); }
+  .nav-overlay a.active { color: var(--gold); }
+
+  .nav-close {
+    position: absolute;
+    top: 2rem;
+    right: 2.5rem;
+    background: transparent;
+    border: none;
+    color: var(--muted);
+    font-size: 1.5rem;
+    cursor: pointer;
+  }
 
   main {
     padding: 3rem 2.5rem;
