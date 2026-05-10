@@ -1,0 +1,663 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AURUM — Intelligence Feed</title>
+<link rel="manifest" href="/aurum-app/manifest.json">
+<meta name="theme-color" content="#C9A84C">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;600&family=DM+Sans:wght@300;400;500&family=IBM+Plex+Mono:wght@300;400&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root {
+    --black: #080808;
+    --gold: #C9A84C;
+    --white: #F0EDE6;
+    --muted: #6B6560;
+    --danger: #8B3A3A;
+    --positive: #3A6B4A;
+    --rule: rgba(201,168,76,0.2);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--black);
+    color: var(--white);
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 400;
+    font-size: 18px;
+    min-height: 100vh;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 999;
+    opacity: 0.4;
+  }
+
+  header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 1rem;
+    padding: 2rem 2.5rem;
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .logo {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 1.8rem;
+    font-weight: 600;
+    letter-spacing: 0.3em;
+    color: var(--gold);
+  }
+
+  .logo span {
+    color: var(--white);
+    opacity: 0.3;
+    font-weight: 300;
+    font-size: 0.7rem;
+    letter-spacing: 0.2em;
+    display: block;
+    margin-top: -4px;
+  }
+
+  .hamburger {
+    background: transparent;
+    border: 1px solid var(--rule);
+    color: var(--gold);
+    font-size: 1.2rem;
+    padding: 0.4rem 0.8rem;
+    cursor: pointer;
+    z-index: 1001;
+    position: relative;
+  }
+
+  .nav-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(8,8,8,0.97);
+    z-index: 1000;
+    display: none;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 2.5rem;
+  }
+
+  .nav-overlay.open { display: flex; }
+
+  .nav-overlay a {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 2.5rem;
+    font-weight: 300;
+    color: var(--muted);
+    text-decoration: none;
+    letter-spacing: 0.2em;
+    transition: color 0.3s;
+  }
+
+  .nav-overlay a:hover { color: var(--gold); }
+  .nav-overlay a.active { color: var(--gold); }
+
+  .nav-close {
+    position: absolute;
+    top: 2rem;
+    right: 2.5rem;
+    background: transparent;
+    border: none;
+    color: var(--muted);
+    font-size: 1.5rem;
+    cursor: pointer;
+  }
+
+  main {
+    padding: 3rem 2.5rem;
+    max-width: 900px;
+    margin: 0 auto;
+  }
+
+  .page-title {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: clamp(2rem, 6vw, 3.5rem);
+    font-weight: 300;
+    color: var(--white);
+    margin-bottom: 0.5rem;
+  }
+
+  .page-title em { color: var(--gold); font-style: normal; }
+
+  .page-sub {
+    font-size: 0.9rem;
+    color: var(--muted);
+    margin-bottom: 3rem;
+    line-height: 1.7;
+  }
+
+  .gold-rule {
+    width: 100%;
+    height: 1px;
+    background: var(--rule);
+    margin: 2.5rem 0;
+  }
+
+  .section-label {
+    font-size: 0.85rem;
+    letter-spacing: 0.3em;
+    color: var(--gold);
+    text-transform: uppercase;
+    margin-bottom: 1.5rem;
+  }
+
+  /* Filter bar */
+  .filter-bar {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 2rem;
+    flex-wrap: wrap;
+  }
+
+  .filter-btn {
+    background: transparent;
+    border: 1px solid var(--rule);
+    color: var(--muted);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.75rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    padding: 0.4rem 1rem;
+    cursor: pointer;
+    transition: all 0.3s;
+  }
+
+  .filter-btn:hover { border-color: var(--gold); color: var(--gold); }
+  .filter-btn.active { border-color: var(--gold); color: var(--gold); background: rgba(201,168,76,0.05); }
+
+  /* Sources panel */
+  .sources-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1px;
+    background: var(--rule);
+    border: 1px solid var(--rule);
+    margin-bottom: 2.5rem;
+  }
+
+  .source-card {
+    background: var(--black);
+    padding: 1rem 1.5rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .source-name {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--white);
+    margin-bottom: 0.2rem;
+  }
+
+  .source-type {
+    font-size: 0.6rem;
+    color: var(--muted);
+    letter-spacing: 0.1em;
+  }
+
+  .source-status {
+    font-size: 0.6rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    padding: 0.2rem 0.5rem;
+    border: 1px solid rgba(58,107,74,0.4);
+    color: var(--positive);
+  }
+
+  .source-status.inactive {
+    border-color: var(--rule);
+    color: var(--muted);
+  }
+
+  /* News feed */
+  .news-list {
+    display: grid;
+    gap: 1px;
+    background: var(--rule);
+    border: 1px solid var(--rule);
+  }
+
+  .news-card {
+    background: var(--black);
+    padding: 1.5rem;
+    transition: background 0.3s;
+    cursor: pointer;
+  }
+
+  .news-card:hover { background: rgba(201,168,76,0.03); }
+
+  .news-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 0.8rem;
+    gap: 1rem;
+  }
+
+  .news-headline {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 1.1rem;
+    font-weight: 400;
+    color: var(--white);
+    line-height: 1.4;
+    flex: 1;
+  }
+
+  .news-ticker {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--gold);
+    letter-spacing: 0.1em;
+    white-space: nowrap;
+    border: 1px solid var(--rule);
+    padding: 0.2rem 0.5rem;
+  }
+
+  .news-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+  }
+
+  .news-source {
+    font-size: 0.65rem;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+    text-transform: uppercase;
+  }
+
+  .news-time {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.65rem;
+    color: var(--muted);
+  }
+
+  .news-summary {
+    font-size: 0.8rem;
+    color: var(--muted);
+    line-height: 1.6;
+    margin-bottom: 0.8rem;
+  }
+
+  .news-signals {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+
+  .news-signal-tag {
+    font-size: 0.6rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 0.2rem 0.5rem;
+    border: 1px solid var(--rule);
+    color: var(--muted);
+  }
+
+  .news-signal-tag.bullish {
+    border-color: rgba(58,107,74,0.4);
+    color: var(--positive);
+  }
+
+  .news-signal-tag.bearish {
+    border-color: rgba(139,58,58,0.4);
+    color: var(--danger);
+  }
+
+  .news-signal-tag.neutral {
+    border-color: var(--rule);
+    color: var(--muted);
+  }
+
+  /* Fetch panel */
+  .fetch-panel {
+    border: 1px solid var(--rule);
+    padding: 1.5rem;
+    margin-bottom: 2.5rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 1rem;
+  }
+
+  .fetch-text {
+    font-size: 0.8rem;
+    color: var(--muted);
+    line-height: 1.6;
+  }
+
+  .fetch-text strong {
+    display: block;
+    color: var(--white);
+    font-size: 0.9rem;
+    margin-bottom: 0.3rem;
+  }
+
+  .btn-fetch {
+    background: transparent;
+    border: 1px solid var(--gold);
+    color: var(--gold);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.7rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    padding: 0.8rem 1.5rem;
+    cursor: pointer;
+    transition: all 0.3s;
+    white-space: nowrap;
+  }
+
+  .btn-fetch:hover { background: var(--gold); color: var(--black); }
+  .btn-fetch:disabled { opacity: 0.3; cursor: not-allowed; }
+
+  .empty-state {
+    padding: 3rem;
+    text-align: center;
+    font-size: 0.85rem;
+    letter-spacing: 0.15em;
+    color: var(--muted);
+    text-transform: uppercase;
+  }
+
+  /* Tier badge */
+  .tier-1 { color: var(--gold); }
+  .tier-2 { color: var(--muted); }
+
+  footer {
+    padding: 2rem 2.5rem;
+    border-top: 1px solid var(--rule);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 4rem;
+  }
+
+  footer p {
+    font-size: 0.75rem;
+    letter-spacing: 0.15em;
+    color: var(--muted);
+    text-transform: uppercase;
+  }
+
+  .footer-au {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 1rem;
+    color: var(--rule);
+    letter-spacing: 0.3em;
+  }
+
+  @media (max-width: 600px) {
+    main { padding: 2rem 1.5rem; }
+    header { padding: 1.5rem; }
+    .sources-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    AU
+    <span>PRIVATE INTELLIGENCE</span>
+  </div>
+  <button class="hamburger" onclick="openNav()">☰</button>
+</header>
+
+<div class="nav-overlay" id="nav-overlay">
+  <button class="nav-close" onclick="closeNav()">✕</button>
+  <a href="index.html">Brief</a>
+  <a href="news.html" class="active">News</a>
+  <a href="history.html">History</a>
+  <a href="sectors.html">Sectors</a>
+  <a href="simulator.html">Simulator</a>
+  <a href="admin.html">Admin</a>
+</div>
+
+<main>
+
+  <div class="page-title">Intelligence <em>Feed.</em></div>
+  <div class="page-sub">Real time news aggregated from all sources — scored against AURUM's algorithms and filtered by signal alignment.</div>
+
+  <div class="section-label">News Sources</div>
+  <div class="sources-grid" id="sources-container">
+    <div class="empty-state">Loading sources...</div>
+  </div>
+
+  <div class="gold-rule"></div>
+
+  <div class="section-label">Live Feed</div>
+
+  <div class="fetch-panel">
+    <div class="fetch-text">
+      <strong>Fetch Latest News</strong>
+      Pulls headlines from all active free sources for your watchlist stocks and scores them against AURUM's signal stack.
+    </div>
+    <button class="btn-fetch" id="fetch-btn" onclick="fetchNews()">Fetch Now</button>
+  </div>
+
+  <div class="filter-bar">
+    <button class="filter-btn active" onclick="filterNews('all', this)">All</button>
+    <button class="filter-btn" onclick="filterNews('bullish', this)">Bullish</button>
+    <button class="filter-btn" onclick="filterNews('bearish', this)">Bearish</button>
+    <button class="filter-btn" onclick="filterNews('neutral', this)">Neutral</button>
+  </div>
+
+  <div class="news-list" id="news-container">
+    <div class="empty-state">Tap Fetch Now to load latest intelligence.</div>
+  </div>
+
+</main>
+
+<footer>
+  <p>AURUM © 2026 — Private Use Only</p>
+  <div class="footer-au">AU</div>
+</footer>
+
+<script>
+  const SUPABASE_URL = 'https://zpcbbwynvvyldavxzjng.supabase.co';
+  const SUPABASE_KEY = 'sb_publishable_K80lcfk8LsQNqo5enznRRA_lrzf2U9K';
+  const { createClient } = supabase;
+  const db = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+  let allNews = [];
+
+  async function loadSources() {
+    const { data } = await db.from('news_sources').select('*').order('tier').order('name');
+    const container = document.getElementById('sources-container');
+    if (!data) return;
+    container.innerHTML = data.map(s => `
+      <div class="source-card">
+        <div>
+          <div class="news-source tier-${s.tier}">${s.name}</div>
+          <div class="source-type">${s.api_key_required ? 'PAID — API Key Required' : 'Free — Active'}</div>
+        </div>
+        <div class="source-status ${s.active ? '' : 'inactive'}">${s.active ? 'Live' : 'Pending'}</div>
+      </div>
+    `).join('');
+  }
+
+  async function fetchNews() {
+    const btn = document.getElementById('fetch-btn');
+    btn.disabled = true;
+    btn.textContent = 'Fetching...';
+
+    const { data: stocks } = await db.from('stocks').select('ticker');
+    if (!stocks || !stocks.length) {
+      btn.disabled = false;
+      btn.textContent = 'Fetch Now';
+      return;
+    }
+
+    const tickers = stocks.map(s => s.ticker);
+    const newsItems = [];
+
+    for (const ticker of tickers) {
+      try {
+        // Yahoo Finance RSS via CORS proxy
+        const yahooUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(`https://finance.yahoo.com/rss/headline?s=${ticker}`)}`;
+        const res = await fetch(yahooUrl);
+        const data = await res.json();
+        const parser = new DOMParser();
+        const xml = parser.parseFromString(data.contents, 'text/xml');
+        const items = xml.querySelectorAll('item');
+
+        items.forEach((item, i) => {
+          if (i >= 3) return; // max 3 per ticker
+          const headline = item.querySelector('title')?.textContent || '';
+          const summary = item.querySelector('description')?.textContent?.replace(/<[^>]*>/g, '') || '';
+          const pubDate = item.querySelector('pubDate')?.textContent || '';
+          const link = item.querySelector('link')?.textContent || '';
+
+          // Simple sentiment scoring
+          const bullishWords = ['surge', 'rally', 'beat', 'growth', 'gain', 'record', 'strong', 'upgrade', 'buy', 'bullish', 'profit', 'soar', 'rise'];
+          const bearishWords = ['drop', 'fall', 'miss', 'loss', 'decline', 'weak', 'downgrade', 'sell', 'bearish', 'crash', 'plunge', 'warning'];
+          const text = (headline + ' ' + summary).toLowerCase();
+          const bullScore = bullishWords.filter(w => text.includes(w)).length;
+          const bearScore = bearishWords.filter(w => text.includes(w)).length;
+          const sentiment = bullScore > bearScore ? 'bullish' : bearScore > bullScore ? 'bearish' : 'neutral';
+          const sentimentScore = bullScore - bearScore;
+
+          newsItems.push({
+            ticker,
+            headline,
+            summary: summary.slice(0, 200),
+            source: 'Yahoo Finance',
+            source_tier: 1,
+            url: link,
+            sentiment_score: sentimentScore,
+            algorithm_alignment: { sentiment },
+            published_at: pubDate ? new Date(pubDate).toISOString() : new Date().toISOString()
+          });
+        });
+      } catch(e) {
+        console.log(`Failed to fetch news for ${ticker}:`, e);
+      }
+
+      try {
+        // Google News RSS
+        const googleUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(`https://news.google.com/rss/search?q=${ticker}+stock&hl=en-US&gl=US&ceid=US:en`)}`;
+        const res2 = await fetch(googleUrl);
+        const data2 = await res2.json();
+        const parser2 = new DOMParser();
+        const xml2 = parser2.parseFromString(data2.contents, 'text/xml');
+        const items2 = xml2.querySelectorAll('item');
+
+        items2.forEach((item, i) => {
+          if (i >= 2) return;
+          const headline = item.querySelector('title')?.textContent || '';
+          const pubDate = item.querySelector('pubDate')?.textContent || '';
+          const link = item.querySelector('link')?.textContent || '';
+          const source = item.querySelector('source')?.textContent || 'Google News';
+
+          const text = headline.toLowerCase();
+          const bullishWords = ['surge', 'rally', 'beat', 'growth', 'gain', 'record', 'strong', 'upgrade'];
+          const bearishWords = ['drop', 'fall', 'miss', 'loss', 'decline', 'weak', 'downgrade'];
+          const bullScore = bullishWords.filter(w => text.includes(w)).length;
+          const bearScore = bearishWords.filter(w => text.includes(w)).length;
+          const sentiment = bullScore > bearScore ? 'bullish' : bearScore > bullScore ? 'bearish' : 'neutral';
+
+          newsItems.push({
+            ticker,
+            headline,
+            summary: '',
+            source,
+            source_tier: 1,
+            url: link,
+            sentiment_score: bullScore - bearScore,
+            algorithm_alignment: { sentiment },
+            published_at: pubDate ? new Date(pubDate).toISOString() : new Date().toISOString()
+          });
+        });
+      } catch(e) {
+        console.log(`Google news failed for ${ticker}:`, e);
+      }
+    }
+
+    if (newsItems.length) {
+      await db.from('news_feed').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+      await db.from('news_feed').insert(newsItems);
+    }
+
+    allNews = newsItems;
+    renderNews(newsItems);
+
+    btn.disabled = false;
+    btn.textContent = 'Fetch Now';
+  }
+
+  async function loadStoredNews() {
+    const { data } = await db.from('news_feed').select('*').order('published_at', { ascending: false }).limit(50);
+    if (data && data.length) {
+      allNews = data;
+      renderNews(data);
+    }
+  }
+
+  function renderNews(items) {
+    const container = document.getElementById('news-container');
+    if (!items || !items.length) {
+      container.innerHTML = '<div class="empty-state">No news loaded. Tap Fetch Now.</div>';
+      return;
+    }
+    container.innerHTML = items.map(n => {
+      const sentiment = n.algorithm_alignment?.sentiment || 'neutral';
+      const time = n.published_at ? new Date(n.published_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
+      return `
+        <div class="news-card" onclick="window.open('${n.url}', '_blank')">
+          <div class="news-top">
+            <div class="news-headline">${n.headline}</div>
+            <div class="news-ticker">${n.ticker}</div>
+          </div>
+          <div class="news-meta">
+            <div class="news-source">${n.source}</div>
+            <div class="news-time">${time}</div>
+          </div>
+          ${n.summary ? `<div class="news-summary">${n.summary}</div>` : ''}
+          <div class="news-signals">
+            <span class="news-signal-tag ${sentiment}">${sentiment}</span>
+            <span class="news-signal-tag">Tier ${n.source_tier}</span>
+            ${n.sentiment_score > 0 ? `<span class="news-signal-tag bullish">+${n.sentiment_score} signal</span>` : ''}
+            ${n.sentiment_score < 0 ? `<span class="news-signal-tag bearish">${n.sentiment_score} signal</span>` : ''}
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  function filterNews(type, btn) {
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    if (type === 'all') { renderNews(allNews); return; }
+    renderNews(allNews.filter(n => n.algorithm_alignment?.sentiment === type));
+  }
+
+  loadSources();
+  loadStoredNews();
+
+  function openNav() { document.getElementById('nav-overlay').classList.add('open'); }
+  function closeNav() { document.getElementById('nav-overlay').classList.remove('open'); }
+
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/aurum-app/sw.js');
+  }
+</script>
+
+</body>
+</html>
