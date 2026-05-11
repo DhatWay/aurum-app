@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AURUM — Assistant</title>
+<link rel="manifest" href="/aurum-app/manifest.json">
+<meta name="theme-color" content="#C9A84C">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;600&family=DM+Sans:wght@300;400;500&family=IBM+Plex+Mono:wght@300;400&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root {
+    --black: #080808;
+    --gold: #C9A84C;
+    --white: #F0EDE6;
+    --muted: #6B6560;
+    --danger: #8B3A3A;
+    --positive: #3A6B4A;
+    --rule: rgba(201,168,76,0.2);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--black);
+    color: var(--white);
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 500;
+    font-size: 20px;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 999;
+    opacity: 0.4;
+  }
+
+  header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 1rem;
+    padding: 2rem 2.5rem;
+    border-bottom: 1px solid var(--rule);
+    flex-shrink: 0;
+  }
+
+  .logo {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 1.8rem;
+    font-weight: 600;
+    letter-spacing: 0.3em;
+    color: var(--gold);
+  }
+
+  .logo span {
+    color: var(--white);
+    opacity: 0.3;
+    font-weight: 600;
+    font-size: 0.7rem;
+    letter-spacing: 0.2em;
+    display: block;
+    margin-top: -4px;
+  }
+
+  .hamburger {
+    background: transparent;
+    border: 1px solid var(--rule);
+    color: var(--gold);
+    font-size: 1.2rem;
+    padding: 0.4rem 0.8rem;
+    cursor: pointer;
+    z-index: 1001;
+    position: relative;
+  }
+
+  .nav-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(8,8,8,0.97);
+    z-index: 1000;
+    display: none;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 2.5rem;
+  }
+
+  .nav-overlay.open { display: flex; }
+
+  .nav-overlay a {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 2.5rem;
+    font-weight: 600;
+    color: var(--muted);
+    text-decoration: none;
+    letter-spacing: 0.2em;
+    transition: color 0.3s;
+  }
+
+  .nav-overlay a:hover { color: var(--gold); }
+  .nav-overlay a.active { color: var(--gold); }
+
+  .nav-close {
+    position: absolute;
+    top: 2rem;
+    right: 2.5rem;
+    background: transparent;
+    border: none;
+    color: var(--muted);
+    font-size: 1.5rem;
+    cursor: pointer;
+  }
+
+  /* Chat container */
+  .chat-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    max-width: 860px;
+    width: 100%;
+    margin: 0 auto;
+    padding: 0 2.5rem;
+  }
+
+  /* Chat header */
+  .chat-header {
+    padding: 2rem 0 1.5rem;
+    border-bottom: 1px solid var(--rule);
+    flex-shrink: 0;
+  }
+
+  .chat-title {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 2rem;
+    font-weight: 600;
+    color: var(--white);
+    margin-bottom: 0.3rem;
+  }
+
+  .chat-title em { color: var(--gold); font-style: normal; }
+
+  .chat-sub {
+    font-size: 0.85rem;
+    color: var(--muted);
+    line-height: 1.5;
+  }
+
+  /* Messages */
+  .messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 2rem 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    min-height: 300px;
+    max-height: 55vh;
+  }
+
+  .message {
+    display: flex;
+    gap: 1rem;
+    align-items: flex-start;
+    animation: fadeUp 0.3s ease forwards;
+  }
+
+  .message.user { flex-direction: row-reverse; }
+
+  .message-avatar {
+    width: 32px;
+    height: 32px;
+    border: 1px solid var(--rule);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 0.75rem;
+    color: var(--gold);
+    flex-shrink: 0;
+    letter-spacing: 0.1em;
+  }
+
+  .message.user .message-avatar {
+    background: rgba(201,168,76,0.05);
+  }
+
+  .message-bubble {
+    max-width: 75%;
+    padding: 1rem 1.3rem;
+    border: 1px solid var(--rule);
+    font-size: 0.95rem;
+    line-height: 1.7;
+    color: var(--white);
+  }
+
+  .message.user .message-bubble {
+    background: rgba(201,168,76,0.04);
+    border-color: rgba(201,168,76,0.2);
+    color: var(--white);
+  }
+
+  .message.assistant .message-bubble {
+    background: transparent;
+    color: var(--white);
+  }
+
+  .message-time {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.8rem;
+    color: var(--muted);
+    margin-top: 0.4rem;
+    letter-spacing: 0.05em;
+  }
+
+  .message.user .message-time { text-align: right; }
+
+  /* Typing indicator */
+  .typing {
+    display: flex;
+    gap: 4px;
+    padding: 1rem 1.3rem;
+    border: 1px solid var(--rule);
+    width: fit-content;
+  }
+
+  .typing-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--gold);
+    animation: typingBounce 1.2s infinite;
+  }
+
+  .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+  .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+
+  /* Suggested questions */
+  .suggestions {
+    padding: 1.5rem 0;
+    border-top: 1px solid var(--rule);
+    flex-shrink: 0;
+  }
+
+  .suggestions-label {
+    font-size: 0.8rem;
+    letter-spacing: 0.25em;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 0.8rem;
+  }
+
+  .suggestions-grid {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+
+  .suggestion-btn {
+    background: transparent;
+    border: 1px solid var(--rule);
+    color: var(--muted);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.8rem;
+    padding: 0.4rem 0.9rem;
+    cursor: pointer;
+    transition: all 0.3s;
+    text-align: left;
+    line-height: 1.4;
+  }
+
+  .suggestion-btn:hover {
+    border-color: var(--gold);
+    color: var(--gold);
+  }
+
+  /* Input area */
+  .input-area {
+    padding: 1.5rem 0 2rem;
+    border-top: 1px solid var(--rule);
+    flex-shrink: 0;
+  }
+
+  .input-row {
+    display: flex;
+    gap: 0.8rem;
+    align-items: flex-end;
+  }
+
+  .chat-input {
+    flex: 1;
+    background: transparent;
+    border: 1px solid var(--rule);
+    color: var(--white);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 1rem;
+    padding: 0.9rem 1.2rem;
+    outline: none;
+    transition: border 0.3s;
+    resize: none;
+    min-height: 50px;
+    max-height: 120px;
+    line-height: 1.5;
+  }
+
+  .chat-input:focus { border-color: var(--gold); }
+  .chat-input::placeholder { color: var(--muted); }
+
+  .send-btn {
+    background: transparent;
+    border: 1px solid var(--gold);
+    color: var(--gold);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.75rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    padding: 0.9rem 1.5rem;
+    cursor: pointer;
+    transition: all 0.3s;
+    white-space: nowrap;
+    height: 50px;
+  }
+
+  .send-btn:hover { background: var(--gold); color: var(--black); }
+  .send-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+  .api-notice {
+    font-size: 0.7rem;
+    color: var(--muted);
+    margin-top: 0.6rem;
+    letter-spacing: 0.05em;
+  }
+
+  .api-notice.error { color: var(--danger); }
+
+  footer {
+    padding: 1.5rem 2.5rem;
+    border-top: 1px solid var(--rule);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-shrink: 0;
+  }
+
+  footer p {
+    font-size: 0.7rem;
+    letter-spacing: 0.15em;
+    color: var(--muted);
+    text-transform: uppercase;
+  }
+
+  .footer-au {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 1rem;
+    color: var(--rule);
+    letter-spacing: 0.3em;
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes typingBounce {
+    0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+    30% { transform: translateY(-6px); opacity: 1; }
+  }
+
+  @media (max-width: 600px) {
+    .chat-container { padding: 0 1.5rem; }
+    header { padding: 1.5rem; }
+    footer { padding: 1.5rem; }
+    .message-bubble { max-width: 90%; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    AU
+    <span>PRIVATE INTELLIGENCE</span>
+  </div>
+  <button class="hamburger" onclick="openNav()">☰</button>
+</header>
+
+<div class="nav-overlay" id="nav-overlay">
+  <button class="nav-close" onclick="closeNav()">✕</button>
+  <a href="index.html">Brief</a>
+  <a href="news.html">News</a>
+  <a href="history.html">History</a>
+  <a href="sectors.html">Sectors</a>
+  <a href="simulator.html">Simulator</a>
+  <a href="tutorial.html">Tutorial</a>
+  <a href="help.html">Help</a>
+  <a href="assistant.html" class="active">Assistant</a>
+  <a href="admin.html">Admin</a>
+  
+</div>
+
+<div class="chat-container">
+
+  <div class="chat-header">
+    <div class="chat-title">AURUM <em>Assistant.</em></div>
+    <div class="chat-sub">Ask anything about your picks, algorithms, market signals, or how AURUM works. Powered by Claude.</div>
+  </div>
+
+  <div class="messages" id="messages">
+    <div class="message assistant">
+      <div class="message-avatar">AU</div>
+      <div>
+        <div class="message-bubble">
+          AURUM Intelligence System online. I have full context of your watchlist, algorithms, and pick history. Ask me anything — about your current picks, how a specific algorithm works, what a market signal means, or what AURUM is seeing right now.
+        </div>
+        <div class="message-time">System ready</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="suggestions">
+    <div class="suggestions-label">Suggested Questions</div>
+    <div class="suggestions-grid">
+      <button class="suggestion-btn" onclick="askSuggestion(this)">Why did AURUM pick NVDA?</button>
+      <button class="suggestion-btn" onclick="askSuggestion(this)">What does the probability spread mean?</button>
+      <button class="suggestion-btn" onclick="askSuggestion(this)">How does the macro regime affect my picks?</button>
+      <button class="suggestion-btn" onclick="askSuggestion(this)">Which algorithm is most reliable?</button>
+      <button class="suggestion-btn" onclick="askSuggestion(this)">Should I add more stocks to my watchlist?</button>
+      <button class="suggestion-btn" onclick="askSuggestion(this)">Explain the self-rating system</button>
+    </div>
+  </div>
+
+  <div class="input-area">
+    <div class="input-row">
+      <textarea
+        class="chat-input"
+        id="chat-input"
+        placeholder="Ask AURUM anything..."
+        onkeydown="handleKey(event)"
+        oninput="autoResize(this)"
+      ></textarea>
+      <button class="send-btn" id="send-btn" onclick="sendMessage()">Send</button>
+    </div>
+    <div class="api-notice" id="api-notice">Claude API key required to activate the assistant. Add your key in Supabase secrets as CLAUDE_API_KEY.</div>
+  </div>
+
+</div>
+
+<footer>
+  <p>AURUM © 2026 — Private Use Only</p>
+  <div class="footer-au">AU</div>
+</footer>
+
+<script>
+  const SUPABASE_URL = 'https://zpcbbwynvvyldavxzjng.supabase.co';
+  const SUPABASE_KEY = 'sb_publishable_K80lcfk8LsQNqo5enznRRA_lrzf2U9K';
+  const { createClient } = supabase;
+  const db = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+  let conversationHistory = [];
+  let aurumContext = {};
+
+  async function loadContext() {
+    const { data: stocks } = await db.from('stocks').select('*');
+    const { data: picks } = await db.from('picks').select('*').order('picked_at', { ascending: false }).limit(5);
+    const { data: algorithms } = await db.from('algorithms').select('name, description, active');
+    const { data: accuracy } = await db.from('aurum_accuracy').select('*').single();
+
+    aurumContext = {
+      watchlist: stocks?.map(s => `${s.ticker} (${s.sector})`).join(', ') || 'No stocks loaded',
+      recentPicks: picks?.map(p => `${p.ticker} — Score: ${p.score} — ${p.brief}`).join('\n') || 'No picks yet',
+      algorithms: algorithms?.map(a => `${a.name}: ${a.description}`).join('\n') || '',
+      accuracy: accuracy ? `Total picks: ${accuracy.total_picks}, Beat market: ${accuracy.beats_market}, Avg accuracy: ${accuracy.avg_accuracy}%` : 'No accuracy data yet'
+    };
+  }
+
+  async function sendMessage() {
+    const input = document.getElementById('chat-input');
+    const message = input.value.trim();
+    if (!message) return;
+
+    input.value = '';
+    autoResize(input);
+
+    addMessage('user', message);
+
+    const typingId = addTyping();
+    document.getElementById('send-btn').disabled = true;
+
+    conversationHistory.push({ role: 'user', content: message });
+
+    const systemPrompt = `You are AURUM's private intelligence assistant — a cold, precise, highly knowledgeable AI advisor embedded inside a luxury stock intelligence system called AURUM.
+
+Your role: Answer questions about AURUM's functionality, explain picks and algorithms, interpret market signals, and provide intelligent market commentary. You speak with authority and precision. Never vague, never hedging unnecessarily.
+
+Current AURUM context:
+Watchlist: ${aurumContext.watchlist}
+Recent picks: ${aurumContext.recentPicks}
+System accuracy: ${aurumContext.accuracy}
+Active algorithms: ${aurumContext.algorithms}
+
+Tone: Cold, precise, confident. Like a private analyst briefing a sophisticated investor. No filler. No excessive disclaimers. Intelligent and direct.
+Format: Keep responses concise — 2-4 short paragraphs maximum. Use line breaks for readability. Never use bullet points.`;
+
+    try {
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 1000,
+          system: systemPrompt,
+          messages: conversationHistory
+        })
+      });
+
+      removeTyping(typingId);
+
+      if (response.status === 401 || response.status === 403) {
+        addMessage('assistant', 'Claude API key required to activate the assistant. Add your key to Supabase secrets as CLAUDE_API_KEY, then wire it into this page.');
+        document.getElementById('api-notice').className = 'api-notice error';
+        document.getElementById('api-notice').textContent = 'API key not configured. Add CLAUDE_API_KEY to activate.';
+      } else {
+        const data = await response.json();
+        const reply = data.content?.[0]?.text || 'No response received.';
+        conversationHistory.push({ role: 'assistant', content: reply });
+        addMessage('assistant', reply);
+        document.getElementById('api-notice').textContent = '';
+      }
+
+    } catch(e) {
+      removeTyping(typingId);
+      addMessage('assistant', 'Connection error. Check your network and try again.');
+    }
+
+    document.getElementById('send-btn').disabled = false;
+  }
+
+  function addMessage(role, text) {
+    const container = document.getElementById('messages');
+    const time = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    const div = document.createElement('div');
+    div.className = `message ${role}`;
+    div.innerHTML = `
+      <div class="message-avatar">${role === 'user' ? 'YOU' : 'AU'}</div>
+      <div>
+        <div class="message-bubble">${text.replace(/\n/g, '<br>')}</div>
+        <div class="message-time">${time}</div>
+      </div>
+    `;
+    container.appendChild(div);
+    container.scrollTop = container.scrollHeight;
+    return div;
+  }
+
+  function addTyping() {
+    const container = document.getElementById('messages');
+    const id = 'typing-' + Date.now();
+    const div = document.createElement('div');
+    div.id = id;
+    div.className = 'message assistant';
+    div.innerHTML = `
+      <div class="message-avatar">AU</div>
+      <div class="typing">
+        <div class="typing-dot"></div>
+        <div class="typing-dot"></div>
+        <div class="typing-dot"></div>
+      </div>
+    `;
+    container.appendChild(div);
+    container.scrollTop = container.scrollHeight;
+    return id;
+  }
+
+  function removeTyping(id) {
+    const el = document.getElementById(id);
+    if (el) el.remove();
+  }
+
+  function askSuggestion(btn) {
+    document.getElementById('chat-input').value = btn.textContent;
+    sendMessage();
+  }
+
+  function handleKey(e) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  }
+
+  function autoResize(el) {
+    el.style.height = 'auto';
+    el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+  }
+
+  function openNav() { document.getElementById('nav-overlay').classList.add('open'); }
+  function closeNav() { document.getElementById('nav-overlay').classList.remove('open'); }
+
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/aurum-app/sw.js');
+  }
+
+  loadContext();
+</script>
+
+</body>
+</html>
