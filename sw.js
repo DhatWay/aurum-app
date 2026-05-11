@@ -1,4 +1,4 @@
-const CACHE_NAME = 'aurum-v3';
+const CACHE_NAME = 'aurum-v4';
 const ASSETS = [
   '/aurum-app/',
   '/aurum-app/index.html',
@@ -6,7 +6,12 @@ const ASSETS = [
   '/aurum-app/simulator.html',
   '/aurum-app/history.html',
   '/aurum-app/sectors.html',
-  '/aurum-app/manifest.json'
+  '/aurum-app/news.html',
+  '/aurum-app/tutorial.html',
+  '/aurum-app/help.html',
+  '/aurum-app/manifest.json',
+  '/aurum-app/icon-192.png',
+  '/aurum-app/icon-512.png'
 ];
 
 self.addEventListener('install', event => {
@@ -18,7 +23,13 @@ self.addEventListener('install', event => {
 
 self.addEventListener('fetch', event => {
   event.respondWith(
-    fetch(event.request).catch(() => caches.match(event.request))
+    fetch(event.request)
+      .then(response => {
+        const clone = response.clone();
+        caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
+        return response;
+      })
+      .catch(() => caches.match(event.request))
   );
 });
 
