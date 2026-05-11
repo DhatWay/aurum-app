@@ -1,0 +1,876 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AURUM — Options Assessment</title>
+<link rel="manifest" href="/aurum-app/manifest.json">
+<meta name="theme-color" content="#C9A84C">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;600&family=DM+Sans:wght@300;400;500&family=IBM+Plex+Mono:wght@300;400&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root {
+    --black: #080808;
+    --gold: #C9A84C;
+    --white: #F0EDE6;
+    --muted: #6B6560;
+    --danger: #8B3A3A;
+    --positive: #3A6B4A;
+    --rule: rgba(201,168,76,0.2);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--black);
+    color: var(--white);
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 400;
+    font-size: 18px;
+    min-height: 100vh;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 999;
+    opacity: 0.4;
+  }
+
+  header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 1rem;
+    padding: 2rem 2.5rem;
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .logo {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 1.8rem;
+    font-weight: 600;
+    letter-spacing: 0.3em;
+    color: var(--gold);
+  }
+
+  .logo span {
+    color: var(--white);
+    opacity: 0.3;
+    font-weight: 300;
+    font-size: 0.7rem;
+    letter-spacing: 0.2em;
+    display: block;
+    margin-top: -4px;
+  }
+
+  .hamburger {
+    background: transparent;
+    border: 1px solid var(--rule);
+    color: var(--gold);
+    font-size: 1.2rem;
+    padding: 0.4rem 0.8rem;
+    cursor: pointer;
+    z-index: 1001;
+    position: relative;
+  }
+
+  .nav-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(8,8,8,0.97);
+    z-index: 1000;
+    display: none;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 2.5rem;
+  }
+
+  .nav-overlay.open { display: flex; }
+
+  .nav-overlay a {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 2.5rem;
+    font-weight: 300;
+    color: var(--muted);
+    text-decoration: none;
+    letter-spacing: 0.2em;
+    transition: color 0.3s;
+  }
+
+  .nav-overlay a:hover { color: var(--gold); }
+  .nav-overlay a.active { color: var(--gold); }
+
+  .nav-close {
+    position: absolute;
+    top: 2rem;
+    right: 2.5rem;
+    background: transparent;
+    border: none;
+    color: var(--muted);
+    font-size: 1.5rem;
+    cursor: pointer;
+  }
+
+  main {
+    padding: 3rem 2.5rem;
+    max-width: 900px;
+    margin: 0 auto;
+  }
+
+  .page-title {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: clamp(2rem, 6vw, 3.5rem);
+    font-weight: 300;
+    color: var(--white);
+    margin-bottom: 0.5rem;
+  }
+
+  .page-title em { color: var(--gold); font-style: normal; }
+
+  .page-sub {
+    font-size: 1rem;
+    color: var(--muted);
+    margin-bottom: 3rem;
+    line-height: 1.7;
+    max-width: 600px;
+  }
+
+  .gold-rule {
+    width: 100%;
+    height: 1px;
+    background: var(--rule);
+    margin: 2.5rem 0;
+  }
+
+  .section-label {
+    font-size: 0.85rem;
+    letter-spacing: 0.3em;
+    color: var(--gold);
+    text-transform: uppercase;
+    margin-bottom: 1.5rem;
+  }
+
+  /* Entry panel */
+  .entry-panel {
+    border: 1px solid var(--rule);
+    padding: 2rem;
+    margin-bottom: 2.5rem;
+  }
+
+  .entry-title {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 1.5rem;
+    font-weight: 300;
+    color: var(--white);
+    margin-bottom: 0.5rem;
+  }
+
+  .entry-sub {
+    font-size: 0.9rem;
+    color: var(--muted);
+    margin-bottom: 2rem;
+    line-height: 1.6;
+  }
+
+  .field-label {
+    font-size: 0.7rem;
+    letter-spacing: 0.2em;
+    color: var(--gold);
+    text-transform: uppercase;
+    margin-bottom: 0.5rem;
+  }
+
+  .inline-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    margin-bottom: 1rem;
+  }
+
+  .inline-grid-3 {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 1rem;
+    margin-bottom: 1rem;
+  }
+
+  select, input[type="number"], input[type="text"], input[type="date"] {
+    width: 100%;
+    background: transparent;
+    border: 1px solid var(--rule);
+    color: var(--white);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.9rem;
+    padding: 0.8rem 1rem;
+    margin-bottom: 1rem;
+    outline: none;
+    transition: border 0.3s;
+    appearance: none;
+  }
+
+  select:focus, input:focus { border-color: var(--gold); }
+  select option { background: #111; color: var(--white); }
+
+  /* Position type selector */
+  .position-type-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1px;
+    background: var(--rule);
+    border: 1px solid var(--rule);
+    margin-bottom: 1.5rem;
+  }
+
+  .position-type-btn {
+    background: var(--black);
+    padding: 1rem;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s;
+    border: none;
+    color: var(--muted);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.85rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+  }
+
+  .position-type-btn:hover { background: rgba(201,168,76,0.05); }
+  .position-type-btn.selected.call { background: rgba(58,107,74,0.1); color: var(--positive); border: 1px solid rgba(58,107,74,0.4); }
+  .position-type-btn.selected.put { background: rgba(139,58,58,0.1); color: var(--danger); border: 1px solid rgba(139,58,58,0.4); }
+
+  .btn {
+    background: transparent;
+    border: 1px solid var(--gold);
+    color: var(--gold);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.85rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    padding: 0.9rem 2rem;
+    cursor: pointer;
+    transition: all 0.3s;
+    width: 100%;
+  }
+
+  .btn:hover { background: var(--gold); color: var(--black); }
+  .btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+  /* Assessment result */
+  .assessment-panel {
+    border: 1px solid var(--rule);
+    padding: 2rem;
+    display: none;
+    margin-bottom: 2.5rem;
+    animation: fadeUp 0.5s ease forwards;
+  }
+
+  .assessment-panel.visible { display: block; }
+
+  .assessment-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 1.5rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .assessment-ticker {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 1.2rem;
+    color: var(--gold);
+    letter-spacing: 0.1em;
+    margin-bottom: 0.3rem;
+  }
+
+  .assessment-position {
+    font-size: 0.75rem;
+    color: var(--muted);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  .assessment-verdict {
+    text-align: right;
+  }
+
+  .verdict-label {
+    font-size: 0.65rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 0.4rem;
+  }
+
+  .verdict-text {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 1.8rem;
+    font-weight: 600;
+    line-height: 1;
+  }
+
+  .verdict-text.take-profit { color: var(--positive); }
+  .verdict-text.hold { color: var(--gold); }
+  .verdict-text.flip { color: #C9784C; }
+  .verdict-text.exit { color: var(--danger); }
+
+  .assessment-reasoning {
+    font-size: 0.95rem;
+    color: var(--white);
+    line-height: 1.8;
+    margin-bottom: 1.5rem;
+  }
+
+  .assessment-signals {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1px;
+    background: var(--rule);
+    border: 1px solid var(--rule);
+    margin-bottom: 1.5rem;
+  }
+
+  .assessment-signal-cell {
+    background: var(--black);
+    padding: 1rem 1.5rem;
+  }
+
+  .signal-cell-label {
+    font-size: 0.65rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 0.4rem;
+  }
+
+  .signal-cell-value {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 1.4rem;
+    font-weight: 600;
+    color: var(--gold);
+  }
+
+  .signal-cell-value.positive { color: var(--positive); }
+  .signal-cell-value.negative { color: var(--danger); }
+
+  .flip-analysis {
+    border: 1px solid rgba(201,168,76,0.2);
+    padding: 1.2rem 1.5rem;
+    margin-top: 1rem;
+  }
+
+  .flip-label {
+    font-size: 0.65rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin-bottom: 0.6rem;
+  }
+
+  .flip-text {
+    font-size: 0.9rem;
+    color: var(--muted);
+    line-height: 1.6;
+  }
+
+  .loading-assessment {
+    text-align: center;
+    padding: 2rem;
+    font-size: 0.8rem;
+    letter-spacing: 0.2em;
+    color: var(--muted);
+    text-transform: uppercase;
+    display: none;
+  }
+
+  .loading-assessment.visible { display: block; }
+
+  /* Open positions */
+  .positions-grid {
+    display: grid;
+    gap: 1px;
+    background: var(--rule);
+    border: 1px solid var(--rule);
+  }
+
+  .position-card {
+    background: var(--black);
+    padding: 1.5rem;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 1rem;
+    align-items: start;
+    transition: background 0.3s;
+  }
+
+  .position-card:hover { background: rgba(201,168,76,0.03); }
+
+  .position-ticker {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 1rem;
+    color: var(--white);
+    margin-bottom: 0.3rem;
+  }
+
+  .position-details {
+    font-size: 0.8rem;
+    color: var(--muted);
+    line-height: 1.6;
+  }
+
+  .position-type-badge {
+    font-size: 0.65rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    padding: 0.3rem 0.7rem;
+    white-space: nowrap;
+  }
+
+  .position-type-badge.call {
+    border: 1px solid rgba(58,107,74,0.4);
+    color: var(--positive);
+  }
+
+  .position-type-badge.put {
+    border: 1px solid rgba(139,58,58,0.4);
+    color: var(--danger);
+  }
+
+  .assess-btn {
+    background: transparent;
+    border: 1px solid var(--gold);
+    color: var(--gold);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.7rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    padding: 0.4rem 0.8rem;
+    cursor: pointer;
+    transition: all 0.3s;
+    margin-top: 0.5rem;
+    display: block;
+    width: 100%;
+    text-align: center;
+  }
+
+  .assess-btn:hover { background: var(--gold); color: var(--black); }
+
+  .empty-state {
+    padding: 2.5rem;
+    text-align: center;
+    font-size: 0.85rem;
+    letter-spacing: 0.15em;
+    color: var(--muted);
+    text-transform: uppercase;
+  }
+
+  footer {
+    padding: 2rem 2.5rem;
+    border-top: 1px solid var(--rule);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 4rem;
+  }
+
+  footer p {
+    font-size: 0.8rem;
+    letter-spacing: 0.15em;
+    color: var(--muted);
+    text-transform: uppercase;
+  }
+
+  .footer-au {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 1rem;
+    color: var(--rule);
+    letter-spacing: 0.3em;
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @media (max-width: 600px) {
+    main { padding: 2rem 1.5rem; }
+    header { padding: 1.5rem; }
+    .inline-grid { grid-template-columns: 1fr; }
+    .inline-grid-3 { grid-template-columns: 1fr; }
+    .assessment-signals { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    AU
+    <span>PRIVATE INTELLIGENCE</span>
+  </div>
+  <button class="hamburger" onclick="openNav()">☰</button>
+</header>
+
+<div class="nav-overlay" id="nav-overlay">
+  <button class="nav-close" onclick="closeNav()">✕</button>
+  <a href="index.html">Brief</a>
+  <a href="news.html">News</a>
+  <a href="history.html">History</a>
+  <a href="sectors.html">Sectors</a>
+  <a href="simulator.html">Simulator</a>
+  <a href="options.html" class="active">Options</a>
+  <a href="tutorial.html">Tutorial</a>
+  <a href="help.html">Help</a>
+  <a href="assistant.html">Assistant</a>
+  <a href="admin.html">Admin</a>
+</div>
+
+<main>
+
+  <div class="page-title">Options <em>Assessment.</em></div>
+  <div class="page-sub">When your position hits its mark AURUM immediately assesses whether to take profit, hold, or flip to the opposite position — powered by real time signal analysis.</div>
+
+  <div class="section-label">Log a Position</div>
+  <div class="entry-panel">
+    <div class="entry-title">New Options Position</div>
+    <div class="entry-sub">Enter your position details. When the current price hits your target tap Assess — AURUM will analyze all signals and give you an immediate verdict.</div>
+
+    <div class="field-label">Position Type</div>
+    <div class="position-type-grid">
+      <button class="position-type-btn call" id="btn-call" onclick="selectType('call')">▲ Call</button>
+      <button class="position-type-btn put" id="btn-put" onclick="selectType('put')">▼ Put</button>
+    </div>
+
+    <div class="inline-grid">
+      <div>
+        <div class="field-label">Ticker</div>
+        <select id="opt-ticker">
+          <option value="">— Select —</option>
+        </select>
+      </div>
+      <div>
+        <div class="field-label">Contracts</div>
+        <input type="number" id="opt-contracts" placeholder="e.g. 5" min="1" value="1">
+      </div>
+    </div>
+
+    <div class="inline-grid-3">
+      <div>
+        <div class="field-label">Strike Price ($)</div>
+        <input type="number" id="opt-strike" placeholder="e.g. 140.00" step="0.50">
+      </div>
+      <div>
+        <div class="field-label">Entry Price ($)</div>
+        <input type="number" id="opt-entry" placeholder="e.g. 2.50" step="0.01">
+      </div>
+      <div>
+        <div class="field-label">Target Price ($)</div>
+        <input type="number" id="opt-target" placeholder="e.g. 5.00" step="0.01">
+      </div>
+    </div>
+
+    <div class="field-label">Expiration Date</div>
+    <input type="date" id="opt-expiration">
+
+    <button class="btn" onclick="logPosition()">Log Position</button>
+  </div>
+
+  <div class="gold-rule"></div>
+
+  <div class="section-label">Assess a Position</div>
+
+  <div class="entry-panel">
+    <div class="entry-title">Target Hit — Get Assessment</div>
+    <div class="entry-sub">Your position has reached its target. Enter the current price and AURUM will immediately analyze all signals to determine the optimal action.</div>
+
+    <div class="inline-grid">
+      <div>
+        <div class="field-label">Select Position</div>
+        <select id="assess-position">
+          <option value="">— Select Position —</option>
+        </select>
+      </div>
+      <div>
+        <div class="field-label">Current Price ($)</div>
+        <input type="number" id="assess-current" placeholder="e.g. 5.20" step="0.01">
+      </div>
+    </div>
+
+    <button class="btn" id="assess-btn" onclick="assessPosition()">Get Immediate Assessment</button>
+  </div>
+
+  <div class="loading-assessment" id="loading-assessment">
+    Analyzing signals — generating assessment...
+  </div>
+
+  <div class="assessment-panel" id="assessment-panel">
+    <div class="assessment-header">
+      <div>
+        <div class="assessment-ticker" id="result-ticker">—</div>
+        <div class="assessment-position" id="result-position">—</div>
+      </div>
+      <div class="assessment-verdict">
+        <div class="verdict-label">Verdict</div>
+        <div class="verdict-text" id="result-verdict">—</div>
+      </div>
+    </div>
+
+    <div class="assessment-reasoning" id="result-reasoning">—</div>
+
+    <div class="assessment-signals">
+      <div class="assessment-signal-cell">
+        <div class="signal-cell-label">Return at Target</div>
+        <div class="signal-cell-value positive" id="result-return">—</div>
+      </div>
+      <div class="assessment-signal-cell">
+        <div class="signal-cell-label">Days to Expiration</div>
+        <div class="signal-cell-value" id="result-dte">—</div>
+      </div>
+      <div class="assessment-signal-cell">
+        <div class="signal-cell-label">Signal Alignment</div>
+        <div class="signal-cell-value" id="result-alignment">—</div>
+      </div>
+      <div class="assessment-signal-cell">
+        <div class="signal-cell-label">Flip Opportunity</div>
+        <div class="signal-cell-value" id="result-flip">—</div>
+      </div>
+    </div>
+
+    <div class="flip-analysis" id="flip-analysis" style="display:none;">
+      <div class="flip-label">Flip Analysis</div>
+      <div class="flip-text" id="flip-text">—</div>
+    </div>
+  </div>
+
+  <div class="gold-rule"></div>
+
+  <div class="section-label">Open Positions</div>
+  <div class="positions-grid" id="positions-container">
+    <div class="empty-state">No positions logged yet.</div>
+  </div>
+
+</main>
+
+<footer>
+  <p>AURUM © 2026 — Private Use Only</p>
+  <div class="footer-au">AU</div>
+</footer>
+
+<script>
+  const SUPABASE_URL = 'https://zpcbbwynvvyldavxzjng.supabase.co';
+  const SUPABASE_KEY = 'sb_publishable_K80lcfk8LsQNqo5enznRRA_lrzf2U9K';
+  const { createClient } = supabase;
+  const db = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+  let selectedType = 'call';
+
+  function selectType(type) {
+    selectedType = type;
+    document.getElementById('btn-call').classList.toggle('selected', type === 'call');
+    document.getElementById('btn-put').classList.toggle('selected', type === 'put');
+  }
+
+  selectType('call');
+
+  async function loadStocks() {
+    const { data } = await db.from('stocks').select('*');
+    if (!data) return;
+    const select = document.getElementById('opt-ticker');
+    select.innerHTML = '<option value="">— Select —</option>' +
+      data.map(s => `<option value="${s.ticker}">${s.ticker} — ${s.company_name || ''}</option>`).join('');
+  }
+
+  async function loadPositions() {
+    const { data } = await db.from('options_positions').select('*').eq('status', 'open').order('created_at', { ascending: false });
+    const container = document.getElementById('positions-container');
+    const assessSelect = document.getElementById('assess-position');
+
+    if (!data || !data.length) {
+      container.innerHTML = '<div class="empty-state">No open positions.</div>';
+      assessSelect.innerHTML = '<option value="">— Select Position —</option>';
+      return;
+    }
+
+    assessSelect.innerHTML = '<option value="">— Select Position —</option>' +
+      data.map(p => `<option value="${p.id}">${p.ticker} ${p.position_type.toUpperCase()} $${p.strike_price} exp ${p.expiration_date}</option>`).join('');
+
+    container.innerHTML = data.map(p => {
+      const dte = p.expiration_date ? Math.ceil((new Date(p.expiration_date) - new Date()) / (1000 * 60 * 60 * 24)) : '—';
+      return `
+        <div class="position-card">
+          <div>
+            <div class="position-ticker">${p.ticker}</div>
+            <div class="position-details">
+              Strike: $${p.strike_price} &nbsp;|&nbsp; Entry: $${p.entry_price} &nbsp;|&nbsp; Target: $${p.target_price}<br>
+              Contracts: ${p.contracts} &nbsp;|&nbsp; DTE: ${dte} days
+            </div>
+            <button class="assess-btn" onclick="quickAssess('${p.id}')">Assess Now</button>
+          </div>
+          <div>
+            <div class="position-type-badge ${p.position_type}">${p.position_type.toUpperCase()}</div>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  async function logPosition() {
+    const ticker = document.getElementById('opt-ticker').value;
+    const strike = parseFloat(document.getElementById('opt-strike').value);
+    const entry = parseFloat(document.getElementById('opt-entry').value);
+    const target = parseFloat(document.getElementById('opt-target').value);
+    const expiration = document.getElementById('opt-expiration').value;
+    const contracts = parseInt(document.getElementById('opt-contracts').value) || 1;
+
+    if (!ticker || !strike || !entry || !target) return;
+
+    await db.from('options_positions').insert({
+      ticker,
+      position_type: selectedType,
+      strike_price: strike,
+      entry_price: entry,
+      target_price: target,
+      expiration_date: expiration || null,
+      contracts,
+      status: 'open'
+    });
+
+    loadPositions();
+  }
+
+  async function quickAssess(id) {
+    document.getElementById('assess-position').value = id;
+    const currentPrice = prompt('Enter current price ($):');
+    if (!currentPrice) return;
+    document.getElementById('assess-current').value = currentPrice;
+    assessPosition();
+  }
+
+  async function assessPosition() {
+    const positionId = document.getElementById('assess-position').value;
+    const currentPrice = parseFloat(document.getElementById('assess-current').value);
+
+    if (!positionId || !currentPrice) return;
+
+    const { data: position } = await db.from('options_positions').select('*').eq('id', positionId).single();
+    if (!position) return;
+
+    const { data: pick } = await db.from('picks').select('*').eq('ticker', position.ticker).order('picked_at', { ascending: false }).limit(1).single();
+    const { data: news } = await db.from('news_feed').select('*').eq('ticker', position.ticker).order('published_at', { ascending: false }).limit(5);
+
+    document.getElementById('loading-assessment').classList.add('visible');
+    document.getElementById('assessment-panel').classList.remove('visible');
+    document.getElementById('assess-btn').disabled = true;
+
+    const returnPct = ((currentPrice - position.entry_price) / position.entry_price * 100).toFixed(1);
+    const dte = position.expiration_date
+      ? Math.ceil((new Date(position.expiration_date) - new Date()) / (1000 * 60 * 60 * 24))
+      : 'Unknown';
+
+    const recentSentiment = news?.map(n => n.algorithm_alignment?.sentiment).filter(Boolean) || [];
+    const bullishCount = recentSentiment.filter(s => s === 'bullish').length;
+    const bearishCount = recentSentiment.filter(s => s === 'bearish').length;
+    const sentimentSignal = bullishCount > bearishCount ? 'bullish' : bearishCount > bullishCount ? 'bearish' : 'neutral';
+
+    const prompt = `You are AURUM — a private market intelligence system. A trader has a ${position.position_type.toUpperCase()} options position that has reached its target.
+
+Position details:
+- Ticker: ${position.ticker}
+- Type: ${position.position_type.toUpperCase()}
+- Strike: $${position.strike_price}
+- Entry price: $${position.entry_price}
+- Target price: $${position.target_price}
+- Current price: $${currentPrice}
+- Return so far: ${returnPct}%
+- Days to expiration: ${dte}
+- Contracts: ${position.contracts}
+
+Current AURUM signal context:
+- Recent AURUM score for ${position.ticker}: ${pick?.score || 'No recent pick'}
+- Recent brief: ${pick?.brief || 'None'}
+- Recent news sentiment: ${sentimentSignal} (${bullishCount} bullish, ${bearishCount} bearish signals in last 5 articles)
+
+Analyze this position and provide an immediate assessment. Consider:
+1. Should the trader TAKE PROFIT now, HOLD for more upside, FLIP to the opposite position, or EXIT immediately?
+2. What do current signals suggest about momentum continuation vs reversal?
+3. Is there a flip opportunity — would the opposite position (${position.position_type === 'call' ? 'PUT' : 'CALL'}) now be favorable?
+
+Respond in this exact JSON format only, no extra text:
+{
+  "verdict": "TAKE PROFIT or HOLD or FLIP or EXIT",
+  "reasoning": "2-3 sentences in AURUM's cold precise tone explaining the verdict",
+  "signal_alignment": "Bullish or Bearish or Neutral or Conflicted",
+  "flip_opportunity": "Yes or No",
+  "flip_analysis": "One sentence explaining if and why flipping makes sense right now, or why it does not"
+}`;
+
+    try {
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 1000,
+          messages: [{ role: 'user', content: prompt }]
+        })
+      });
+
+      const data = await response.json();
+      const text = data.content?.[0]?.text || '{}';
+      const result = JSON.parse(text.replace(/```json|```/g, '').trim());
+
+      document.getElementById('loading-assessment').classList.remove('visible');
+
+      document.getElementById('result-ticker').textContent = position.ticker;
+      document.getElementById('result-position').textContent = `${position.position_type.toUpperCase()} — Strike $${position.strike_price} — ${dte} DTE`;
+      document.getElementById('result-verdict').textContent = result.verdict || '—';
+      document.getElementById('result-verdict').className = `verdict-text ${(result.verdict || '').toLowerCase().replace(' ', '-')}`;
+      document.getElementById('result-reasoning').textContent = result.reasoning || '—';
+      document.getElementById('result-return').textContent = `+${returnPct}%`;
+      document.getElementById('result-dte').textContent = `${dte} days`;
+      document.getElementById('result-alignment').textContent = result.signal_alignment || '—';
+      document.getElementById('result-flip').textContent = result.flip_opportunity || '—';
+
+      if (result.flip_opportunity === 'Yes') {
+        document.getElementById('flip-analysis').style.display = 'block';
+        document.getElementById('flip-text').textContent = result.flip_analysis || '—';
+      } else {
+        document.getElementById('flip-analysis').style.display = 'none';
+      }
+
+      await db.from('options_positions').update({
+        assessment: result,
+        assessed_at: new Date().toISOString()
+      }).eq('id', positionId);
+
+      document.getElementById('assessment-panel').classList.add('visible');
+
+    } catch(e) {
+      document.getElementById('loading-assessment').classList.remove('visible');
+      document.getElementById('result-reasoning').textContent = 'Claude API key required to activate assessments. Add CLAUDE_API_KEY to Supabase secrets.';
+      document.getElementById('assessment-panel').classList.add('visible');
+    }
+
+    document.getElementById('assess-btn').disabled = false;
+  }
+
+  function openNav() { document.getElementById('nav-overlay').classList.add('open'); }
+  function closeNav() { document.getElementById('nav-overlay').classList.remove('open'); }
+
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/aurum-app/sw.js');
+  }
+
+  loadStocks();
+  loadPositions();
+</script>
+
+</body>
+</html>
