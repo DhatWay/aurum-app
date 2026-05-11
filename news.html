@@ -462,6 +462,9 @@
     <button class="filter-btn" onclick="filterNews('neutral', this)">Neutral</button>
   </div>
 
+  <div class="filter-bar" id="month-filter" style="margin-top:-1rem;">
+  </div>
+
   <div class="news-list" id="news-container">
     <div class="empty-state">Tap Fetch Now to load latest intelligence.</div>
   </div>
@@ -606,13 +609,31 @@
   }
 
   async function loadStoredNews() {
-    const { data } = await db.from('news_feed').select('*').order('published_at', { ascending: false }).limit(50);
+    const { data } = await db.from('news_feed').select('*').order('published_at', { ascending: false }).limit(200);
     if (data && data.length) {
       allNews = data;
       renderNews(data);
+      buildMonthFilter(data);
     }
   }
 
+  function buildMonthFilter(data) {
+    const months = [...new Set(data.map(n => n.archive_month).filter(Boolean))].sort().reverse();
+    const bar = document.getElementById('month-filter');
+    if (!months.length) return;
+    bar.innerHTML = months.map((m, i) => `
+      <button class="filter-btn ${i === 0 ? 'active' : ''}" onclick="filterByMonth('${m}', this)">
+        ${new Date(m + '-01').toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+      </button>
+    `).join('');
+  }
+
+  function filterByMonth(month, btn) {
+    document.querySelectorAll('#month-filter .filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const filtered = month === 'all' ? allNews : allNews.filter(n => n.archive_month === month);
+    renderNews(filtered);
+  }
   function renderNews(items) {
     const container = document.getElementById('news-container');
     if (!items || !items.length) {
