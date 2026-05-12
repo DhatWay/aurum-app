@@ -570,42 +570,16 @@
         items2.forEach((item, i) => {
           if (i >= 2) return;
           const headline = item.querySelector('title')?.textContent || '';
-          const pubDate = item.querySelector('pubDate')?.textContent || '';
-          const link = item.querySelector('link')?.textContent || '';
-          const source = item.querySelector('source')?.textContent || 'Google News';
-
-          const text = headline.toLowerCase();
-          const bullishWords = ['surge', 'rally', 'beat', 'growth', 'gain', 'record', 'strong', 'upgrade'];
-          const bearishWords = ['drop', 'fall', 'miss', 'loss', 'decline', 'weak', 'downgrade'];
-          const bullScore = bullishWords.filter(w => text.includes(w)).length;
-          const bearScore = bearishWords.filter(w => text.includes(w)).length;
-          const sentiment = bullScore > bearScore ? 'bullish' : bearScore > bullScore ? 'bearish' : 'neutral';
-
-          newsItems.push({
-            ticker,
-            headline,
-            summary: '',
-            source,
-            source_tier: 1,
-            url: link,
-            sentiment_score: bullScore - bearScore,
-            algorithm_alignment: { sentiment },
-            published_at: pubDate ? new Date(pubDate).toISOString() : new Date().toISOString()
-          });
-        });
-      } catch(e) {
-        console.log(`Google news failed for ${ticker}:`, e);
-      }
+async function fetchNews() {
+    const btn = document.getElementById('fetch-btn');
+    btn.disabled = true;
+    btn.textContent = 'Fetching...';
+    try {
+      await fetch('https://zpcbbwynvvyldavxzjng.supabase.co/functions/v1/clever-processor');
+      await loadStoredNews();
+    } catch(e) {
+      console.log('Fetch failed:', e);
     }
-
-    if (newsItems.length) {
-      await db.from('news_feed').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-      await db.from('news_feed').insert(newsItems);
-    }
-
-    allNews = newsItems;
-    renderNews(newsItems);
-
     btn.disabled = false;
     btn.textContent = 'Fetch Now';
   }
