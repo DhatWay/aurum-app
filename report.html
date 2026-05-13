@@ -518,9 +518,30 @@
   let currentMonth = '';
   let reportData = {};
 
-  async function loadMonths() {
-    const { data: picks } = await db.from('picks').select('picked_at').order('picked_at', { ascending: false });
-    const { data: trades } = await db.from('paper_trades').select('opened_at').order('opened_at', { ascending: false });
+  async async function loadMonths() {
+    try {
+      const { data: picks } = await db.from('picks').select('picked_at').order('picked_at', { ascending: false });
+      const { data: trades } = await db.from('paper_trades').select('opened_at').order('opened_at', { ascending: false });
+
+      const months = new Set();
+      picks?.forEach(p => months.add(p.picked_at.slice(0, 7)));
+      trades?.forEach(t => months.add(t.opened_at.slice(0, 7)));
+      months.add(new Date().toISOString().slice(0, 7));
+
+      const sortedMonths = [...months].sort().reverse();
+      const selector = document.getElementById('month-selector');
+
+      selector.innerHTML = sortedMonths.map((m, i) => `
+        <button class="month-btn ${i === 0 ? 'active' : ''}" onclick="selectMonth('${m}', this)">
+          ${new Date(m + '-01').toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+        </button>
+      `).join('');
+
+      selectMonth(sortedMonths[0], selector.querySelector('.month-btn'));
+    } catch(e) {
+      document.getElementById('month-selector').innerHTML = '<div style="color:var(--muted);font-size:0.8rem;">Error loading months.</div>';
+    }
+  }
 
     const months = new Set();
     picks?.forEach(p => months.add(p.picked_at.slice(0, 7)));
