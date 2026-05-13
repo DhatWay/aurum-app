@@ -80,7 +80,7 @@
     position: relative;
   }
 
-  .nav-overlay {
+.nav-overlay {
     position: fixed;
     inset: 0;
     background: rgba(8,8,8,0.97);
@@ -109,10 +109,11 @@
   .nav-overlay a:hover { color: var(--gold); }
   .nav-overlay a.active { color: var(--gold); }
 
-  .nav-close {
+.nav-close {
     position: fixed;
     top: 2rem;
     right: 2.5rem;
+    z-index: 1002;
     background: transparent;
     border: none;
     color: var(--muted);
