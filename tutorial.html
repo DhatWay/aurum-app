@@ -79,7 +79,7 @@
     position: relative;
   }
 
-  .nav-overlay {
+.nav-overlay {
     position: fixed;
     inset: 0;
     background: rgba(8,8,8,0.97);
@@ -88,9 +88,10 @@
     flex-direction: column;
     justify-content: center;
     align-items: center;
-    gap: 2.5rem;
+    gap: 1.8rem;
+    overflow-y: auto;
+    padding: 4rem 2rem;
   }
-
   .nav-overlay.open { display: flex; }
 
   .nav-overlay a {
@@ -106,10 +107,12 @@
   .nav-overlay a:hover { color: var(--gold); }
   .nav-overlay a.active { color: var(--gold); }
 
-  .nav-close {
-    position: absolute;
+
+ .nav-close {
+    position: fixed;
     top: 2rem;
     right: 2.5rem;
+    z-index: 1002;
     background: transparent;
     border: none;
     color: var(--muted);
