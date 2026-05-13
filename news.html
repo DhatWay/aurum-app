@@ -88,14 +88,16 @@
     flex-direction: column;
     justify-content: center;
     align-items: center;
-    gap: 2.5rem;
+    gap: 1.8rem;
+    overflow-y: auto;
+    padding: 4rem 2rem;
   }
 
   .nav-overlay.open { display: flex; }
 
   .nav-overlay a {
     font-family: 'Cormorant Garamond', serif;
-    font-size: 2.5rem;
+    font-size: 2rem;
     font-weight: 300;
     color: var(--muted);
     text-decoration: none;
@@ -107,7 +109,7 @@
   .nav-overlay a.active { color: var(--gold); }
 
   .nav-close {
-    position: absolute;
+    position: fixed;
     top: 2rem;
     right: 2.5rem;
     background: transparent;
@@ -115,6 +117,7 @@
     color: var(--muted);
     font-size: 1.5rem;
     cursor: pointer;
+    z-index: 1002;
   }
 
   main {
@@ -140,12 +143,7 @@
     line-height: 1.7;
   }
 
-  .gold-rule {
-    width: 100%;
-    height: 1px;
-    background: var(--rule);
-    margin: 2.5rem 0;
-  }
+  .gold-rule { width: 100%; height: 1px; background: var(--rule); margin: 2.5rem 0; }
 
   .section-label {
     font-size: 0.85rem;
@@ -155,11 +153,10 @@
     margin-bottom: 1.5rem;
   }
 
-  /* Filter bar */
   .filter-bar {
     display: flex;
     gap: 0.5rem;
-    margin-bottom: 2rem;
+    margin-bottom: 1.5rem;
     flex-wrap: wrap;
   }
 
@@ -179,58 +176,38 @@
   .filter-btn:hover { border-color: var(--gold); color: var(--gold); }
   .filter-btn.active { border-color: var(--gold); color: var(--gold); background: rgba(201,168,76,0.05); }
 
-  /* Sources panel */
-  .sources-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 1px;
-    background: var(--rule);
+  .fetch-panel {
     border: 1px solid var(--rule);
-    margin-bottom: 2.5rem;
-  }
-
-  .source-card {
-    background: var(--black);
-    padding: 1rem 1.5rem;
+    padding: 1.5rem;
+    margin-bottom: 2rem;
     display: flex;
     justify-content: space-between;
     align-items: center;
+    flex-wrap: wrap;
+    gap: 1rem;
   }
 
-  .source-name {
-    font-family: 'IBM Plex Mono', monospace;
+  .fetch-text strong { display: block; color: var(--white); font-size: 0.95rem; margin-bottom: 0.3rem; }
+  .fetch-text span { font-size: 0.8rem; color: var(--muted); }
+
+  .btn-fetch {
+    background: transparent;
+    border: 1px solid var(--gold);
+    color: var(--gold);
+    font-family: 'DM Sans', sans-serif;
     font-size: 0.75rem;
-    color: var(--white);
-    margin-bottom: 0.2rem;
-  }
-
-  .source-type {
-    font-size: 0.6rem;
-    color: var(--muted);
-    letter-spacing: 0.1em;
-  }
-
-  .source-status {
-    font-size: 0.6rem;
-    letter-spacing: 0.15em;
+    letter-spacing: 0.2em;
     text-transform: uppercase;
-    padding: 0.2rem 0.5rem;
-    border: 1px solid rgba(58,107,74,0.4);
-    color: var(--positive);
+    padding: 0.8rem 1.5rem;
+    cursor: pointer;
+    transition: all 0.3s;
+    white-space: nowrap;
   }
 
-  .source-status.inactive {
-    border-color: var(--rule);
-    color: var(--muted);
-  }
+  .btn-fetch:hover { background: var(--gold); color: var(--black); }
+  .btn-fetch:disabled { opacity: 0.3; cursor: not-allowed; }
 
-  /* News feed */
-  .news-list {
-    display: grid;
-    gap: 1px;
-    background: var(--rule);
-    border: 1px solid var(--rule);
-  }
+  .news-list { display: grid; gap: 1px; background: var(--rule); border: 1px solid var(--rule); }
 
   .news-card {
     background: var(--black);
@@ -275,31 +252,11 @@
     margin-bottom: 0.5rem;
   }
 
-  .news-source {
-    font-size: 0.65rem;
-    letter-spacing: 0.1em;
-    color: var(--muted);
-    text-transform: uppercase;
-  }
+  .news-source { font-size: 0.65rem; letter-spacing: 0.1em; color: var(--muted); text-transform: uppercase; }
+  .news-time { font-family: 'IBM Plex Mono', monospace; font-size: 0.65rem; color: var(--muted); }
+  .news-summary { font-size: 0.8rem; color: var(--muted); line-height: 1.6; margin-bottom: 0.8rem; }
 
-  .news-time {
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 0.65rem;
-    color: var(--muted);
-  }
-
-  .news-summary {
-    font-size: 0.8rem;
-    color: var(--muted);
-    line-height: 1.6;
-    margin-bottom: 0.8rem;
-  }
-
-  .news-signals {
-    display: flex;
-    gap: 0.5rem;
-    flex-wrap: wrap;
-  }
+  .news-signals { display: flex; gap: 0.5rem; flex-wrap: wrap; }
 
   .news-signal-tag {
     font-size: 0.6rem;
@@ -310,62 +267,8 @@
     color: var(--muted);
   }
 
-  .news-signal-tag.bullish {
-    border-color: rgba(58,107,74,0.4);
-    color: var(--positive);
-  }
-
-  .news-signal-tag.bearish {
-    border-color: rgba(139,58,58,0.4);
-    color: var(--danger);
-  }
-
-  .news-signal-tag.neutral {
-    border-color: var(--rule);
-    color: var(--muted);
-  }
-
-  /* Fetch panel */
-  .fetch-panel {
-    border: 1px solid var(--rule);
-    padding: 1.5rem;
-    margin-bottom: 2.5rem;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 1rem;
-  }
-
-  .fetch-text {
-    font-size: 0.8rem;
-    color: var(--muted);
-    line-height: 1.6;
-  }
-
-  .fetch-text strong {
-    display: block;
-    color: var(--white);
-    font-size: 0.9rem;
-    margin-bottom: 0.3rem;
-  }
-
-  .btn-fetch {
-    background: transparent;
-    border: 1px solid var(--gold);
-    color: var(--gold);
-    font-family: 'DM Sans', sans-serif;
-    font-size: 0.7rem;
-    letter-spacing: 0.2em;
-    text-transform: uppercase;
-    padding: 0.8rem 1.5rem;
-    cursor: pointer;
-    transition: all 0.3s;
-    white-space: nowrap;
-  }
-
-  .btn-fetch:hover { background: var(--gold); color: var(--black); }
-  .btn-fetch:disabled { opacity: 0.3; cursor: not-allowed; }
+  .news-signal-tag.bullish { border-color: rgba(58,107,74,0.4); color: var(--positive); }
+  .news-signal-tag.bearish { border-color: rgba(139,58,58,0.4); color: var(--danger); }
 
   .empty-state {
     padding: 3rem;
@@ -376,10 +279,6 @@
     text-transform: uppercase;
   }
 
-  /* Tier badge */
-  .tier-1 { color: var(--gold); }
-  .tier-2 { color: var(--muted); }
-
   footer {
     padding: 2rem 2.5rem;
     border-top: 1px solid var(--rule);
@@ -389,34 +288,19 @@
     margin-top: 4rem;
   }
 
-  footer p {
-    font-size: 0.75rem;
-    letter-spacing: 0.15em;
-    color: var(--muted);
-    text-transform: uppercase;
-  }
-
-  .footer-au {
-    font-family: 'Cormorant Garamond', serif;
-    font-size: 1rem;
-    color: var(--rule);
-    letter-spacing: 0.3em;
-  }
+  footer p { font-size: 0.8rem; letter-spacing: 0.15em; color: var(--muted); text-transform: uppercase; }
+  .footer-au { font-family: 'Cormorant Garamond', serif; font-size: 1rem; color: var(--rule); letter-spacing: 0.3em; }
 
   @media (max-width: 600px) {
     main { padding: 2rem 1.5rem; }
     header { padding: 1.5rem; }
-    .sources-grid { grid-template-columns: 1fr; }
   }
 </style>
 </head>
 <body>
 
 <header>
-  <div class="logo">
-    AU
-    <span>PRIVATE INTELLIGENCE</span>
-  </div>
+  <div class="logo">AU<span>PRIVATE INTELLIGENCE</span></div>
   <button class="hamburger" onclick="openNav()">☰</button>
 </header>
 
@@ -427,50 +311,40 @@
   <a href="history.html">History</a>
   <a href="sectors.html">Sectors</a>
   <a href="simulator.html">Simulator</a>
-  <a href="admin.html">Admin</a>
-  <a href="tutorial.html">Tutorial</a>
- <a href="help.html">Help</a> 
-  <a href="assistant.html">Assistant</a>
   <a href="options.html">Options</a>
   <a href="report.html">Report</a>
+  <a href="tutorial.html">Tutorial</a>
+  <a href="help.html">Help</a>
+  <a href="assistant.html">Assistant</a>
+  <a href="admin.html">Admin</a>
 </div>
 
 <main>
-
   <div class="page-title">Intelligence <em>Feed.</em></div>
-  <div class="page-sub">Real time news aggregated from all sources — scored against AURUM's algorithms and filtered by signal alignment.</div>
-
-  <div class="section-label">News Sources</div>
-  <div class="sources-grid" id="sources-container">
-    <div class="empty-state">Loading sources...</div>
-  </div>
-
-  <div class="gold-rule"></div>
+  <div class="page-sub">Real time news scored against AURUM's algorithms and filtered by signal alignment.</div>
 
   <div class="section-label">Live Feed</div>
 
   <div class="fetch-panel">
     <div class="fetch-text">
-      <strong>Fetch Latest News</strong>
-      Pulls headlines from all active free sources for your watchlist stocks and scores them against AURUM's signal stack.
+      <strong>Refresh News</strong>
+      <span>Triggers a fresh fetch from all active sources.</span>
     </div>
     <button class="btn-fetch" id="fetch-btn" onclick="fetchNews()">Fetch Now</button>
   </div>
 
-  <div class="filter-bar">
-    <button class="filter-btn active" onclick="filterNews('all', this)">All</button>
-    <button class="filter-btn" onclick="filterNews('bullish', this)">Bullish</button>
-    <button class="filter-btn" onclick="filterNews('bearish', this)">Bearish</button>
-    <button class="filter-btn" onclick="filterNews('neutral', this)">Neutral</button>
+  <div class="filter-bar" id="sentiment-filter">
+    <button class="filter-btn active" onclick="filterSentiment('all', this)">All</button>
+    <button class="filter-btn" onclick="filterSentiment('bullish', this)">Bullish</button>
+    <button class="filter-btn" onclick="filterSentiment('bearish', this)">Bearish</button>
+    <button class="filter-btn" onclick="filterSentiment('neutral', this)">Neutral</button>
   </div>
 
-  <div class="filter-bar" id="month-filter" style="margin-top:-1rem;">
-  </div>
+  <div class="filter-bar" id="month-filter"></div>
 
   <div class="news-list" id="news-container">
-    <div class="empty-state">Tap Fetch Now to load latest intelligence.</div>
+    <div class="empty-state">Loading news...</div>
   </div>
-
 </main>
 
 <footer>
@@ -486,110 +360,35 @@
 
   let allNews = [];
 
-  async function loadSources() {
-    const { data } = await db.from('news_sources').select('*').order('tier').order('name');
-    const container = document.getElementById('sources-container');
-    if (!data) return;
-    container.innerHTML = data.map(s => `
-      <div class="source-card">
-        <div>
-          <div class="news-source tier-${s.tier}">${s.name}</div>
-          <div class="source-type">${s.api_key_required ? 'PAID — API Key Required' : 'Free — Active'}</div>
-        </div>
-        <div class="source-status ${s.active ? '' : 'inactive'}">${s.active ? 'Live' : 'Pending'}</div>
-      </div>
-    `).join('');
+  async function loadStoredNews() {
+    try {
+      const { data } = await db.from('news_feed').select('*').order('published_at', { ascending: false }).limit(200);
+      if (data && data.length) {
+        allNews = data;
+        renderNews(data);
+        buildMonthFilter(data);
+      } else {
+        document.getElementById('news-container').innerHTML = '<div class="empty-state">No news yet. Tap Fetch Now.</div>';
+      }
+    } catch(e) {
+      document.getElementById('news-container').innerHTML = '<div class="empty-state">Error loading news.</div>';
+    }
   }
 
   async function fetchNews() {
     const btn = document.getElementById('fetch-btn');
     btn.disabled = true;
     btn.textContent = 'Fetching...';
-
-    const { data: stocks } = await db.from('stocks').select('ticker');
-    if (!stocks || !stocks.length) {
-      btn.disabled = false;
-      btn.textContent = 'Fetch Now';
-      return;
-    }
-
-    const tickers = stocks.map(s => s.ticker);
-    const newsItems = [];
-
-    for (const ticker of tickers) {
-      try {
-        // Yahoo Finance RSS via CORS proxy
-        const yahooUrl = `https://corsproxy.io/?${encodeURIComponent(`https://finance.yahoo.com/rss/headline?s=${ticker}`)}`;
-        const res = await fetch(yahooUrl);
-        const data2 = await res2.json();
-        const parser = new DOMParser();
-        const xml = parser.parseFromString(data, 'text/xml');
-        const items = xml.querySelectorAll('item');
-
-        items.forEach((item, i) => {
-          if (i >= 3) return; // max 3 per ticker
-          const headline = item.querySelector('title')?.textContent || '';
-          const summary = item.querySelector('description')?.textContent?.replace(/<[^>]*>/g, '') || '';
-          const pubDate = item.querySelector('pubDate')?.textContent || '';
-          const link = item.querySelector('link')?.textContent || '';
-
-          // Simple sentiment scoring
-          const bullishWords = ['surge', 'rally', 'beat', 'growth', 'gain', 'record', 'strong', 'upgrade', 'buy', 'bullish', 'profit', 'soar', 'rise'];
-          const bearishWords = ['drop', 'fall', 'miss', 'loss', 'decline', 'weak', 'downgrade', 'sell', 'bearish', 'crash', 'plunge', 'warning'];
-          const text = (headline + ' ' + summary).toLowerCase();
-          const bullScore = bullishWords.filter(w => text.includes(w)).length;
-          const bearScore = bearishWords.filter(w => text.includes(w)).length;
-          const sentiment = bullScore > bearScore ? 'bullish' : bearScore > bullScore ? 'bearish' : 'neutral';
-          const sentimentScore = bullScore - bearScore;
-
-          newsItems.push({
-            ticker,
-            headline,
-            summary: summary.slice(0, 200),
-            source: 'Yahoo Finance',
-            source_tier: 1,
-            url: link,
-            sentiment_score: sentimentScore,
-            algorithm_alignment: { sentiment },
-            published_at: pubDate ? new Date(pubDate).toISOString() : new Date().toISOString()
-          });
-        });
-      } catch(e) {
-        console.log(`Failed to fetch news for ${ticker}:`, e);
-      }
-
-      try {
-        // Google News RSS
-        const googleUrl = `https://corsproxy.io/?${encodeURIComponent(`https://news.google.com/rss/search?q=${ticker}+stock&hl=en-US&gl=US&ceid=US:en`)}`;
-        const res2 = await fetch(googleUrl);
-        const data2 = await res2.json();
-        const parser2 = new DOMParser();
-        const xml2 = parser2.parseFromString(data2, 'text/xml');
-        const items2 = xml2.querySelectorAll('item');
-
-        items2.forEach((item, i) => {
-          if (i >= 2) return;
-          const headline = item.querySelector('title')?.textContent || '';
-async function fetchNews() {
-    const btn = document.getElementById('fetch-btn');
-    btn.disabled = true;
-    btn.textContent = 'Fetching...';
     try {
       await fetch('https://zpcbbwynvvyldavxzjng.supabase.co/functions/v1/clever-processor');
-      await loadStoredNews();
+      setTimeout(async () => {
+        await loadStoredNews();
+        btn.disabled = false;
+        btn.textContent = 'Fetch Now';
+      }, 90000);
     } catch(e) {
-      console.log('Fetch failed:', e);
-    }
-    btn.disabled = false;
-    btn.textContent = 'Fetch Now';
-  }
-
-  async function loadStoredNews() {
-    const { data } = await db.from('news_feed').select('*').order('published_at', { ascending: false }).limit(200);
-    if (data && data.length) {
-      allNews = data;
-      renderNews(data);
-      buildMonthFilter(data);
+      btn.disabled = false;
+      btn.textContent = 'Fetch Now';
     }
   }
 
@@ -607,13 +406,19 @@ async function fetchNews() {
   function filterByMonth(month, btn) {
     document.querySelectorAll('#month-filter .filter-btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
-    const filtered = month === 'all' ? allNews : allNews.filter(n => n.archive_month === month);
-    renderNews(filtered);
+    renderNews(allNews.filter(n => n.archive_month === month));
   }
+
+  function filterSentiment(type, btn) {
+    document.querySelectorAll('#sentiment-filter .filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    renderNews(type === 'all' ? allNews : allNews.filter(n => n.algorithm_alignment?.sentiment === type));
+  }
+
   function renderNews(items) {
     const container = document.getElementById('news-container');
     if (!items || !items.length) {
-      container.innerHTML = '<div class="empty-state">No news loaded. Tap Fetch Now.</div>';
+      container.innerHTML = '<div class="empty-state">No results.</div>';
       return;
     }
     container.innerHTML = items.map(n => {
@@ -641,21 +446,14 @@ async function fetchNews() {
     }).join('');
   }
 
-  function filterNews(type, btn) {
-    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    if (type === 'all') { renderNews(allNews); return; }
-    renderNews(allNews.filter(n => n.algorithm_alignment?.sentiment === type));
-  }
-
-  loadStoredNews();
-
   function openNav() { document.getElementById('nav-overlay').classList.add('open'); }
   function closeNav() { document.getElementById('nav-overlay').classList.remove('open'); }
 
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/aurum-app/sw.js');
   }
+
+  loadStoredNews();
 </script>
 
 </body>
