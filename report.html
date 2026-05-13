@@ -89,9 +89,9 @@
     flex-direction: column;
     justify-content: center;
     align-items: center;
-    gap: 2rem;
+    gap: 1.8rem;
     overflow-y: auto;
-    padding: 2rem;
+    padding: 4rem 2rem;
   }
 
   .nav-overlay.open { display: flex; }
@@ -121,11 +121,7 @@
     z-index: 1002;
   }
 
-  main {
-    padding: 3rem 2.5rem;
-    max-width: 900px;
-    margin: 0 auto;
-  }
+  main { padding: 3rem 2.5rem; max-width: 900px; margin: 0 auto; }
 
   .page-title {
     font-family: 'Cormorant Garamond', serif;
@@ -142,15 +138,9 @@
     color: var(--muted);
     margin-bottom: 3rem;
     line-height: 1.7;
-    max-width: 600px;
   }
 
-  .gold-rule {
-    width: 100%;
-    height: 1px;
-    background: var(--rule);
-    margin: 2.5rem 0;
-  }
+  .gold-rule { width: 100%; height: 1px; background: var(--rule); margin: 2.5rem 0; }
 
   .section-label {
     font-size: 0.85rem;
@@ -160,13 +150,7 @@
     margin-bottom: 1.5rem;
   }
 
-  /* Month selector */
-  .month-selector {
-    display: flex;
-    gap: 0.5rem;
-    flex-wrap: wrap;
-    margin-bottom: 2.5rem;
-  }
+  .month-selector { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 2.5rem; }
 
   .month-btn {
     background: transparent;
@@ -184,7 +168,6 @@
   .month-btn:hover { border-color: var(--gold); color: var(--gold); }
   .month-btn.active { border-color: var(--gold); color: var(--gold); background: rgba(201,168,76,0.05); }
 
-  /* Stats grid */
   .stats-grid {
     display: grid;
     grid-template-columns: 1fr 1fr 1fr;
@@ -194,10 +177,7 @@
     margin-bottom: 2.5rem;
   }
 
-  .stat-cell {
-    background: var(--black);
-    padding: 1.5rem;
-  }
+  .stat-cell { background: var(--black); padding: 1.5rem; }
 
   .stat-label {
     font-size: 0.65rem;
@@ -217,19 +197,9 @@
 
   .stat-value.positive { color: var(--positive); }
   .stat-value.negative { color: var(--danger); }
+  .stat-sub { font-size: 0.65rem; color: var(--muted); margin-top: 0.3rem; font-family: 'IBM Plex Mono', monospace; }
 
-  .stat-sub {
-    font-size: 0.65rem;
-    color: var(--muted);
-    margin-top: 0.3rem;
-    font-family: 'IBM Plex Mono', monospace;
-  }
-
-  /* Picks table */
-  .picks-table {
-    border: 1px solid var(--rule);
-    margin-bottom: 2.5rem;
-  }
+  .picks-table { border: 1px solid var(--rule); margin-bottom: 2.5rem; }
 
   .picks-table-header {
     display: grid;
@@ -254,40 +224,18 @@
   .picks-table-row:last-child { border-bottom: none; }
   .picks-table-row:hover { background: rgba(201,168,76,0.03); }
 
-  .row-ticker {
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 0.9rem;
-    color: var(--white);
-  }
-
-  .row-score {
-    font-family: 'Cormorant Garamond', serif;
-    font-size: 1.4rem;
-    font-weight: 600;
-    color: var(--gold);
-  }
-
-  .row-return {
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 0.8rem;
-  }
-
+  .row-ticker { font-family: 'IBM Plex Mono', monospace; font-size: 0.9rem; color: var(--white); }
+  .row-score { font-family: 'Cormorant Garamond', serif; font-size: 1.4rem; font-weight: 600; color: var(--gold); }
+  .row-return { font-family: 'IBM Plex Mono', monospace; font-size: 0.8rem; }
   .row-return.positive { color: var(--positive); }
   .row-return.negative { color: var(--danger); }
   .row-return.pending { color: var(--muted); }
 
-  .outcome-badge {
-    font-size: 0.6rem;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    padding: 0.2rem 0.5rem;
-  }
-
+  .outcome-badge { font-size: 0.6rem; letter-spacing: 0.1em; text-transform: uppercase; padding: 0.2rem 0.5rem; }
   .outcome-badge.win { border: 1px solid rgba(58,107,74,0.4); color: var(--positive); }
   .outcome-badge.loss { border: 1px solid rgba(139,58,58,0.4); color: var(--danger); }
   .outcome-badge.pending { border: 1px solid var(--rule); color: var(--muted); }
 
-  /* Sim trades */
   .sim-summary {
     display: grid;
     grid-template-columns: 1fr 1fr 1fr 1fr;
@@ -297,7 +245,6 @@
     margin-bottom: 2.5rem;
   }
 
-  /* Download button */
   .download-panel {
     border: 1px solid var(--rule);
     padding: 2rem;
@@ -309,17 +256,8 @@
     margin-bottom: 2.5rem;
   }
 
-  .download-text strong {
-    display: block;
-    font-size: 1rem;
-    color: var(--white);
-    margin-bottom: 0.3rem;
-  }
-
-  .download-text span {
-    font-size: 0.85rem;
-    color: var(--muted);
-  }
+  .download-text strong { display: block; font-size: 1rem; color: var(--white); margin-bottom: 0.3rem; }
+  .download-text span { font-size: 0.85rem; color: var(--muted); }
 
   .btn-download {
     background: transparent;
@@ -348,15 +286,6 @@
     border: 1px solid var(--rule);
   }
 
-  .loading {
-    padding: 2rem;
-    text-align: center;
-    font-size: 0.8rem;
-    letter-spacing: 0.2em;
-    color: var(--muted);
-    text-transform: uppercase;
-  }
-
   footer {
     padding: 2rem 2.5rem;
     border-top: 1px solid var(--rule);
@@ -366,19 +295,8 @@
     margin-top: 4rem;
   }
 
-  footer p {
-    font-size: 0.8rem;
-    letter-spacing: 0.15em;
-    color: var(--muted);
-    text-transform: uppercase;
-  }
-
-  .footer-au {
-    font-family: 'Cormorant Garamond', serif;
-    font-size: 1rem;
-    color: var(--rule);
-    letter-spacing: 0.3em;
-  }
+  footer p { font-size: 0.8rem; letter-spacing: 0.15em; color: var(--muted); text-transform: uppercase; }
+  .footer-au { font-family: 'Cormorant Garamond', serif; font-size: 1rem; color: var(--rule); letter-spacing: 0.3em; }
 
   @media (max-width: 600px) {
     main { padding: 2rem 1.5rem; }
@@ -387,47 +305,38 @@
     .sim-summary { grid-template-columns: 1fr 1fr; }
     .picks-table-header { grid-template-columns: 1fr 1fr 1fr; }
     .picks-table-row { grid-template-columns: 1fr 1fr 1fr; }
-    .picks-table-header span:nth-child(4),
-    .picks-table-header span:nth-child(5),
-    .picks-table-row div:nth-child(4),
-    .picks-table-row div:nth-child(5) { display: none; }
   }
 </style>
 </head>
 <body>
 
 <header>
-  <div class="logo">
-    AU
-    <span>PRIVATE INTELLIGENCE</span>
-  </div>
+  <div class="logo">AU<span>PRIVATE INTELLIGENCE</span></div>
   <button class="hamburger" onclick="openNav()">☰</button>
 </header>
 
 <div class="nav-overlay" id="nav-overlay">
   <button class="nav-close" onclick="closeNav()">✕</button>
-<a href="simulator.html">Simulator</a>
-  <a href="sectors.html">Sectors</a>
-  <a href="admin.html">Admin</a>
- <a href="tutorial.html">Tutorial</a>
- <a href="news.html">News</a>
-<a href="help.html">Help</a>
-<a href="assistant.html">Assistant</a>
-<a href="options.html">Options</a>
- <a href="history.html">History</a>
   <a href="index.html">Brief</a>
+  <a href="news.html">News</a>
+  <a href="history.html">History</a>
+  <a href="sectors.html">Sectors</a>
+  <a href="simulator.html">Simulator</a>
+  <a href="options.html">Options</a>
   <a href="report.html" class="active">Report</a>
+  <a href="tutorial.html">Tutorial</a>
+  <a href="help.html">Help</a>
+  <a href="assistant.html">Assistant</a>
+  <a href="admin.html">Admin</a>
 </div>
 
 <main>
 
   <div class="page-title">Monthly <em>Report.</em></div>
-  <div class="page-sub">Full performance breakdown for any month — picks, simulation trades, accuracy, wins and losses. Downloadable as PDF.</div>
+  <div class="page-sub">Full performance breakdown — picks, simulation trades, accuracy. Downloadable as PDF.</div>
 
   <div class="section-label">Select Month</div>
-  <div class="month-selector" id="month-selector">
-    <div class="loading">Loading available months...</div>
-  </div>
+  <div class="month-selector" id="month-selector"></div>
 
   <div id="report-content" style="display:none;">
 
@@ -440,7 +349,7 @@
     </div>
 
     <div class="section-label">Intelligence Performance</div>
-    <div class="stats-grid" id="perf-stats">
+    <div class="stats-grid">
       <div class="stat-cell">
         <div class="stat-label">Total Picks</div>
         <div class="stat-value" id="stat-picks">—</div>
@@ -459,28 +368,24 @@
     </div>
 
     <div class="gold-rule"></div>
-
     <div class="section-label">Pick History</div>
-    <div id="picks-container">
-      <div class="loading">Loading picks...</div>
-    </div>
+    <div id="picks-container"></div>
 
     <div class="gold-rule"></div>
-
     <div class="section-label">Simulation Performance</div>
     <div class="sim-summary">
       <div class="stat-cell">
-        <div class="stat-label">Starting Balance</div>
-        <div class="stat-value" id="sim-start">$10,000</div>
+        <div class="stat-label">Starting</div>
+        <div class="stat-value">$10,000</div>
         <div class="stat-sub">Simulated capital</div>
       </div>
       <div class="stat-cell">
-        <div class="stat-label">Ending Balance</div>
+        <div class="stat-label">Ending</div>
         <div class="stat-value" id="sim-end">—</div>
         <div class="stat-sub">After trades</div>
       </div>
       <div class="stat-cell">
-        <div class="stat-label">Total Return</div>
+        <div class="stat-label">Return</div>
         <div class="stat-value" id="sim-return">—</div>
         <div class="stat-sub">Gain / Loss</div>
       </div>
@@ -492,14 +397,12 @@
     </div>
 
     <div class="section-label">Simulation Trades</div>
-    <div id="trades-container">
-      <div class="loading">Loading trades...</div>
-    </div>
+    <div id="trades-container"></div>
 
   </div>
 
   <div id="no-data" class="empty-state" style="display:none;">
-    No report data available for this month yet. Data accumulates as AURUM generates picks and you open simulation trades.
+    No data yet for this month. Data builds as AURUM generates picks and you open simulation trades.
   </div>
 
 </main>
@@ -518,45 +421,22 @@
   let currentMonth = '';
   let reportData = {};
 
-  async async function loadMonths() {
-    try {
-      const { data: picks } = await db.from('picks').select('picked_at').order('picked_at', { ascending: false });
-      const { data: trades } = await db.from('paper_trades').select('opened_at').order('opened_at', { ascending: false });
-
-      const months = new Set();
-      picks?.forEach(p => months.add(p.picked_at.slice(0, 7)));
-      trades?.forEach(t => months.add(t.opened_at.slice(0, 7)));
-      months.add(new Date().toISOString().slice(0, 7));
-
-      const sortedMonths = [...months].sort().reverse();
-      const selector = document.getElementById('month-selector');
-
-      selector.innerHTML = sortedMonths.map((m, i) => `
-        <button class="month-btn ${i === 0 ? 'active' : ''}" onclick="selectMonth('${m}', this)">
-          ${new Date(m + '-01').toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
-        </button>
-      `).join('');
-
-      selectMonth(sortedMonths[0], selector.querySelector('.month-btn'));
-    } catch(e) {
-      document.getElementById('month-selector').innerHTML = '<div style="color:var(--muted);font-size:0.8rem;">Error loading months.</div>';
-    }
-  }
-
+  async function loadMonths() {
     const months = new Set();
-    picks?.forEach(p => months.add(p.picked_at.slice(0, 7)));
-    trades?.forEach(t => months.add(t.opened_at.slice(0, 7)));
-
-    // Always include current month
     months.add(new Date().toISOString().slice(0, 7));
+
+    try {
+      const { data: picks } = await db.from('picks').select('picked_at');
+      picks?.forEach(p => months.add(p.picked_at.slice(0, 7)));
+    } catch(e) {}
+
+    try {
+      const { data: trades } = await db.from('paper_trades').select('opened_at');
+      trades?.forEach(t => months.add(t.opened_at.slice(0, 7)));
+    } catch(e) {}
 
     const sortedMonths = [...months].sort().reverse();
     const selector = document.getElementById('month-selector');
-
-    if (!sortedMonths.length) {
-      selector.innerHTML = '<div class="loading">No data yet.</div>';
-      return;
-    }
 
     selector.innerHTML = sortedMonths.map((m, i) => `
       <button class="month-btn ${i === 0 ? 'active' : ''}" onclick="selectMonth('${m}', this)">
@@ -564,40 +444,41 @@
       </button>
     `).join('');
 
-    selectMonth(sortedMonths[0], selector.querySelector('.month-btn'));
+    currentMonth = sortedMonths[0];
+    loadReport(currentMonth);
   }
 
   async function selectMonth(month, btn) {
     document.querySelectorAll('.month-btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     currentMonth = month;
-    await loadReport(month);
+    loadReport(month);
   }
 
   async function loadReport(month) {
     const start = month + '-01';
     const end = new Date(new Date(start).getFullYear(), new Date(start).getMonth() + 1, 1).toISOString().split('T')[0];
 
-    const { data: picks } = await db.from('picks')
-      .select('*')
-      .gte('picked_at', start)
-      .lt('picked_at', end)
-      .order('picked_at', { ascending: false });
+    let picks = [], ratings = [], trades = [];
 
-    const { data: ratings } = await db.from('self_ratings')
-      .select('*')
-      .gte('rated_at', start)
-      .lt('rated_at', end);
+    try {
+      const r = await db.from('picks').select('*').gte('picked_at', start).lt('picked_at', end).order('picked_at', { ascending: false });
+      picks = r.data || [];
+    } catch(e) {}
 
-    const { data: trades } = await db.from('paper_trades')
-      .select('*')
-      .gte('opened_at', start)
-      .lt('opened_at', end)
-      .order('opened_at', { ascending: false });
+    try {
+      const r = await db.from('self_ratings').select('*').gte('rated_at', start).lt('rated_at', end);
+      ratings = r.data || [];
+    } catch(e) {}
 
-    const { data: portfolio } = await db.from('paper_portfolio').select('*').single();
+    try {
+      const r = await db.from('paper_trades').select('*').gte('opened_at', start).lt('opened_at', end).order('opened_at', { ascending: false });
+      trades = r.data || [];
+    } catch(e) {}
 
-    if ((!picks || !picks.length) && (!trades || !trades.length)) {
+    reportData = { picks, ratings, trades, month };
+
+    if (!picks.length && !trades.length) {
       document.getElementById('report-content').style.display = 'none';
       document.getElementById('no-data').style.display = 'block';
       return;
@@ -606,35 +487,26 @@
     document.getElementById('report-content').style.display = 'block';
     document.getElementById('no-data').style.display = 'none';
 
-    // Store for PDF
-    reportData = { picks, ratings, trades, portfolio, month };
-
-    // Performance stats
-    const totalPicks = picks?.length || 0;
+    const totalPicks = picks.length;
     const avgScore = totalPicks ? Math.round(picks.reduce((s, p) => s + p.score, 0) / totalPicks) : 0;
-    const wins = ratings?.filter(r => r.beat_market).length || 0;
-    const accuracy = ratings?.length ? Math.round((wins / ratings.length) * 100) : 0;
+    const wins = ratings.filter(r => r.beat_market).length;
+    const accuracy = ratings.length ? Math.round((wins / ratings.length) * 100) : 0;
 
     document.getElementById('stat-picks').textContent = totalPicks || '—';
-    document.getElementById('stat-accuracy').textContent = ratings?.length ? accuracy + '%' : '—';
+    document.getElementById('stat-accuracy').textContent = ratings.length ? accuracy + '%' : '—';
     document.getElementById('stat-avg-score').textContent = avgScore || '—';
 
-    // Picks table
     const picksContainer = document.getElementById('picks-container');
-    if (!picks || !picks.length) {
+    if (!picks.length) {
       picksContainer.innerHTML = '<div class="empty-state">No picks this month.</div>';
     } else {
       picksContainer.innerHTML = `
         <div class="picks-table">
           <div class="picks-table-header">
-            <span>Ticker</span>
-            <span>Score</span>
-            <span>Date</span>
-            <span>30D Return</span>
-            <span>Outcome</span>
+            <span>Ticker</span><span>Score</span><span>Date</span><span>30D Return</span><span>Outcome</span>
           </div>
           ${picks.map(p => {
-            const rating = ratings?.find(r => r.ticker === p.ticker);
+            const rating = ratings.find(r => r.ticker === p.ticker);
             const ret = rating?.return_30d;
             const beat = rating?.beat_market;
             const date = new Date(p.picked_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
@@ -642,56 +514,44 @@
               <div class="picks-table-row">
                 <div class="row-ticker">${p.ticker}</div>
                 <div class="row-score">${p.score}</div>
-                <div style="font-size:0.8rem;color:var(--muted);">${date}</div>
-                <div class="row-return ${ret !== null && ret !== undefined ? (ret >= 0 ? 'positive' : 'negative') : 'pending'}">${ret !== null && ret !== undefined ? (ret >= 0 ? '+' : '') + ret + '%' : 'Pending'}</div>
-                <div><span class="outcome-badge ${beat === true ? 'win' : beat === false ? 'loss' : 'pending'}">${beat === true ? 'Beat Market' : beat === false ? 'Under' : 'Pending'}</span></div>
-              </div>
-            `;
+                <div style="font-size:0.8rem;color:var(--muted)">${date}</div>
+                <div class="row-return ${ret != null ? (ret >= 0 ? 'positive' : 'negative') : 'pending'}">${ret != null ? (ret >= 0 ? '+' : '') + ret + '%' : 'Pending'}</div>
+                <div><span class="outcome-badge ${beat === true ? 'win' : beat === false ? 'loss' : 'pending'}">${beat === true ? 'Beat' : beat === false ? 'Under' : 'Pending'}</span></div>
+              </div>`;
           }).join('')}
-        </div>
-      `;
+        </div>`;
     }
 
-    // Simulation stats
-    const totalTrades = trades?.length || 0;
-    const closedTrades = trades?.filter(t => t.status === 'closed') || [];
+    const closedTrades = trades.filter(t => t.status === 'closed');
     const totalGL = closedTrades.reduce((s, t) => s + Number(t.gain_loss), 0);
     const endBalance = 10000 + totalGL;
-    const returnPct = ((totalGL / 10000) * 100).toFixed(2);
 
     document.getElementById('sim-end').textContent = '$' + endBalance.toLocaleString(undefined, { minimumFractionDigits: 2 });
     document.getElementById('sim-return').textContent = (totalGL >= 0 ? '+' : '') + '$' + Math.abs(totalGL).toFixed(2);
     document.getElementById('sim-return').className = 'stat-value ' + (totalGL >= 0 ? 'positive' : 'negative');
-    document.getElementById('sim-trades').textContent = totalTrades;
+    document.getElementById('sim-trades').textContent = trades.length;
 
-    // Trades table
     const tradesContainer = document.getElementById('trades-container');
-    if (!trades || !trades.length) {
+    if (!trades.length) {
       tradesContainer.innerHTML = '<div class="empty-state">No simulation trades this month.</div>';
     } else {
       tradesContainer.innerHTML = `
         <div class="picks-table">
           <div class="picks-table-header">
-            <span>Ticker</span>
-            <span>Shares</span>
-            <span>Entry</span>
-            <span>G/L</span>
-            <span>Status</span>
+            <span>Ticker</span><span>Shares</span><span>Entry</span><span>G/L</span><span>Status</span>
           </div>
           ${trades.map(t => {
             const gl = Number(t.gain_loss);
             return `
               <div class="picks-table-row">
                 <div class="row-ticker">${t.ticker}</div>
-                <div style="font-size:0.8rem;color:var(--muted);">${Number(t.shares).toFixed(0)}</div>
-                <div style="font-size:0.8rem;color:var(--muted);">$${Number(t.entry_price).toFixed(2)}</div>
+                <div style="font-size:0.8rem;color:var(--muted)">${Number(t.shares).toFixed(0)}</div>
+                <div style="font-size:0.8rem;color:var(--muted)">$${Number(t.entry_price).toFixed(2)}</div>
                 <div class="row-return ${gl >= 0 ? 'positive' : 'negative'}">${gl >= 0 ? '+' : ''}$${Math.abs(gl).toFixed(2)}</div>
                 <div><span class="outcome-badge ${t.status === 'closed' ? (gl >= 0 ? 'win' : 'loss') : 'pending'}">${t.status}</span></div>
-              </div>
-            `;
+              </div>`;
           }).join('')}
-        </div>
-      `;
+        </div>`;
     }
   }
 
@@ -699,91 +559,44 @@
     const btn = document.getElementById('download-btn');
     btn.disabled = true;
     btn.textContent = 'Generating...';
-
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-
     const monthLabel = new Date(currentMonth + '-01').toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-    const { picks, ratings, trades } = reportData;
-
-    // Background
     doc.setFillColor(8, 8, 8);
     doc.rect(0, 0, 210, 297, 'F');
-
-    // Header
     doc.setTextColor(201, 168, 76);
     doc.setFontSize(28);
     doc.setFont('helvetica', 'bold');
     doc.text('AU', 20, 25);
-
     doc.setTextColor(240, 237, 230);
     doc.setFontSize(9);
     doc.setFont('helvetica', 'normal');
     doc.text('PRIVATE INTELLIGENCE', 20, 32);
-
     doc.setTextColor(107, 101, 96);
     doc.setFontSize(8);
-    doc.text('MONTHLY PERFORMANCE REPORT', 20, 40);
-    doc.text(monthLabel.toUpperCase(), 20, 46);
-
-    // Gold rule
+    doc.text('MONTHLY PERFORMANCE REPORT — ' + monthLabel.toUpperCase(), 20, 42);
     doc.setDrawColor(201, 168, 76);
     doc.setLineWidth(0.3);
-    doc.line(20, 52, 190, 52);
-
-    // Performance stats
-    doc.setTextColor(107, 101, 96);
-    doc.setFontSize(7);
-    doc.text('INTELLIGENCE PERFORMANCE', 20, 62);
-
-    const totalPicks = picks?.length || 0;
-    const avgScore = totalPicks ? Math.round(picks.reduce((s: any, p: any) => s + p.score, 0) / totalPicks) : 0;
-    const wins = ratings?.filter((r: any) => r.beat_market).length || 0;
-    const accuracy = ratings?.length ? Math.round((wins / ratings.length) * 100) : 0;
-
+    doc.line(20, 48, 190, 48);
     doc.setTextColor(201, 168, 76);
-    doc.setFontSize(20);
+    doc.setFontSize(16);
     doc.setFont('helvetica', 'bold');
-    doc.text(String(totalPicks || '—'), 20, 75);
-    doc.text(ratings?.length ? accuracy + '%' : '—', 80, 75);
-    doc.text(String(avgScore || '—'), 140, 75);
-
+    doc.text(String(reportData.picks?.length || '0'), 20, 65);
+    doc.text(String(reportData.ratings?.length ? Math.round((reportData.ratings.filter(r => r.beat_market).length / reportData.ratings.length) * 100) + '%' : '—'), 80, 65);
     doc.setTextColor(107, 101, 96);
     doc.setFontSize(7);
     doc.setFont('helvetica', 'normal');
-    doc.text('TOTAL PICKS', 20, 81);
-    doc.text('ACCURACY', 80, 81);
-    doc.text('AVG SCORE', 140, 81);
-
+    doc.text('TOTAL PICKS', 20, 71);
+    doc.text('ACCURACY', 80, 71);
     doc.setDrawColor(201, 168, 76);
-    doc.setLineWidth(0.1);
-    doc.line(20, 86, 190, 86);
-
-    // Picks table
+    doc.line(20, 76, 190, 76);
     doc.setTextColor(107, 101, 96);
     doc.setFontSize(7);
-    doc.text('PICK HISTORY', 20, 94);
-
-    if (picks && picks.length) {
-      let y = 102;
-      doc.setTextColor(201, 168, 76);
-      doc.setFontSize(7);
-      doc.text('TICKER', 20, y);
-      doc.text('SCORE', 55, y);
-      doc.text('DATE', 85, y);
-      doc.text('30D RETURN', 120, y);
-      doc.text('OUTCOME', 160, y);
-      y += 4;
-      doc.setDrawColor(107, 101, 96);
-      doc.line(20, y, 190, y);
-      y += 6;
-
-      for (const p of picks.slice(0, 10)) {
-        const rating = ratings?.find((r: any) => r.ticker === p.ticker);
-        const ret = rating?.return_30d;
-        const beat = rating?.beat_market;
+    doc.text('PICK HISTORY', 20, 84);
+    let y = 92;
+    if (reportData.picks?.length) {
+      reportData.picks.slice(0, 12).forEach(p => {
         const date = new Date(p.picked_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-
         doc.setTextColor(240, 237, 230);
         doc.setFontSize(8);
         doc.text(p.ticker, 20, y);
@@ -791,56 +604,27 @@
         doc.text(String(p.score), 55, y);
         doc.setTextColor(107, 101, 96);
         doc.text(date, 85, y);
-
-        if (ret !== null && ret !== undefined) {
-          doc.setTextColor(ret >= 0 ? 58 : 139, ret >= 0 ? 107 : 58, ret >= 0 ? 74 : 58);
-          doc.text((ret >= 0 ? '+' : '') + ret + '%', 120, y);
-        } else {
-          doc.setTextColor(107, 101, 96);
-          doc.text('Pending', 120, y);
-        }
-
-        doc.setTextColor(beat === true ? 58 : beat === false ? 139 : 107, beat === true ? 107 : beat === false ? 58 : 101, beat === true ? 74 : beat === false ? 58 : 96);
-        doc.text(beat === true ? 'Beat Market' : beat === false ? 'Underperformed' : 'Pending', 160, y);
-
-        y += 8;
+        y += 7;
         doc.setDrawColor(30, 30, 30);
         doc.line(20, y - 2, 190, y - 2);
-      }
-
-      // Simulation section
-      y += 8;
-      doc.setDrawColor(201, 168, 76);
-      doc.setLineWidth(0.1);
-      doc.line(20, y, 190, y);
-      y += 8;
-
-      doc.setTextColor(107, 101, 96);
-      doc.setFontSize(7);
-      doc.text('SIMULATION PERFORMANCE', 20, y);
-      y += 10;
-
-      const closedTrades = trades?.filter((t: any) => t.status === 'closed') || [];
-      const totalGL = closedTrades.reduce((s: any, t: any) => s + Number(t.gain_loss), 0);
-      const endBalance = 10000 + totalGL;
-
-      doc.setTextColor(201, 168, 76);
-      doc.setFontSize(16);
-      doc.setFont('helvetica', 'bold');
-      doc.text('$10,000', 20, y + 8);
-      doc.text('$' + endBalance.toLocaleString(undefined, { minimumFractionDigits: 2 }), 80, y + 8);
-      doc.setTextColor(totalGL >= 0 ? 58 : 139, totalGL >= 0 ? 107 : 58, totalGL >= 0 ? 74 : 58);
-      doc.text((totalGL >= 0 ? '+' : '') + '$' + Math.abs(totalGL).toFixed(2), 140, y + 8);
-
-      doc.setTextColor(107, 101, 96);
-      doc.setFontSize(7);
-      doc.setFont('helvetica', 'normal');
-      doc.text('STARTING', 20, y + 14);
-      doc.text('ENDING', 80, y + 14);
-      doc.text('TOTAL RETURN', 140, y + 14);
+      });
     }
-
-    // Footer
+    const closedTrades = reportData.trades?.filter(t => t.status === 'closed') || [];
+    const totalGL = closedTrades.reduce((s, t) => s + Number(t.gain_loss), 0);
+    y += 8;
+    doc.setDrawColor(201, 168, 76);
+    doc.line(20, y, 190, y);
+    y += 8;
+    doc.setTextColor(107, 101, 96);
+    doc.setFontSize(7);
+    doc.text('SIMULATION', 20, y);
+    y += 8;
+    doc.setTextColor(totalGL >= 0 ? 58 : 139, totalGL >= 0 ? 107 : 58, totalGL >= 0 ? 74 : 58);
+    doc.setFontSize(14);
+    doc.text((totalGL >= 0 ? '+' : '') + '$' + Math.abs(totalGL).toFixed(2), 20, y + 6);
+    doc.setTextColor(107, 101, 96);
+    doc.setFontSize(7);
+    doc.text('TOTAL RETURN', 20, y + 12);
     doc.setDrawColor(201, 168, 76);
     doc.setLineWidth(0.3);
     doc.line(20, 280, 190, 280);
@@ -849,9 +633,7 @@
     doc.text('AURUM © 2026 — PRIVATE USE ONLY', 20, 287);
     doc.setTextColor(201, 168, 76);
     doc.text('AU', 180, 287);
-
     doc.save(`AURUM-Report-${currentMonth}.pdf`);
-
     btn.disabled = false;
     btn.textContent = 'Download PDF';
   }
