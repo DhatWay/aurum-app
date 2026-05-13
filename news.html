@@ -648,7 +648,6 @@ async function fetchNews() {
     renderNews(allNews.filter(n => n.algorithm_alignment?.sentiment === type));
   }
 
-  loadSources();
   loadStoredNews();
 
   function openNav() { document.getElementById('nav-overlay').classList.add('open'); }
