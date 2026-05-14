@@ -429,7 +429,7 @@ header {
     <div class="inline-fields">
       <div>
         <div class="field-label">Ticker</div>
-        <input type="text" id="new-ticker" placeholder="e.g. AAPL">
+        <input type="text" id="new-ticker" placeholder="e.g. AAPL" autocomplete="off">
       </div>
       <div>
         <div class="field-label">Company</div>
@@ -703,6 +703,10 @@ Respond in this exact JSON format with no extra text:
         <div style="display:flex;flex-direction:column;gap:0.5rem;align-items:flex-end;">
           <div class="algo-status">${a.alert_type === 'up' ? '▲' : '▼'} ${a.threshold_pct}%</div>
           <button onclick="deleteAlert('${a.id}')" style="back
+<script src="tickers.js"></script>
+<script>
+  initTickerAutocomplete('new-ticker');
+  initTickerAutocomplete('alert-ticker');
 </script>
 </body>
 </html>
