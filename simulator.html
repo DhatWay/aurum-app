@@ -477,9 +477,7 @@
     <div class="inline-grid">
       <div>
         <div class="field-label">Ticker</div>
-        <select id="trade-ticker">
-          <option value="">— Select Stock —</option>
-        </select>
+        <input type="text" id="trade-ticker" placeholder="e.g. NVDA" autocomplete="off">
       </div>
       <div>
         <div class="field-label">Entry Price ($)</div>
@@ -667,6 +665,9 @@
   }
  function openNav() { document.getElementById('nav-overlay').classList.add('open'); }
   function closeNav() { document.getElementById('nav-overlay').classList.remove('open'); } 
+  <script src="tickers.js"></script>
+<script>
+  initTickerAutocomplete('trade-ticker');
 </script>
 
 </body>
