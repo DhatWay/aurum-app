@@ -704,9 +704,13 @@ Respond in this exact JSON format with no extra text:
           <div class="algo-status">${a.alert_type === 'up' ? '▲' : '▼'} ${a.threshold_pct}%</div>
           <button onclick="deleteAlert('${a.id}')" style="back
 <script src="tickers.js"></script>
+</script>
+
+<script src="tickers.js"></script>
 <script>
   initTickerAutocomplete('new-ticker');
   initTickerAutocomplete('alert-ticker');
 </script>
+
 </body>
 </html>
