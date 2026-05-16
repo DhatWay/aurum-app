@@ -109,9 +109,8 @@ function initTickerAutocomplete(inputId, onSelect) {
   const input = document.getElementById(inputId);
   if (!input) return;
 
-  const parent = input.parentElement;
-  const originalPosition = window.getComputedStyle(parent).position;
-  if (originalPosition === 'static') parent.style.position = 'relative';
+const parent = input.parentElement;
+  parent.style.cssText += ';position:relative;';
 
   const dropdown = document.createElement('div');
   dropdown.id = inputId + '-dropdown';
@@ -132,7 +131,14 @@ function initTickerAutocomplete(inputId, onSelect) {
 
   input.addEventListener('input', () => {
     const query = input.value.toUpperCase().trim();
-    if (query.length < 1) { dropdown.style.display = 'none'; return; }
+    if (query.length < 1) {
+      dropdown.style.display = 'none';
+      const companyInput = document.getElementById('new-company');
+      if (companyInput) companyInput.value = '';
+      const sectorInput = document.getElementById('new-sector');
+      if (sectorInput) sectorInput.value = '';
+      return;
+    }
 
     const matches = TICKER_DATABASE.filter(t =>
       t.t.startsWith(query) || t.n.toUpperCase().includes(query)
