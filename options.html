@@ -866,16 +866,17 @@ Respond in this exact JSON format only, no extra text:
   function openNav() { document.getElementById('nav-overlay').classList.add('open'); }
   function closeNav() { document.getElementById('nav-overlay').classList.remove('open'); }
 
-  if ('serviceWorker' in navigator) {
+if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/aurum-app/sw.js');
   }
-
-  loadStocks();
-  loadPositions();
-<script src="tickers.js"></script>
-<script>
-  initTickerAutocomplete('opt-ticker');
+ function openNav() { document.getElementById('nav-overlay').classList.add('open'); }
+  function closeNav() { document.getElementById('nav-overlay').classList.remove('open'); }
 </script>
 
+<script src="tickers.js"></script>
+<script>
+  initTickerAutocomplete('trade-ticker');
+</script>
 </body>
+</html>
 </html>
