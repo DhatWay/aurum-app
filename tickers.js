@@ -1,6 +1,4 @@
-// AURUM Ticker Database — Major US Stocks
 const TICKER_DATABASE = [
-  // Technology
   {t:'AAPL',n:'Apple Inc',s:'Technology'},
   {t:'MSFT',n:'Microsoft Corp',s:'Technology'},
   {t:'NVDA',n:'NVIDIA Corp',s:'Technology'},
@@ -31,7 +29,6 @@ const TICKER_DATABASE = [
   {t:'RBLX',n:'Roblox Corp',s:'Technology'},
   {t:'ABNB',n:'Airbnb Inc',s:'Technology'},
   {t:'DASH',n:'DoorDash Inc',s:'Technology'},
-  // Finance
   {t:'JPM',n:'JPMorgan Chase',s:'Finance'},
   {t:'BAC',n:'Bank of America',s:'Finance'},
   {t:'WFC',n:'Wells Fargo',s:'Finance'},
@@ -47,18 +44,15 @@ const TICKER_DATABASE = [
   {t:'USB',n:'US Bancorp',s:'Finance'},
   {t:'PNC',n:'PNC Financial Services',s:'Finance'},
   {t:'TFC',n:'Truist Financial',s:'Finance'},
-  // Energy
   {t:'XOM',n:'ExxonMobil Corp',s:'Energy'},
   {t:'CVX',n:'Chevron Corp',s:'Energy'},
   {t:'COP',n:'ConocoPhillips',s:'Energy'},
   {t:'SLB',n:'SLB (Schlumberger)',s:'Energy'},
   {t:'EOG',n:'EOG Resources',s:'Energy'},
-  {t:'PXD',n:'Pioneer Natural Resources',s:'Energy'},
   {t:'OXY',n:'Occidental Petroleum',s:'Energy'},
   {t:'MPC',n:'Marathon Petroleum',s:'Energy'},
   {t:'VLO',n:'Valero Energy',s:'Energy'},
   {t:'PSX',n:'Phillips 66',s:'Energy'},
-  // Healthcare
   {t:'JNJ',n:'Johnson & Johnson',s:'Healthcare'},
   {t:'UNH',n:'UnitedHealth Group',s:'Healthcare'},
   {t:'PFE',n:'Pfizer Inc',s:'Healthcare'},
@@ -70,25 +64,20 @@ const TICKER_DATABASE = [
   {t:'BMY',n:'Bristol-Myers Squibb',s:'Healthcare'},
   {t:'GILD',n:'Gilead Sciences',s:'Healthcare'},
   {t:'AMGN',n:'Amgen Inc',s:'Healthcare'},
-  {t:'BIIB',n:'Biogen Inc',s:'Healthcare'},
   {t:'MRNA',n:'Moderna Inc',s:'Healthcare'},
   {t:'ISRG',n:'Intuitive Surgical',s:'Healthcare'},
   {t:'CVS',n:'CVS Health Corp',s:'Healthcare'},
-  // Consumer
   {t:'WMT',n:'Walmart Inc',s:'Consumer'},
   {t:'HD',n:'Home Depot',s:'Consumer'},
-  {t:'MCD',n:'McDonald\'s Corp',s:'Consumer'},
+  {t:'MCD',n:"McDonald's Corp",s:'Consumer'},
   {t:'SBUX',n:'Starbucks Corp',s:'Consumer'},
   {t:'NKE',n:'Nike Inc',s:'Consumer'},
   {t:'TGT',n:'Target Corp',s:'Consumer'},
   {t:'COST',n:'Costco Wholesale',s:'Consumer'},
-  {t:'LOW',n:'Lowe\'s Companies',s:'Consumer'},
+  {t:'LOW',n:"Lowe's Companies",s:'Consumer'},
   {t:'TJX',n:'TJX Companies',s:'Consumer'},
   {t:'LULU',n:'Lululemon Athletica',s:'Consumer'},
   {t:'CMG',n:'Chipotle Mexican Grill',s:'Consumer'},
-  {t:'YUM',n:'Yum! Brands',s:'Consumer'},
-  {t:'DPZ',n:'Domino\'s Pizza',s:'Consumer'},
-  // Industrial
   {t:'BA',n:'Boeing Co',s:'Industrial'},
   {t:'CAT',n:'Caterpillar Inc',s:'Industrial'},
   {t:'GE',n:'GE Aerospace',s:'Industrial'},
@@ -98,26 +87,18 @@ const TICKER_DATABASE = [
   {t:'FDX',n:'FedEx Corp',s:'Industrial'},
   {t:'LMT',n:'Lockheed Martin',s:'Industrial'},
   {t:'RTX',n:'RTX Corp',s:'Industrial'},
-  {t:'NOC',n:'Northrop Grumman',s:'Industrial'},
   {t:'DE',n:'Deere & Company',s:'Industrial'},
-  // Communications
   {t:'T',n:'AT&T Inc',s:'Communications'},
   {t:'VZ',n:'Verizon Communications',s:'Communications'},
   {t:'TMUS',n:'T-Mobile US',s:'Communications'},
   {t:'DIS',n:'Walt Disney Co',s:'Communications'},
   {t:'CMCSA',n:'Comcast Corp',s:'Communications'},
-  {t:'CHTR',n:'Charter Communications',s:'Communications'},
-  // Real Estate
   {t:'AMT',n:'American Tower Corp',s:'Real Estate'},
   {t:'PLD',n:'Prologis Inc',s:'Real Estate'},
-  {t:'CCI',n:'Crown Castle Inc',s:'Real Estate'},
   {t:'EQIX',n:'Equinix Inc',s:'Real Estate'},
-  {t:'SPG',n:'Simon Property Group',s:'Real Estate'},
-  // ETFs
   {t:'SPY',n:'SPDR S&P 500 ETF',s:'ETF'},
   {t:'QQQ',n:'Invesco QQQ Trust',s:'ETF'},
   {t:'IWM',n:'iShares Russell 2000',s:'ETF'},
-  {t:'DIA',n:'SPDR Dow Jones ETF',s:'ETF'},
   {t:'GLD',n:'SPDR Gold Shares',s:'ETF'},
   {t:'TLT',n:'iShares 20+ Year Treasury',s:'ETF'},
   {t:'VTI',n:'Vanguard Total Stock Market',s:'ETF'},
@@ -128,23 +109,26 @@ function initTickerAutocomplete(inputId, onSelect) {
   const input = document.getElementById(inputId);
   if (!input) return;
 
-  const wrapper = input.parentElement;
-  wrapper.style.position = 'relative';
+  const parent = input.parentElement;
+  const originalPosition = window.getComputedStyle(parent).position;
+  if (originalPosition === 'static') parent.style.position = 'relative';
 
   const dropdown = document.createElement('div');
+  dropdown.id = inputId + '-dropdown';
   dropdown.style.cssText = `
     position: absolute;
-    top: 100%;
+    top: calc(100% + 2px);
     left: 0;
     right: 0;
     background: #0f0f0f;
     border: 1px solid rgba(201,168,76,0.3);
     z-index: 9999;
-    max-height: 200px;
+    max-height: 220px;
     overflow-y: auto;
     display: none;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.5);
   `;
-  wrapper.appendChild(dropdown);
+  parent.appendChild(dropdown);
 
   input.addEventListener('input', () => {
     const query = input.value.toUpperCase().trim();
@@ -157,38 +141,50 @@ function initTickerAutocomplete(inputId, onSelect) {
     if (!matches.length) { dropdown.style.display = 'none'; return; }
 
     dropdown.innerHTML = matches.map(t => `
-      <div onclick="selectTicker('${inputId}', '${t.t}', '${t.n}', '${t.s}')"
-        style="padding:0.7rem 1rem;cursor:pointer;border-bottom:1px solid rgba(201,168,76,0.1);transition:background 0.2s;"
-        onmouseover="this.style.background='rgba(201,168,76,0.05)'"
-        onmouseout="this.style.background='transparent'">
-        <span style="font-family:'IBM Plex Mono',monospace;font-size:0.85rem;color:#C9A84C;">${t.t}</span>
-        <span style="font-size:0.75rem;color:#6B6560;margin-left:0.8rem;">${t.n}</span>
-        <span style="font-size:0.6rem;color:#6B6560;float:right;margin-top:0.1rem;">${t.s}</span>
+      <div class="ticker-option"
+        data-ticker="${t.t}"
+        data-name="${t.n}"
+        data-sector="${t.s}"
+        style="padding:0.7rem 1rem;cursor:pointer;border-bottom:1px solid rgba(201,168,76,0.08);display:flex;justify-content:space-between;align-items:center;">
+        <div>
+          <span style="font-family:'IBM Plex Mono',monospace;font-size:0.85rem;color:#C9A84C;">${t.t}</span>
+          <span style="font-size:0.75rem;color:#6B6560;margin-left:0.8rem;">${t.n}</span>
+        </div>
+        <span style="font-size:0.6rem;color:#6B6560;">${t.s}</span>
       </div>
     `).join('');
+
+    dropdown.querySelectorAll('.ticker-option').forEach(el => {
+      el.addEventListener('mouseenter', () => el.style.background = 'rgba(201,168,76,0.05)');
+      el.addEventListener('mouseleave', () => el.style.background = 'transparent');
+      el.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        const ticker = el.dataset.ticker;
+        const name = el.dataset.name;
+        const sector = el.dataset.sector;
+
+        input.value = ticker;
+        dropdown.style.display = 'none';
+
+        // Auto-fill related fields
+        const companyInput = document.getElementById('new-company');
+        if (companyInput) companyInput.value = name;
+
+        const sectorInput = document.getElementById('new-sector');
+        if (sectorInput) sectorInput.value = sector;
+
+        if (typeof onSelect === 'function') onSelect(ticker, name, sector);
+      });
+    });
 
     dropdown.style.display = 'block';
   });
 
-  document.addEventListener('click', (e) => {
-    if (!wrapper.contains(e.target)) dropdown.style.display = 'none';
+  input.addEventListener('blur', () => {
+    setTimeout(() => { dropdown.style.display = 'none'; }, 150);
   });
-}
 
-function selectTicker(inputId, ticker, name, sector) {
-  const input = document.getElementById(inputId);
-  if (input) input.value = ticker;
-
-  const nameInput = document.getElementById(inputId.replace('ticker', 'company').replace('opt-ticker', 'opt-company').replace('new-ticker', 'new-company').replace('alert-ticker', 'alert-company'));
-  if (nameInput) nameInput.value = name;
-
-  const sectorInput = document.getElementById(inputId.replace('ticker', 'sector').replace('new-ticker', 'new-sector'));
-  if (sectorInput) sectorInput.value = sector;
-
-  const dropdown = input?.parentElement?.querySelector('div');
-  if (dropdown) dropdown.style.display = 'none';
-
-  if (typeof window[inputId + '_callback'] === 'function') {
-    window[inputId + '_callback'](ticker, name, sector);
-  }
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') dropdown.style.display = 'none';
+  });
 }
