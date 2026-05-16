@@ -660,15 +660,16 @@
   loadPortfolio();
   loadTrades();
 
-  if ('serviceWorker' in navigator) {
+if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/aurum-app/sw.js');
   }
  function openNav() { document.getElementById('nav-overlay').classList.add('open'); }
-  function closeNav() { document.getElementById('nav-overlay').classList.remove('open'); } 
+  function closeNav() { document.getElementById('nav-overlay').classList.remove('open'); }
+</script>
+
 <script src="tickers.js"></script>
 <script>
   initTickerAutocomplete('trade-ticker');
 </script>
 </body>
 </html>
-
