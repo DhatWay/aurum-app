@@ -1,0 +1,857 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AURUM — IPO Intelligence</title>
+<link rel="manifest" href="/aurum-app/manifest.json">
+<meta name="theme-color" content="#C9A84C">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;600&family=DM+Sans:wght@300;400;500&family=IBM+Plex+Mono:wght@300;400&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root {
+    --black: #080808;
+    --gold: #C9A84C;
+    --white: #F0EDE6;
+    --muted: #6B6560;
+    --danger: #8B3A3A;
+    --positive: #3A6B4A;
+    --rule: rgba(201,168,76,0.2);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--black);
+    color: var(--white);
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 400;
+    font-size: 18px;
+    min-height: 100vh;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 999;
+    opacity: 0.4;
+  }
+
+  header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 1rem;
+    padding: 2rem 2.5rem;
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .logo {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 1.8rem;
+    font-weight: 600;
+    letter-spacing: 0.3em;
+    color: var(--gold);
+  }
+
+  .logo span {
+    color: var(--white);
+    opacity: 0.3;
+    font-weight: 300;
+    font-size: 0.7rem;
+    letter-spacing: 0.2em;
+    display: block;
+    margin-top: -4px;
+  }
+
+  .hamburger {
+    background: transparent;
+    border: 1px solid var(--rule);
+    color: var(--gold);
+    font-size: 1.2rem;
+    padding: 0.4rem 0.8rem;
+    cursor: pointer;
+    z-index: 1001;
+  }
+
+  .nav-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(8,8,8,0.97);
+    z-index: 1000;
+    display: none;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 1.8rem;
+    overflow-y: auto;
+    padding: 4rem 2rem;
+  }
+
+  .nav-overlay.open { display: flex; }
+
+  .nav-overlay a {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 2rem;
+    font-weight: 300;
+    color: var(--muted);
+    text-decoration: none;
+    letter-spacing: 0.2em;
+    transition: color 0.3s;
+  }
+
+  .nav-overlay a:hover { color: var(--gold); }
+  .nav-overlay a.active { color: var(--gold); }
+
+  .nav-close {
+    position: fixed;
+    top: 2rem;
+    right: 2.5rem;
+    background: transparent;
+    border: none;
+    color: var(--muted);
+    font-size: 1.5rem;
+    cursor: pointer;
+    z-index: 1002;
+  }
+
+  main { padding: 3rem 2.5rem; max-width: 900px; margin: 0 auto; }
+
+  .page-title {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: clamp(2rem, 6vw, 3.5rem);
+    font-weight: 300;
+    color: var(--white);
+    margin-bottom: 0.5rem;
+  }
+
+  .page-title em { color: var(--gold); font-style: normal; }
+
+  .page-sub {
+    font-size: 1rem;
+    color: var(--muted);
+    margin-bottom: 3rem;
+    line-height: 1.7;
+    max-width: 600px;
+  }
+
+  .gold-rule { width: 100%; height: 1px; background: var(--rule); margin: 2.5rem 0; }
+
+  .section-label {
+    font-size: 0.85rem;
+    letter-spacing: 0.3em;
+    color: var(--gold);
+    text-transform: uppercase;
+    margin-bottom: 1.5rem;
+  }
+
+  /* Stats */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 1px;
+    background: var(--rule);
+    border: 1px solid var(--rule);
+    margin-bottom: 2.5rem;
+  }
+
+  .stat-cell { background: var(--black); padding: 1.5rem; }
+  .stat-label { font-size: 0.65rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--muted); margin-bottom: 0.5rem; }
+  .stat-value { font-family: 'Cormorant Garamond', serif; font-size: 2.2rem; font-weight: 600; color: var(--gold); line-height: 1; }
+  .stat-sub { font-size: 0.65rem; color: var(--muted); margin-top: 0.3rem; font-family: 'IBM Plex Mono', monospace; }
+
+  /* Filter */
+  .filter-bar { display: flex; gap: 0.5rem; margin-bottom: 2rem; flex-wrap: wrap; }
+
+  .filter-btn {
+    background: transparent;
+    border: 1px solid var(--rule);
+    color: var(--muted);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.75rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    padding: 0.4rem 1rem;
+    cursor: pointer;
+    transition: all 0.3s;
+  }
+
+  .filter-btn:hover { border-color: var(--gold); color: var(--gold); }
+  .filter-btn.active { border-color: var(--gold); color: var(--gold); background: rgba(201,168,76,0.05); }
+
+  /* IPO cards */
+  .ipo-grid { display: grid; gap: 1px; background: var(--rule); border: 1px solid var(--rule); }
+
+  .ipo-card {
+    background: var(--black);
+    padding: 1.5rem;
+    transition: background 0.3s;
+  }
+
+  .ipo-card:hover { background: rgba(201,168,76,0.03); }
+
+  .ipo-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 1rem;
+    gap: 1rem;
+  }
+
+  .ipo-company {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 1.4rem;
+    font-weight: 400;
+    color: var(--white);
+    margin-bottom: 0.2rem;
+  }
+
+  .ipo-meta { font-size: 0.75rem; color: var(--muted); font-family: 'IBM Plex Mono', monospace; }
+
+  .ipo-right { text-align: right; }
+
+  .ipo-score {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 2.5rem;
+    font-weight: 600;
+    color: var(--gold);
+    line-height: 1;
+  }
+
+  .ipo-score.high { color: var(--gold); }
+  .ipo-score.mid { color: var(--muted); }
+
+  .ipo-verdict {
+    font-size: 0.65rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    margin-top: 0.3rem;
+  }
+
+  .ipo-verdict.strong { color: var(--positive); }
+  .ipo-verdict.watch { color: var(--gold); }
+  .ipo-verdict.monitor { color: var(--muted); }
+  .ipo-verdict.pass { color: var(--danger); }
+
+  .ipo-brief {
+    font-size: 0.85rem;
+    color: var(--muted);
+    line-height: 1.6;
+    margin-bottom: 1rem;
+    padding-top: 0.8rem;
+    border-top: 1px solid var(--rule);
+  }
+
+  .ipo-signals { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.8rem; }
+
+  .ipo-tag {
+    font-size: 0.6rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 0.2rem 0.6rem;
+    border: 1px solid var(--rule);
+    color: var(--muted);
+  }
+
+  .ipo-tag.positive { border-color: rgba(58,107,74,0.4); color: var(--positive); }
+  .ipo-tag.negative { border-color: rgba(139,58,58,0.4); color: var(--danger); }
+  .ipo-tag.gold { border-color: rgba(201,168,76,0.4); color: var(--gold); }
+
+  .ipo-actions { display: flex; gap: 0.5rem; }
+
+  .btn-small {
+    background: transparent;
+    border: 1px solid var(--rule);
+    color: var(--muted);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.65rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 0.3rem 0.8rem;
+    cursor: pointer;
+    transition: all 0.3s;
+    text-decoration: none;
+  }
+
+  .btn-small:hover { border-color: var(--gold); color: var(--gold); }
+
+  /* Add IPO panel */
+  .add-panel {
+    border: 1px solid var(--rule);
+    padding: 2rem;
+    margin-bottom: 2.5rem;
+  }
+
+  .add-title {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 1.5rem;
+    font-weight: 300;
+    color: var(--white);
+    margin-bottom: 0.5rem;
+  }
+
+  .add-sub { font-size: 0.9rem; color: var(--muted); margin-bottom: 2rem; line-height: 1.6; }
+
+  .field-label { font-size: 0.7rem; letter-spacing: 0.2em; color: var(--gold); text-transform: uppercase; margin-bottom: 0.5rem; }
+
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 0.5rem; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; margin-bottom: 0.5rem; }
+
+  input, select, textarea {
+    width: 100%;
+    background: transparent;
+    border: 1px solid var(--rule);
+    color: var(--white);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.9rem;
+    padding: 0.8rem 1rem;
+    margin-bottom: 1rem;
+    outline: none;
+    transition: border 0.3s;
+    appearance: none;
+  }
+
+  input:focus, select:focus, textarea:focus { border-color: var(--gold); }
+  input::placeholder, textarea::placeholder { color: var(--muted); }
+  select option { background: #111; color: var(--white); }
+  textarea { min-height: 80px; resize: vertical; line-height: 1.5; }
+
+  .btn {
+    background: transparent;
+    border: 1px solid var(--gold);
+    color: var(--gold);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.85rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    padding: 0.9rem 2rem;
+    cursor: pointer;
+    transition: all 0.3s;
+    width: 100%;
+  }
+
+  .btn:hover { background: var(--gold); color: var(--black); }
+
+  .success-msg {
+    font-size: 0.8rem;
+    color: var(--positive);
+    text-align: center;
+    padding: 0.8rem;
+    display: none;
+    border: 1px solid rgba(58,107,74,0.3);
+    margin-top: 1rem;
+  }
+
+  .success-msg.visible { display: block; }
+
+  /* Fetch panel */
+  .fetch-panel {
+    border: 1px solid var(--rule);
+    padding: 1.5rem;
+    margin-bottom: 2.5rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 1rem;
+  }
+
+  .fetch-text strong { display: block; color: var(--white); font-size: 0.95rem; margin-bottom: 0.3rem; }
+  .fetch-text span { font-size: 0.8rem; color: var(--muted); }
+
+  .btn-fetch {
+    background: transparent;
+    border: 1px solid var(--gold);
+    color: var(--gold);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.75rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    padding: 0.8rem 1.5rem;
+    cursor: pointer;
+    transition: all 0.3s;
+    white-space: nowrap;
+  }
+
+  .btn-fetch:hover { background: var(--gold); color: var(--black); }
+  .btn-fetch:disabled { opacity: 0.3; cursor: not-allowed; }
+
+  .empty-state {
+    padding: 3rem;
+    text-align: center;
+    font-size: 0.85rem;
+    letter-spacing: 0.15em;
+    color: var(--muted);
+    text-transform: uppercase;
+  }
+
+  /* Alerts */
+  .alert-item {
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid var(--rule);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+  }
+
+  .alert-item:last-child { border-bottom: none; }
+  .alert-text { font-size: 0.85rem; color: var(--white); line-height: 1.5; }
+  .alert-time { font-family: 'IBM Plex Mono', monospace; font-size: 0.65rem; color: var(--muted); white-space: nowrap; }
+
+  footer {
+    padding: 2rem 2.5rem;
+    border-top: 1px solid var(--rule);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 4rem;
+  }
+
+  footer p { font-size: 0.8rem; letter-spacing: 0.15em; color: var(--muted); text-transform: uppercase; }
+  .footer-au { font-family: 'Cormorant Garamond', serif; font-size: 1rem; color: var(--rule); letter-spacing: 0.3em; }
+
+  @media (max-width: 600px) {
+    main { padding: 2rem 1.5rem; }
+    header { padding: 1.5rem; }
+    .stats-grid { grid-template-columns: 1fr 1fr; }
+    .grid-2 { grid-template-columns: 1fr; }
+    .grid-3 { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">AU<span>PRIVATE INTELLIGENCE</span></div>
+  <button class="hamburger" onclick="openNav()">☰</button>
+</header>
+
+<div class="nav-overlay" id="nav-overlay">
+  <button class="nav-close" onclick="closeNav()">✕</button>
+  <a href="index.html">Brief</a>
+  <a href="news.html">News</a>
+  <a href="history.html">History</a>
+  <a href="sectors.html">Sectors</a>
+  <a href="simulator.html">Simulator</a>
+  <a href="options.html">Options</a>
+  <a href="ipo.html" class="active">IPO</a>
+  <a href="report.html">Report</a>
+  <a href="tutorial.html">Tutorial</a>
+  <a href="help.html">Help</a>
+  <a href="assistant.html">Assistant</a>
+  <a href="admin.html">Admin</a>
+</div>
+
+<main>
+
+  <div class="page-title">IPO <em>Intelligence.</em></div>
+  <div class="page-sub">Early detection of newly registered public companies. AURUM scores IPO candidates pre-listing using underwriter quality, financials, sector momentum, and buzz — before retail investors pile in.</div>
+
+  <div class="section-label">Overview</div>
+  <div class="stats-grid">
+    <div class="stat-cell">
+      <div class="stat-label">Monitoring</div>
+      <div class="stat-value" id="stat-total">—</div>
+      <div class="stat-sub">IPO candidates</div>
+    </div>
+    <div class="stat-cell">
+      <div class="stat-label">Strong Watch</div>
+      <div class="stat-value" id="stat-strong">—</div>
+      <div class="stat-sub">Score 70+</div>
+    </div>
+    <div class="stat-cell">
+      <div class="stat-label">This Month</div>
+      <div class="stat-value" id="stat-month">—</div>
+      <div class="stat-sub">New filings</div>
+    </div>
+  </div>
+
+  <div class="gold-rule"></div>
+
+  <div class="section-label">SEC EDGAR Feed</div>
+  <div class="fetch-panel">
+    <div class="fetch-text">
+      <strong>Scan for New S-1 Filings</strong>
+      <span>Checks SEC EDGAR for newly registered companies filing to go public. Scores each candidate automatically.</span>
+    </div>
+    <button class="btn-fetch" id="scan-btn" onclick="scanEDGAR()">Scan Now</button>
+  </div>
+
+  <div class="gold-rule"></div>
+
+  <div class="section-label">Add IPO Manually</div>
+  <div class="add-panel">
+    <div class="add-title">Log an IPO Candidate</div>
+    <div class="add-sub">Add a company filing to go public. AURUM scores it immediately using all available signals.</div>
+
+    <div class="grid-2">
+      <div>
+        <div class="field-label">Company Name</div>
+        <input type="text" id="ipo-company" placeholder="e.g. Stripe Inc">
+      </div>
+      <div>
+        <div class="field-label">Expected Ticker</div>
+        <input type="text" id="ipo-ticker" placeholder="e.g. STRP">
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div>
+        <div class="field-label">Sector</div>
+        <select id="ipo-sector">
+          <option value="">— Select —</option>
+          <option>Technology</option>
+          <option>AI</option>
+          <option>Biotech</option>
+          <option>Fintech</option>
+          <option>Healthcare</option>
+          <option>Energy</option>
+          <option>Defense</option>
+          <option>Consumer</option>
+          <option>Industrial</option>
+          <option>Real Estate</option>
+          <option>Other</option>
+        </select>
+      </div>
+      <div>
+        <div class="field-label">Filing Type</div>
+        <select id="ipo-filing">
+          <option value="S-1">S-1 (Initial)</option>
+          <option value="S-1/A">S-1/A (Amendment)</option>
+          <option value="F-1">F-1 (Foreign)</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="grid-3">
+      <div>
+        <div class="field-label">Filing Date</div>
+        <input type="date" id="ipo-filing-date">
+      </div>
+      <div>
+        <div class="field-label">Expected IPO Date</div>
+        <input type="date" id="ipo-ipo-date">
+      </div>
+      <div>
+        <div class="field-label">Total Raise Est. ($)</div>
+        <input type="number" id="ipo-raise" placeholder="e.g. 500000000">
+      </div>
+    </div>
+
+    <div class="grid-3">
+      <div>
+        <div class="field-label">Revenue TTM ($)</div>
+        <input type="number" id="ipo-revenue" placeholder="e.g. 1500000000">
+      </div>
+      <div>
+        <div class="field-label">Revenue Growth %</div>
+        <input type="number" id="ipo-growth" placeholder="e.g. 45">
+      </div>
+      <div>
+        <div class="field-label">Net Income ($)</div>
+        <input type="number" id="ipo-income" placeholder="e.g. -50000000">
+      </div>
+    </div>
+
+    <div class="field-label">Lead Underwriters (comma separated)</div>
+    <input type="text" id="ipo-underwriters" placeholder="e.g. Goldman Sachs, JPMorgan, Morgan Stanley">
+
+    <div class="field-label">SEC Filing URL</div>
+    <input type="text" id="ipo-sec-url" placeholder="https://www.sec.gov/...">
+
+    <button class="btn" onclick="addIPO()">Score & Add IPO Candidate</button>
+    <div class="success-msg" id="ipo-success">IPO candidate added and scored.</div>
+  </div>
+
+  <div class="gold-rule"></div>
+
+  <div class="section-label">IPO Watchlist</div>
+
+  <div class="filter-bar">
+    <button class="filter-btn active" onclick="filterIPO('all', this)">All</button>
+    <button class="filter-btn" onclick="filterIPO('STRONG_WATCH', this)">Strong Watch</button>
+    <button class="filter-btn" onclick="filterIPO('WATCH', this)">Watch</button>
+    <button class="filter-btn" onclick="filterIPO('MONITOR', this)">Monitor</button>
+  </div>
+
+  <div class="ipo-grid" id="ipo-container">
+    <div class="empty-state">No IPO candidates yet. Scan EDGAR or add manually.</div>
+  </div>
+
+  <div class="gold-rule"></div>
+
+  <div class="section-label">IPO Alerts</div>
+  <div style="border:1px solid var(--rule);" id="alerts-container">
+    <div class="empty-state">No alerts yet.</div>
+  </div>
+
+</main>
+
+<footer>
+  <p>AURUM © 2026 — Private Use Only</p>
+  <div class="footer-au">AU</div>
+</footer>
+
+<script>
+  const SUPABASE_URL = 'https://zpcbbwynvvyldavxzjng.supabase.co';
+  const SUPABASE_KEY = 'sb_publishable_K80lcfk8LsQNqo5enznRRA_lrzf2U9K';
+  const { createClient } = supabase;
+  const db = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+  let allIPOs = [];
+
+  function scoreIPO(ipoData) {
+    let score = 50;
+    const signals = {};
+    const tierOne = ["Goldman Sachs", "JPMorgan", "Morgan Stanley", "Bank of America", "Citigroup", "Deutsche Bank", "Barclays", "Wells Fargo"];
+    const tierTwo = ["Jefferies", "Raymond James", "Piper Sandler", "Cowen", "Needham", "Stifel"];
+    const underwriters = ipoData.lead_underwriters || [];
+    const t1 = underwriters.filter(u => tierOne.some(t => u.includes(t))).length;
+    const t2 = underwriters.filter(u => tierTwo.some(t => u.includes(t))).length;
+    const uwScore = Math.min((t1 * 15) + (t2 * 8), 30);
+    score += uwScore;
+    signals.underwriters = { tier1: t1, score: uwScore };
+
+    if (ipoData.revenue_growth_pct) {
+      const g = ipoData.revenue_growth_pct;
+      const gs = g > 100 ? 20 : g > 50 ? 15 : g > 25 ? 10 : g > 0 ? 5 : -5;
+      score += gs;
+      signals.growth = { pct: g, score: gs };
+    }
+
+    if (ipoData.net_income !== null && ipoData.net_income !== undefined) {
+      const ps = ipoData.net_income > 0 ? 10 : ipoData.net_income > -10000000 ? 0 : -5;
+      score += ps;
+      signals.profitability = { score: ps };
+    }
+
+    if (ipoData.total_raise_estimated) {
+      const rs = ipoData.total_raise_estimated > 500000000 ? 10 : ipoData.total_raise_estimated > 100000000 ? 8 : 5;
+      score += rs;
+      signals.raise = { score: rs };
+    }
+
+    const hotSectors = ["Technology", "AI", "Biotech", "Defense", "Energy", "Fintech", "Healthcare"];
+    const ss = hotSectors.some(s => (ipoData.sector || "").includes(s)) ? 10 : 0;
+    score += ss;
+    signals.sector = { score: ss };
+
+    if (ipoData.expected_ipo_date) {
+      const days = Math.ceil((new Date(ipoData.expected_ipo_date) - new Date()) / (1000 * 60 * 60 * 24));
+      const ts = days < 7 ? -10 : days < 30 ? 0 : days < 90 ? 5 : 8;
+      score += ts;
+      signals.timing = { days, score: ts };
+    }
+
+    const finalScore = Math.min(Math.max(score, 0), 100);
+    const verdict = finalScore > 70 ? "STRONG_WATCH" : finalScore > 55 ? "WATCH" : finalScore > 40 ? "MONITOR" : "PASS";
+    const brief = `${ipoData.company_name} — Score: ${finalScore}. Sector: ${ipoData.sector || "Unknown"}. Underwriters: ${underwriters.slice(0,2).join(", ") || "Unknown"}. ${ipoData.revenue_growth_pct ? "Growth: " + ipoData.revenue_growth_pct + "%. " : ""}Verdict: ${verdict}.`;
+
+    return { finalScore, verdict, brief, signals };
+  }
+
+  async function addIPO() {
+    const company = document.getElementById('ipo-company').value.trim();
+    if (!company) return;
+
+    const underwriterStr = document.getElementById('ipo-underwriters').value;
+    const underwriters = underwriterStr.split(',').map(u => u.trim()).filter(Boolean);
+
+    const ipoData = {
+      company_name: company,
+      ticker_expected: document.getElementById('ipo-ticker').value.toUpperCase() || null,
+      sector: document.getElementById('ipo-sector').value || null,
+      filing_type: document.getElementById('ipo-filing').value,
+      filing_date: document.getElementById('ipo-filing-date').value || null,
+      expected_ipo_date: document.getElementById('ipo-ipo-date').value || null,
+      total_raise_estimated: parseFloat(document.getElementById('ipo-raise').value) || null,
+      revenue_ttm: parseFloat(document.getElementById('ipo-revenue').value) || null,
+      revenue_growth_pct: parseFloat(document.getElementById('ipo-growth').value) || null,
+      net_income: parseFloat(document.getElementById('ipo-income').value) || null,
+      lead_underwriters: underwriters,
+      sec_url: document.getElementById('ipo-sec-url').value || null
+    };
+
+    const { finalScore, verdict, brief, signals } = scoreIPO(ipoData);
+    ipoData.aurum_score = finalScore;
+    ipoData.aurum_brief = brief;
+    ipoData.signals = signals;
+    ipoData.buzz_score = 0;
+
+    const { error } = await db.from('ipo_watchlist').insert(ipoData);
+
+    if (!error) {
+      document.getElementById('ipo-success').classList.add('visible');
+      setTimeout(() => document.getElementById('ipo-success').classList.remove('visible'), 3000);
+      document.getElementById('ipo-company').value = '';
+      document.getElementById('ipo-ticker').value = '';
+      loadIPOs();
+
+      if (finalScore >= 70) {
+        await db.from('ipo_alerts').insert({
+          company_name: company,
+          alert_type: 'high_score',
+          message: `${company} scored ${finalScore} — Strong Watch. ${brief}`
+        });
+        loadAlerts();
+      }
+    }
+  }
+
+  async function scanEDGAR() {
+    const btn = document.getElementById('scan-btn');
+    btn.disabled = true;
+    btn.textContent = 'Scanning...';
+
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+      const url = `https://efts.sec.gov/LATEST/search-index?q=%22S-1%22&dateRange=custom&startdt=${weekAgo}&enddt=${today}&forms=S-1`;
+      const res = await fetch(url);
+      const data = await res.json();
+      const hits = data?.hits?.hits || [];
+
+      let added = 0;
+      for (const hit of hits.slice(0, 10)) {
+        const s = hit._source;
+        if (!s.entity_name) continue;
+
+        const existing = await db.from('ipo_watchlist').select('id').eq('company_name', s.entity_name).single();
+        if (existing.data) continue;
+
+        const ipoData = {
+          company_name: s.entity_name,
+          filing_type: 'S-1',
+          filing_date: s.file_date || today,
+          sec_url: `https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&company=${encodeURIComponent(s.entity_name)}&type=S-1`,
+          lead_underwriters: [],
+          buzz_score: 0
+        };
+
+        const { finalScore, verdict, brief, signals } = scoreIPO(ipoData);
+        ipoData.aurum_score = finalScore;
+        ipoData.aurum_brief = brief;
+        ipoData.signals = signals;
+
+        await db.from('ipo_watchlist').insert(ipoData);
+        added++;
+      }
+
+      loadIPOs();
+      btn.textContent = `Found ${added} new`;
+      setTimeout(() => { btn.textContent = 'Scan Now'; btn.disabled = false; }, 3000);
+    } catch(e) {
+      btn.textContent = 'Scan Now';
+      btn.disabled = false;
+    }
+  }
+
+  async function loadIPOs() {
+    const { data } = await db.from('ipo_watchlist').select('*').order('aurum_score', { ascending: false });
+    const container = document.getElementById('ipo-container');
+
+    if (!data || !data.length) {
+      container.innerHTML = '<div class="empty-state">No IPO candidates yet.</div>';
+      return;
+    }
+
+    allIPOs = data;
+    updateStats(data);
+    renderIPOs(data);
+  }
+
+  function updateStats(data) {
+    document.getElementById('stat-total').textContent = data.length;
+    document.getElementById('stat-strong').textContent = data.filter(i => i.aurum_score >= 70).length;
+    const thisMonth = new Date().toISOString().slice(0, 7);
+    document.getElementById('stat-month').textContent = data.filter(i => i.created_at?.startsWith(thisMonth)).length;
+  }
+
+  function renderIPOs(data) {
+    const container = document.getElementById('ipo-container');
+    if (!data.length) {
+      container.innerHTML = '<div class="empty-state">No IPO candidates match filter.</div>';
+      return;
+    }
+
+    container.innerHTML = data.map(ipo => {
+      const score = ipo.aurum_score || 0;
+      const verdict = ipo.aurum_score >= 70 ? 'STRONG WATCH' : ipo.aurum_score >= 55 ? 'WATCH' : ipo.aurum_score >= 40 ? 'MONITOR' : 'PASS';
+      const verdictClass = ipo.aurum_score >= 70 ? 'strong' : ipo.aurum_score >= 55 ? 'watch' : ipo.aurum_score >= 40 ? 'monitor' : 'pass';
+      const date = ipo.filing_date ? new Date(ipo.filing_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—';
+      const underwriters = ipo.lead_underwriters?.slice(0, 2).join(', ') || '—';
+
+      return `
+        <div class="ipo-card">
+          <div class="ipo-top">
+            <div>
+              <div class="ipo-company">${ipo.company_name}</div>
+              <div class="ipo-meta">${ipo.filing_type || 'S-1'} — Filed ${date} — ${ipo.sector || 'Unknown sector'}</div>
+            </div>
+            <div class="ipo-right">
+              <div class="ipo-score ${score >= 65 ? 'high' : 'mid'}">${score}</div>
+              <div class="ipo-verdict ${verdictClass}">${verdict}</div>
+            </div>
+          </div>
+          <div class="ipo-brief">${ipo.aurum_brief || '—'}</div>
+          <div class="ipo-signals">
+            ${ipo.ticker_expected ? `<span class="ipo-tag gold">${ipo.ticker_expected}</span>` : ''}
+            ${underwriters !== '—' ? `<span class="ipo-tag positive">${underwriters}</span>` : ''}
+            ${ipo.revenue_growth_pct ? `<span class="ipo-tag ${ipo.revenue_growth_pct > 50 ? 'positive' : ''}">+${ipo.revenue_growth_pct}% growth</span>` : ''}
+            ${ipo.expected_ipo_date ? `<span class="ipo-tag">IPO: ${new Date(ipo.expected_ipo_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>` : ''}
+          </div>
+          <div class="ipo-actions">
+            ${ipo.sec_url ? `<a href="${ipo.sec_url}" target="_blank" class="btn-small">View S-1</a>` : ''}
+            ${ipo.prospectus_url ? `<a href="${ipo.prospectus_url}" target="_blank" class="btn-small">Prospectus</a>` : ''}
+            <button class="btn-small" onclick="deleteIPO('${ipo.id}')">Remove</button>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  function filterIPO(type, btn) {
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const filtered = type === 'all' ? allIPOs : allIPOs.filter(i => i.aurum_score >= (type === 'STRONG_WATCH' ? 70 : type === 'WATCH' ? 55 : 40) && i.aurum_score < (type === 'STRONG_WATCH' ? 101 : type === 'WATCH' ? 70 : type === 'MONITOR' ? 55 : 40));
+    renderIPOs(filtered);
+  }
+
+  async function deleteIPO(id) {
+    await db.from('ipo_watchlist').delete().eq('id', id);
+    loadIPOs();
+  }
+
+  async function loadAlerts() {
+    const { data } = await db.from('ipo_alerts').select('*').eq('read', false).order('triggered_at', { ascending: false }).limit(10);
+    const container = document.getElementById('alerts-container');
+    if (!data || !data.length) {
+      container.innerHTML = '<div class="empty-state">No alerts.</div>';
+      return;
+    }
+    container.innerHTML = data.map(a => `
+      <div class="alert-item">
+        <div class="alert-text">${a.message}</div>
+        <div class="alert-time">${new Date(a.triggered_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</div>
+      </div>
+    `).join('');
+  }
+
+  function openNav() { document.getElementById('nav-overlay').classList.add('open'); }
+  function closeNav() { document.getElementById('nav-overlay').classList.remove('open'); }
+
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/aurum-app/sw.js');
+  }
+
+  loadIPOs();
+  loadAlerts();
+</script>
+
+</body>
+</html>
