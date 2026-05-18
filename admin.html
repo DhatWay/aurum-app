@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>AURUM — Admin</title>
-  <link rel="manifest" href="/aurum-app/manifest.json">
+<link rel="manifest" href="/aurum-app/manifest.json">
 <meta name="theme-color" content="#C9A84C">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="AURUM">
@@ -33,14 +33,12 @@
     font-size: 18px;
   }
 
-header {
+  header {
     display: flex;
     justify-content: space-between;
     align-items: center;
     padding: 2rem 2.5rem;
     border-bottom: 1px solid var(--rule);
-    flex-wrap: wrap;
-    gap: 1rem;
   }
 
   .logo {
@@ -61,7 +59,7 @@ header {
     margin-top: -4px;
   }
 
-.admin-badge {
+  .admin-badge {
     font-size: 0.6rem;
     letter-spacing: 0.2em;
     color: var(--gold);
@@ -81,7 +79,7 @@ header {
     position: relative;
   }
 
-.nav-overlay {
+  .nav-overlay {
     position: fixed;
     inset: 0;
     background: rgba(8,8,8,0.97);
@@ -110,7 +108,7 @@ header {
   .nav-overlay a:hover { color: var(--gold); }
   .nav-overlay a.active { color: var(--gold); }
 
-.nav-close {
+  .nav-close {
     position: fixed;
     top: 2rem;
     right: 2.5rem;
@@ -128,7 +126,7 @@ header {
     margin: 0 auto;
   }
 
-.section-label {
+  .section-label {
     font-size: 0.85rem;
     letter-spacing: 0.3em;
     color: var(--gold);
@@ -372,7 +370,8 @@ header {
     gap: 1rem;
   }
 
-  input[type="text"] {
+  input[type="text"],
+  input[type="number"] {
     width: 100%;
     background: transparent;
     border: 1px solid var(--rule);
@@ -382,10 +381,32 @@ header {
     padding: 0.8rem 1rem;
     outline: none;
     transition: border 0.3s;
+    margin-bottom: 1rem;
   }
 
-  input[type="text"]:focus { border-color: var(--gold); }
-  input[type="text"]::placeholder { color: var(--muted); }
+  input[type="text"]:focus,
+  input[type="number"]:focus { border-color: var(--gold); }
+
+  input[type="text"]::placeholder,
+  input[type="number"]::placeholder { color: var(--muted); }
+
+  .btn-danger {
+    background: transparent;
+    border: 1px solid var(--danger);
+    color: var(--danger);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.6rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    padding: 0.3rem 0.7rem;
+    cursor: pointer;
+    transition: all 0.3s;
+  }
+
+  .btn-danger:hover {
+    background: var(--danger);
+    color: var(--white);
+  }
 
   @media (max-width: 600px) {
     .inline-fields { grid-template-columns: 1fr; }
@@ -401,23 +422,25 @@ header {
     AU
     <span>PRIVATE INTELLIGENCE</span>
   </div>
-<button class="hamburger" onclick="openNav()">☰</button>
+  <button class="hamburger" onclick="openNav()">☰</button>
 </header>
 
+<!-- Nav Overlay -->
 <div class="nav-overlay" id="nav-overlay">
   <button class="nav-close" onclick="closeNav()">✕</button>
-<a href="simulator.html">Simulator</a>
+  <a href="simulator.html">Simulator</a>
   <a href="sectors.html">Sectors</a>
   <a href="history.html">History</a>
- <a href="tutorial.html">Tutorial</a>
- <a href="news.html">News</a>
-<a href="help.html">Help</a>
-<a href="assistant.html">Assistant</a>
-<a href="options.html">Options</a>
- <a href="report.html">Report</a>
+  <a href="tutorial.html">Tutorial</a>
+  <a href="news.html">News</a>
+  <a href="help.html">Help</a>
+  <a href="assistant.html">Assistant</a>
+  <a href="options.html">Options</a>
+  <a href="report.html">Report</a>
   <a href="index.html">Brief</a>
   <a href="admin.html" class="active">Admin</a>
- <a href="ipo.html">Ipo</a> 
+  <a href="ipo.html">Ipo</a>
+  <a href="trading.html">Trading</a>
 </div>
 
 <main>
@@ -430,7 +453,7 @@ header {
     <div class="inline-fields">
       <div>
         <div class="field-label">Ticker</div>
-        <input type="text" id="new-ticker" placeholder="e.g. AAPL" autocomplete="off">
+        <input type="text" id="new-ticker" placeholder="e.g. AAPL">
       </div>
       <div>
         <div class="field-label">Company</div>
@@ -482,7 +505,8 @@ header {
 
     <div class="success-msg" id="deploy-success">Algorithm updated successfully.</div>
   </div>
-<div class="gold-rule"></div>
+
+  <div class="gold-rule"></div>
 
   <!-- Price Alerts -->
   <div class="section-label">Price Alerts</div>
@@ -492,23 +516,23 @@ header {
     <div class="inline-fields">
       <div>
         <div class="field-label">Ticker</div>
-        <input type="text" id="alert-ticker" placeholder="e.g. AAPL" autocomplete="off" style="width:100%;background:transparent;border:1px solid var(--rule);color:var(--white);font-family:'DM Sans',sans-serif;font-size:0.9rem;padding:0.8rem 1rem;outline:none;margin-bottom:1rem;">
+        <input type="text" id="alert-ticker" placeholder="e.g. AAPL" autocomplete="off">
       </div>
       <div>
         <div class="field-label">Alert Type</div>
-        <select id="alert-type" style="width:100%;background:transparent;border:1px solid var(--rule);color:var(--white);font-family:'DM Sans',sans-serif;font-size:0.8rem;padding:0.8rem 1rem;outline:none;appearance:none;">
+        <select id="alert-type">
           <option value="up">Price Up %</option>
           <option value="down">Price Down %</option>
         </select>
       </div>
       <div>
         <div class="field-label">Threshold %</div>
-        <input type="number" id="alert-threshold" placeholder="e.g. 5" style="width:100%;background:transparent;border:1px solid var(--rule);color:var(--white);font-family:'DM Sans',sans-serif;font-size:0.8rem;padding:0.8rem 1rem;outline:none;">
+        <input type="number" id="alert-threshold" placeholder="e.g. 5">
       </div>
     </div>
     <div style="margin-bottom:1rem;">
       <div class="field-label">Entry Price ($)</div>
-      <input type="number" id="alert-entry" placeholder="e.g. 135.50" style="width:100%;background:transparent;border:1px solid var(--rule);color:var(--white);font-family:'DM Sans',sans-serif;font-size:0.8rem;padding:0.8rem 1rem;outline:none;">
+      <input type="number" id="alert-entry" placeholder="e.g. 135.50">
     </div>
     <button class="btn" onclick="setAlert()">Set Price Alert</button>
     <div class="success-msg" id="alert-success">Alert set successfully.</div>
@@ -520,6 +544,7 @@ header {
   <div class="algo-grid" id="alerts-container">
     <div style="padding:1.5rem;font-size:0.8rem;color:var(--muted)">Loading alerts...</div>
   </div>
+
 </main>
 
 <script>
@@ -532,6 +557,15 @@ header {
   let currentAlgo = null;
   let improvedCode = '';
 
+  /* ── Nav ── */
+  function openNav() {
+    document.getElementById('nav-overlay').classList.add('open');
+  }
+  function closeNav() {
+    document.getElementById('nav-overlay').classList.remove('open');
+  }
+
+  /* ── Algorithms ── */
   async function loadAlgorithms() {
     const { data } = await db.from('algorithms').select('*').order('created_at');
     if (!data) return;
@@ -553,6 +587,7 @@ header {
       data.map(a => `<option value="${a.id}">${a.name}</option>`).join('');
   }
 
+  /* ── Add Stock ── */
   async function addStock() {
     const ticker = document.getElementById('new-ticker').value.toUpperCase().trim();
     const company = document.getElementById('new-company').value.trim();
@@ -569,6 +604,7 @@ header {
     }
   }
 
+  /* ── Algorithm Improvement ── */
   async function requestImprovement() {
     const algoId = document.getElementById('algo-select').value;
     const request = document.getElementById('improvement-request').value.trim();
@@ -614,7 +650,6 @@ Respond in this exact JSON format with no extra text:
       const parsed = JSON.parse(text);
 
       improvedCode = parsed.improved_code;
-
       document.getElementById('response-code').textContent = parsed.improved_code;
       document.getElementById('response-explanation').textContent = parsed.explanation;
       document.getElementById('response-panel').classList.add('visible');
@@ -647,25 +682,9 @@ Respond in this exact JSON format with no extra text:
     }
   }
 
-  loadAlgorithms();
-</script>
-  
-<script>
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/aurum-app/sw.js');
-  }
- function openNav() { document.getElementById('nav-overlay').classList.add('open'); }
-  function closeNav() { document.getElementById('nav-overlay').classList.remove('open'); } 
-  async function loadAlertStocks() {
-    const { data } = await db.from('stocks').select('*');
-    if (!data) return;
-    const select = document.getElementById('alert-ticker');
-    select.innerHTML = '<option value="">— Select —</option>' +
-      data.map(s => `<option value="${s.ticker}">${s.ticker}</option>`).join('');
-  }
-
+  /* ── Price Alerts ── */
   async function setAlert() {
-    const ticker = document.getElementById('alert-ticker').value;
+    const ticker = document.getElementById('alert-ticker').value.toUpperCase().trim();
     const alertType = document.getElementById('alert-type').value;
     const threshold = parseFloat(document.getElementById('alert-threshold').value);
     const entryPrice = parseFloat(document.getElementById('alert-entry').value);
@@ -701,14 +720,32 @@ Respond in this exact JSON format with no extra text:
         </div>
         <div style="display:flex;flex-direction:column;gap:0.5rem;align-items:flex-end;">
           <div class="algo-status">${a.alert_type === 'up' ? '▲' : '▼'} ${a.threshold_pct}%</div>
-          <button onclick="deleteAlert('${a.id}')" style="back
-<script src="tickers.js"></script>
+          <button class="btn-danger" onclick="deleteAlert('${a.id}')">Delete</button>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  async function deleteAlert(id) {
+    const { error } = await db.from('price_alerts').delete().eq('id', id);
+    if (!error) loadAlerts();
+  }
+
+  /* ── Init ── */
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/aurum-app/sw.js');
+  }
+
+  loadAlgorithms();
+  loadAlerts();
 </script>
 
 <script src="tickers.js"></script>
 <script>
-  initTickerAutocomplete('new-ticker');
-  initTickerAutocomplete('alert-ticker');
+  if (typeof initTickerAutocomplete === 'function') {
+    initTickerAutocomplete('new-ticker');
+    initTickerAutocomplete('alert-ticker');
+  }
 </script>
 
 </body>
