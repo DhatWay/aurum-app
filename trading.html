@@ -473,6 +473,338 @@
   .status-badge.executed { border-color: rgba(58,107,74,0.4); color: var(--positive); }
   .status-badge.cancelled { border-color: rgba(139,58,58,0.4); color: var(--danger); }
 
+  /* Auto-fill order panel */
+  .order-panel {
+    border: 1px solid rgba(58,107,74,0.5);
+    background: rgba(58,107,74,0.03);
+    padding: 2rem;
+    margin-top: 1.5rem;
+    display: none;
+  }
+
+  .order-panel.visible { display: block; }
+
+  .order-panel-title {
+    font-size: 0.7rem;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: var(--positive);
+    margin-bottom: 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+  }
+
+  .order-panel-title::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: rgba(58,107,74,0.3);
+  }
+
+  .order-fields {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 1px;
+    background: rgba(58,107,74,0.2);
+    border: 1px solid rgba(58,107,74,0.2);
+    margin-bottom: 1.5rem;
+  }
+
+  .order-field { background: var(--black); padding: 1rem 1.2rem; }
+
+  .order-field-label {
+    font-size: 0.58rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 0.4rem;
+  }
+
+  .order-field-value {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 1rem;
+    color: var(--positive);
+    font-weight: 400;
+  }
+
+  .order-field-value.gold { color: var(--gold); }
+  .order-field-value.danger { color: var(--danger); }
+  .order-field-value.white { color: var(--white); }
+
+  .auto-execute-btn {
+    background: var(--positive);
+    border: none;
+    color: var(--white);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.85rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    padding: 1rem 2rem;
+    cursor: pointer;
+    transition: all 0.3s;
+    width: 100%;
+    font-weight: 500;
+  }
+
+  .auto-execute-btn:hover { background: #4a8a5a; }
+  .auto-execute-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .auto-status {
+    font-size: 0.75rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    text-align: center;
+    margin-top: 0.8rem;
+    color: var(--muted);
+    font-family: 'IBM Plex Mono', monospace;
+  }
+
+  .auto-status.firing { color: var(--gold); }
+  .auto-status.done { color: var(--positive); }
+  .auto-status.error { color: var(--danger); }
+
+  .pulse-dot {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--positive);
+    box-shadow: 0 0 8px var(--positive);
+    animation: pulse 1.5s infinite;
+    margin-right: 0.4rem;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+
+  /* Manual Mode trade list */
+  .manual-panel {
+    border: 1px solid var(--rule);
+    padding: 2rem;
+    margin-bottom: 2.5rem;
+    display: none;
+  }
+
+  .manual-panel.visible { display: block; }
+
+  .manual-panel-title {
+    font-size: 0.7rem;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin-bottom: 0.5rem;
+  }
+
+  .manual-panel-sub {
+    font-size: 0.82rem;
+    color: var(--muted);
+    line-height: 1.6;
+    margin-bottom: 1.5rem;
+  }
+
+  .trade-list {
+    display: grid;
+    gap: 1px;
+    background: var(--rule);
+    border: 1px solid var(--rule);
+    margin-bottom: 1.5rem;
+  }
+
+  .trade-list-row {
+    background: var(--black);
+    padding: 1rem 1.2rem;
+    display: grid;
+    grid-template-columns: auto 1fr auto auto auto;
+    gap: 1rem;
+    align-items: center;
+    cursor: pointer;
+    transition: background 0.2s;
+    border-left: 3px solid transparent;
+  }
+
+  .trade-list-row:hover { background: rgba(201,168,76,0.04); border-left-color: rgba(201,168,76,0.3); }
+
+  .trade-list-row.selected {
+    background: rgba(201,168,76,0.06);
+    border-left-color: var(--gold);
+  }
+
+  .trade-rank {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 1.4rem;
+    font-weight: 600;
+    color: var(--gold);
+    min-width: 28px;
+    opacity: 0.5;
+  }
+
+  .trade-list-row.selected .trade-rank { opacity: 1; }
+
+  .trade-list-info {}
+
+  .trade-list-ticker {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.9rem;
+    color: var(--white);
+    margin-bottom: 0.2rem;
+  }
+
+  .trade-list-brief {
+    font-size: 0.72rem;
+    color: var(--muted);
+    line-height: 1.5;
+  }
+
+  .trade-list-dir {
+    font-size: 0.65rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    padding: 0.25rem 0.6rem;
+    border: 1px solid;
+    white-space: nowrap;
+  }
+
+  .trade-list-dir.long { border-color: rgba(58,107,74,0.4); color: var(--positive); }
+  .trade-list-dir.short { border-color: rgba(139,58,58,0.4); color: var(--danger); }
+
+  .trade-list-score {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.8rem;
+    color: var(--gold);
+    white-space: nowrap;
+  }
+
+  .trade-list-conf {
+    font-size: 0.65rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+
+  /* Manual autofill panel */
+  .manual-order-panel {
+    border: 1px solid rgba(201,168,76,0.4);
+    background: rgba(201,168,76,0.02);
+    padding: 2rem;
+    margin-top: 1.5rem;
+    display: none;
+  }
+
+  .manual-order-panel.visible { display: block; }
+
+  .manual-order-title {
+    font-size: 0.7rem;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+  }
+
+  .manual-order-title::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: rgba(201,168,76,0.2);
+  }
+
+  .manual-instruction-box {
+    border: 1px solid rgba(201,168,76,0.2);
+    background: rgba(201,168,76,0.02);
+    padding: 1.2rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .manual-instruction-label {
+    font-size: 0.6rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin-bottom: 0.6rem;
+  }
+
+  .manual-instruction-text {
+    font-size: 0.88rem;
+    color: var(--white);
+    line-height: 1.7;
+  }
+
+  .manual-fields {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 1px;
+    background: rgba(201,168,76,0.15);
+    border: 1px solid rgba(201,168,76,0.2);
+    margin-bottom: 1.5rem;
+  }
+
+  .manual-field { background: var(--black); padding: 1rem 1.2rem; }
+
+  .manual-field-label {
+    font-size: 0.58rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 0.4rem;
+  }
+
+  .manual-field-value {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 1rem;
+    color: var(--gold);
+  }
+
+  .manual-field-value.danger { color: var(--danger); }
+  .manual-field-value.positive { color: var(--positive); }
+  .manual-field-value.white { color: var(--white); }
+
+  .manual-submit-btn {
+    background: transparent;
+    border: 1px solid var(--gold);
+    color: var(--gold);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.85rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    padding: 1rem 2rem;
+    cursor: pointer;
+    transition: all 0.3s;
+    width: 100%;
+    font-weight: 500;
+  }
+
+  .manual-submit-btn:hover { background: var(--gold); color: var(--black); }
+  .manual-submit-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+  .manual-status {
+    font-size: 0.75rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    text-align: center;
+    margin-top: 0.8rem;
+    color: var(--muted);
+    font-family: 'IBM Plex Mono', monospace;
+  }
+
+  .manual-status.done { color: var(--positive); }
+  .manual-status.error { color: var(--danger); }
+
+  .enter-hint {
+    font-size: 0.65rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--muted);
+    text-align: center;
+    margin-top: 0.5rem;
+    font-family: 'IBM Plex Mono', monospace;
+  }
+
   .empty-state {
     padding: 3rem;
     text-align: center;
@@ -599,9 +931,83 @@
 
   <div class="section-label">Generate Trade Instruction</div>
 
+  <!-- MANUAL MODE: Trade list panel -->
+  <div class="manual-panel" id="manual-panel">
+    <div class="manual-panel-title">Manual Trade Selection</div>
+    <div class="manual-panel-sub" id="manual-panel-sub">Claude is analyzing all 21 algorithms and will return a ranked list of trade opportunities. Select one to autofill all order fields, then press Enter to submit.</div>
+    <div class="trade-list" id="trade-list">
+      <div class="empty-state">Generate instructions below to load trade list.</div>
+    </div>
+
+    <!-- Autofill order panel for selected trade -->
+    <div class="manual-order-panel" id="manual-order-panel">
+      <div class="manual-order-title">Order Fields — Autofilled</div>
+
+      <div class="manual-instruction-box">
+        <div class="manual-instruction-label">Claude's Instruction</div>
+        <div class="manual-instruction-text" id="manual-instruction-text">—</div>
+      </div>
+
+      <div class="manual-fields">
+        <div class="manual-field">
+          <div class="manual-field-label">Ticker</div>
+          <div class="manual-field-value" id="m-ticker">—</div>
+        </div>
+        <div class="manual-field">
+          <div class="manual-field-label">Direction</div>
+          <div class="manual-field-value" id="m-direction">—</div>
+        </div>
+        <div class="manual-field">
+          <div class="manual-field-label">Order Type</div>
+          <div class="manual-field-value white" id="m-order-type">—</div>
+        </div>
+        <div class="manual-field">
+          <div class="manual-field-label">Entry Price</div>
+          <div class="manual-field-value" id="m-entry">—</div>
+        </div>
+        <div class="manual-field">
+          <div class="manual-field-label">Exit Target</div>
+          <div class="manual-field-value positive" id="m-exit">—</div>
+        </div>
+        <div class="manual-field">
+          <div class="manual-field-label">Stop Loss</div>
+          <div class="manual-field-value danger" id="m-stop">—</div>
+        </div>
+        <div class="manual-field">
+          <div class="manual-field-label">Position Size</div>
+          <div class="manual-field-value" id="m-size">—</div>
+        </div>
+        <div class="manual-field">
+          <div class="manual-field-label">Est. Dollar Amount</div>
+          <div class="manual-field-value" id="m-dollars">—</div>
+        </div>
+        <div class="manual-field">
+          <div class="manual-field-label">Time in Force</div>
+          <div class="manual-field-value white" id="m-tif">Day</div>
+        </div>
+        <div class="manual-field">
+          <div class="manual-field-label">Confidence</div>
+          <div class="manual-field-value" id="m-confidence">—</div>
+        </div>
+        <div class="manual-field">
+          <div class="manual-field-label">Algo Score</div>
+          <div class="manual-field-value" id="m-score">—</div>
+        </div>
+        <div class="manual-field">
+          <div class="manual-field-label">Algo Signals</div>
+          <div class="manual-field-value white" style="font-size:0.75rem;" id="m-signals">—</div>
+        </div>
+      </div>
+
+      <button class="manual-submit-btn" id="manual-submit-btn" onclick="submitManualOrder()">Submit Order</button>
+      <div class="enter-hint">— or press Enter to submit —</div>
+      <div class="manual-status" id="manual-status">Review all fields above, then submit.</div>
+    </div>
+  </div>
+
   <div class="instruction-panel">
     <div class="instruction-title">Request Claude Analysis</div>
-    <div class="instruction-sub">Claude reads the orchestrated signal from all 21 algorithms and produces a precise trade instruction — ticker, direction (long or short), entry, exit target, stop loss, and reasoning. This is the exact instruction AUTO mode would execute.</div>
+    <div class="instruction-sub" id="instruction-sub">In MANUAL mode, Claude returns a ranked list of trades — select one, all fields autofill, press Enter to submit. In AUTO mode, Claude picks the top trade and executes automatically.</div>
 
     <button class="btn" id="generate-btn" onclick="generateInstruction()">Generate Trade Instruction</button>
 
@@ -643,6 +1049,51 @@
       </div>
       <button class="execute-btn" id="execute-btn" onclick="logInstruction()">Log Instruction</button>
       <div class="brokerage-notice" id="brokerage-notice">Brokerage not connected. Instructions logged only. Connect brokerage to enable live execution.</div>
+
+      <!-- AUTO MODE: Autofill Order Panel -->
+      <div class="order-panel" id="order-panel">
+        <div class="order-panel-title"><span class="pulse-dot"></span>Auto-Fill Order Ready</div>
+        <div class="order-fields">
+          <div class="order-field">
+            <div class="order-field-label">Ticker</div>
+            <div class="order-field-value gold" id="auto-ticker">—</div>
+          </div>
+          <div class="order-field">
+            <div class="order-field-label">Direction</div>
+            <div class="order-field-value white" id="auto-direction">—</div>
+          </div>
+          <div class="order-field">
+            <div class="order-field-label">Order Type</div>
+            <div class="order-field-value white" id="auto-order-type">—</div>
+          </div>
+          <div class="order-field">
+            <div class="order-field-label">Entry Price</div>
+            <div class="order-field-value" id="auto-entry">—</div>
+          </div>
+          <div class="order-field">
+            <div class="order-field-label">Exit Target</div>
+            <div class="order-field-value" id="auto-exit">—</div>
+          </div>
+          <div class="order-field">
+            <div class="order-field-label">Stop Loss</div>
+            <div class="order-field-value danger" id="auto-stop">—</div>
+          </div>
+          <div class="order-field">
+            <div class="order-field-label">Position Size</div>
+            <div class="order-field-value" id="auto-size">—</div>
+          </div>
+          <div class="order-field">
+            <div class="order-field-label">Est. Dollar Amount</div>
+            <div class="order-field-value gold" id="auto-dollars">—</div>
+          </div>
+          <div class="order-field">
+            <div class="order-field-label">Time in Force</div>
+            <div class="order-field-value white" id="auto-tif">Day</div>
+          </div>
+        </div>
+        <button class="auto-execute-btn" id="auto-execute-btn" onclick="executeAutoOrder()">Execute Order</button>
+        <div class="auto-status" id="auto-status">All fields auto-populated from Claude instruction — review and confirm.</div>
+      </div>
     </div>
   </div>
 
@@ -679,6 +1130,8 @@
   let currentMode = 'manual';
   let currentInstruction = null;
   let settings = {};
+  let manualTradeList = [];
+  let selectedTrade = null;
 
   async function loadSettings() {
     const { data } = await db.from('trading_settings').select('*').single();
@@ -697,6 +1150,10 @@
     const status = document.getElementById('mode-status');
     const desc = document.getElementById('mode-desc');
     const panel = document.getElementById('mode-panel');
+    const orderPanel = document.getElementById('order-panel');
+    const manualPanel = document.getElementById('manual-panel');
+    const executeBtn = document.getElementById('execute-btn');
+    const brokerageNotice = document.getElementById('brokerage-notice');
 
     if (mode === 'auto') {
       toggle.classList.add('on');
@@ -706,14 +1163,25 @@
       status.className = 'mode-status auto';
       desc.textContent = 'AURUM executes trades automatically based strictly on Claude\'s synthesized instruction from all 21 algorithms. Switch to MANUAL at any time to stop.';
       panel.className = 'mode-panel auto-active';
+      if (executeBtn) executeBtn.style.display = 'none';
+      if (brokerageNotice) brokerageNotice.style.display = 'none';
+      if (manualPanel) manualPanel.classList.remove('visible');
+      if (currentInstruction) autofillOrderPanel(currentInstruction);
     } else {
       toggle.classList.remove('on');
       label.textContent = 'MANUAL';
       label.className = 'toggle-label';
       status.textContent = 'Manual Mode';
       status.className = 'mode-status manual';
-      desc.textContent = 'All trade decisions require your manual approval. AURUM generates instructions but does not execute anything without your action.';
+      desc.textContent = 'All trade decisions require your manual approval. AURUM generates a ranked list of trades — you select one, all fields autofill, press Enter to submit.';
       panel.className = 'mode-panel manual-active';
+      if (executeBtn) executeBtn.style.display = 'block';
+      if (brokerageNotice) brokerageNotice.style.display = 'block';
+      if (orderPanel) orderPanel.classList.remove('visible');
+      // Re-render trade list if we have one
+      if (manualTradeList && manualTradeList.length) {
+        manualPanel.classList.add('visible');
+      }
     }
   }
 
@@ -771,6 +1239,7 @@
     btn.disabled = true;
     document.getElementById('loading-state').classList.add('visible');
     document.getElementById('instruction-result').classList.remove('visible');
+    document.getElementById('manual-order-panel').classList.remove('visible');
 
     try {
       const { data: picks } = await db.from('picks').select('*').order('picked_at', { ascending: false }).limit(5);
@@ -781,20 +1250,72 @@
       const newsSentiment = news?.map(n => `${n.ticker}: ${n.algorithm_alignment?.sentiment} (${n.source})`).join('\n') || 'No news';
       const watchlist = stocks?.map(s => `${s.ticker} (${s.sector})`).join(', ') || 'No stocks';
 
-      const prompt = `You are AURUM — a private market intelligence system with 21 algorithms synthesized through a master orchestrator.
+      if (currentMode === 'manual') {
+        // MANUAL: return ranked list of 5 trade opportunities
+        const prompt = `You are AURUM — a private market intelligence system with 21 algorithms synthesized through a master orchestrator.
 
 Current intelligence:
 Watchlist: ${watchlist}
 Recent picks and scores: ${pickSummary}
 Recent news sentiment: ${newsSentiment}
-Trading mode: ${currentMode.toUpperCase()}
+Principal floor: $${settings.principal_floor}
+Max position size: ${settings.max_position_size_pct}%
+
+Your role: Synthesize all available signals and produce a ranked list of 5 trade opportunities for the user to choose from. Consider both LONG and SHORT opportunities. Rank by conviction.
+
+For each trade, provide EXACT field values the user should enter — leave nothing vague. Every price field must have a real number.
+
+Respond ONLY with valid JSON, no extra text, no markdown:
+{
+  "trades": [
+    {
+      "rank": 1,
+      "ticker": "NVDA",
+      "direction": "LONG",
+      "entry_price": 875.50,
+      "exit_target": 920.00,
+      "stop_loss": 850.00,
+      "position_size_pct": 8,
+      "orchestrator_score": 87,
+      "confidence": "High",
+      "reasoning": "2-3 sentence AURUM-tone instruction telling the user exactly what to do and why",
+      "algo_signals": "Brief summary of which algorithms drove this decision",
+      "order_type": "Limit"
+    }
+  ]
+}`;
+
+        const response = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 2000, messages: [{ role: 'user', content: prompt }] })
+        });
+
+        const data = await response.json();
+        const text = data.content?.[0]?.text || '{}';
+        const result = JSON.parse(text.replace(/```json|```/g, '').trim());
+
+        manualTradeList = result.trades || [];
+        renderTradeList(manualTradeList);
+        document.getElementById('manual-panel').classList.add('visible');
+        document.getElementById('manual-panel-sub').textContent = `Claude identified ${manualTradeList.length} trade opportunities. Select one below — all fields will autofill. Press Enter to submit.`;
+
+      } else {
+        // AUTO: single top pick
+        const prompt = `You are AURUM — a private market intelligence system with 21 algorithms synthesized through a master orchestrator.
+
+Current intelligence:
+Watchlist: ${watchlist}
+Recent picks and scores: ${pickSummary}
+Recent news sentiment: ${newsSentiment}
+Trading mode: AUTO
 Principal floor: $${settings.principal_floor}
 Max position size: ${settings.max_position_size_pct}%
 Max daily trades: ${settings.max_daily_trades}
 
-Your role: Synthesize all available signals and produce ONE precise trade instruction. Consider both LONG (buy, profit on rise) and SHORT (sell, profit on decline) opportunities. Choose the highest conviction opportunity.
+Your role: Synthesize all available signals and produce ONE precise trade instruction. Consider both LONG and SHORT opportunities. Choose the highest conviction opportunity.
 
-Respond in this exact JSON format only, no extra text:
+Respond ONLY with valid JSON, no extra text:
 {
   "ticker": "NVDA",
   "direction": "LONG or SHORT",
@@ -804,48 +1325,159 @@ Respond in this exact JSON format only, no extra text:
   "position_size_pct": 5,
   "orchestrator_score": 82,
   "confidence": "High or Medium or Low or Conflicted",
-  "reasoning": "Cold precise 2-3 sentence reasoning in AURUM tone explaining the instruction and why this direction",
+  "reasoning": "Cold precise 2-3 sentence reasoning in AURUM tone",
   "algo_signals": "Brief summary of which algorithms drove this decision"
 }`;
 
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 1000,
-          messages: [{ role: 'user', content: prompt }]
-        })
-      });
+        const response = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 1000, messages: [{ role: 'user', content: prompt }] })
+        });
 
-      const data = await response.json();
-      const text = data.content?.[0]?.text || '{}';
-      const result = JSON.parse(text.replace(/```json|```/g, '').trim());
+        const data = await response.json();
+        const text = data.content?.[0]?.text || '{}';
+        const result = JSON.parse(text.replace(/```json|```/g, '').trim());
 
-      currentInstruction = result;
+        currentInstruction = result;
 
-      document.getElementById('result-ticker').textContent = result.ticker || '—';
-      document.getElementById('result-direction').textContent = result.direction || '—';
-      document.getElementById('result-direction').className = `result-direction ${(result.direction || '').toLowerCase()}`;
-      document.getElementById('result-reasoning').textContent = result.reasoning || '—';
-      document.getElementById('param-entry').textContent = result.entry_price ? `$${result.entry_price}` : 'Market';
-      document.getElementById('param-exit').textContent = result.exit_target ? `$${result.exit_target}` : '—';
-      document.getElementById('param-stop').textContent = result.stop_loss ? `$${result.stop_loss}` : '—';
-      document.getElementById('param-size').textContent = result.position_size_pct ? `${result.position_size_pct}%` : '—';
-      document.getElementById('param-confidence').textContent = result.confidence || '—';
-      document.getElementById('param-score').textContent = result.orchestrator_score || '—';
-
-      document.getElementById('instruction-result').classList.add('visible');
+        document.getElementById('result-ticker').textContent = result.ticker || '—';
+        document.getElementById('result-direction').textContent = result.direction || '—';
+        document.getElementById('result-direction').className = `result-direction ${(result.direction || '').toLowerCase()}`;
+        document.getElementById('result-reasoning').textContent = result.reasoning || '—';
+        document.getElementById('param-entry').textContent = result.entry_price ? `$${result.entry_price}` : 'Market';
+        document.getElementById('param-exit').textContent = result.exit_target ? `$${result.exit_target}` : '—';
+        document.getElementById('param-stop').textContent = result.stop_loss ? `$${result.stop_loss}` : '—';
+        document.getElementById('param-size').textContent = result.position_size_pct ? `${result.position_size_pct}%` : '—';
+        document.getElementById('param-confidence').textContent = result.confidence || '—';
+        document.getElementById('param-score').textContent = result.orchestrator_score || '—';
+        document.getElementById('instruction-result').classList.add('visible');
+        autofillOrderPanel(result);
+      }
 
     } catch(e) {
-      document.getElementById('result-reasoning').textContent = 'Claude API key required. Add CLAUDE_API_KEY to Supabase secrets to activate trade instruction generation.';
-      document.getElementById('result-ticker').textContent = 'API Key Required';
-      document.getElementById('instruction-result').classList.add('visible');
+      if (currentMode === 'manual') {
+        document.getElementById('manual-panel-sub').textContent = 'Claude API key required to generate trade list.';
+        document.getElementById('manual-panel').classList.add('visible');
+      } else {
+        document.getElementById('result-reasoning').textContent = 'Claude API key required. Add CLAUDE_API_KEY to Supabase secrets to activate trade instruction generation.';
+        document.getElementById('result-ticker').textContent = 'API Key Required';
+        document.getElementById('instruction-result').classList.add('visible');
+      }
     }
 
     document.getElementById('loading-state').classList.remove('visible');
     btn.disabled = false;
   }
+
+  function renderTradeList(trades) {
+    const container = document.getElementById('trade-list');
+    if (!trades || !trades.length) {
+      container.innerHTML = '<div class="empty-state">No trades returned.</div>';
+      return;
+    }
+    container.innerHTML = trades.map((t, i) => `
+      <div class="trade-list-row" id="trade-row-${i}" onclick="selectTrade(${i})">
+        <div class="trade-rank">${t.rank || i + 1}</div>
+        <div class="trade-list-info">
+          <div class="trade-list-ticker">${t.ticker}</div>
+          <div class="trade-list-brief">${t.reasoning || '—'}</div>
+        </div>
+        <div class="trade-list-dir ${(t.direction || '').toLowerCase()}">${t.direction}</div>
+        <div class="trade-list-score">${t.orchestrator_score || '—'}</div>
+        <div class="trade-list-conf">${t.confidence || '—'}</div>
+      </div>
+    `).join('');
+  }
+
+  function selectTrade(index) {
+    // Deselect all rows
+    document.querySelectorAll('.trade-list-row').forEach(r => r.classList.remove('selected'));
+    document.getElementById(`trade-row-${index}`)?.classList.add('selected');
+
+    selectedTrade = manualTradeList[index];
+    currentInstruction = selectedTrade;
+    autofillManualPanel(selectedTrade);
+  }
+
+  function autofillManualPanel(trade) {
+    const principalFloor = settings.principal_floor || 5000;
+    const maxPosPct = settings.max_position_size_pct || 10;
+    const estimatedDollars = ((trade.position_size_pct || maxPosPct) / 100) * principalFloor;
+    const hasLimitPrice = trade.entry_price && trade.entry_price > 0;
+
+    document.getElementById('manual-instruction-text').textContent = trade.reasoning || '—';
+    document.getElementById('m-ticker').textContent = trade.ticker || '—';
+    document.getElementById('m-direction').textContent = trade.direction || '—';
+    document.getElementById('m-direction').style.color = trade.direction === 'SHORT' ? 'var(--danger)' : 'var(--positive)';
+    document.getElementById('m-order-type').textContent = trade.order_type || (hasLimitPrice ? 'Limit' : 'Market');
+    document.getElementById('m-entry').textContent = hasLimitPrice ? `$${trade.entry_price}` : 'Market Price';
+    document.getElementById('m-exit').textContent = trade.exit_target ? `$${trade.exit_target}` : '—';
+    document.getElementById('m-stop').textContent = trade.stop_loss ? `$${trade.stop_loss}` : '—';
+    document.getElementById('m-size').textContent = trade.position_size_pct ? `${trade.position_size_pct}%` : `${maxPosPct}%`;
+    document.getElementById('m-dollars').textContent = `~$${estimatedDollars.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+    document.getElementById('m-tif').textContent = 'Day';
+    document.getElementById('m-confidence').textContent = trade.confidence || '—';
+    document.getElementById('m-score').textContent = trade.orchestrator_score || '—';
+    document.getElementById('m-signals').textContent = trade.algo_signals || '—';
+
+    document.getElementById('manual-status').textContent = 'Review all fields above, then submit.';
+    document.getElementById('manual-status').className = 'manual-status';
+    document.getElementById('manual-submit-btn').disabled = false;
+    document.getElementById('manual-submit-btn').textContent = 'Submit Order';
+
+    const panel = document.getElementById('manual-order-panel');
+    panel.classList.add('visible');
+    panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  async function submitManualOrder() {
+    if (!selectedTrade) return;
+    const btn = document.getElementById('manual-submit-btn');
+    const status = document.getElementById('manual-status');
+
+    btn.disabled = true;
+    btn.textContent = 'Submitting...';
+
+    try {
+      await db.from('auto_trade_log').insert({
+        ticker: selectedTrade.ticker,
+        direction: selectedTrade.direction,
+        instruction: JSON.stringify(selectedTrade),
+        claude_reasoning: selectedTrade.reasoning,
+        orchestrator_score: selectedTrade.orchestrator_score,
+        orchestrator_confidence: selectedTrade.confidence,
+        position_size: selectedTrade.position_size_pct,
+        entry_price: selectedTrade.entry_price,
+        exit_target: selectedTrade.exit_target,
+        stop_loss: selectedTrade.stop_loss,
+        status: 'logged_manual',
+        brokerage: 'manual_submitted',
+        executed_at: new Date().toISOString()
+      });
+
+      await loadLog();
+      btn.textContent = 'Order Submitted ✓';
+      status.textContent = `${selectedTrade.ticker} ${selectedTrade.direction} order submitted and logged.`;
+      status.className = 'manual-status done';
+
+    } catch(e) {
+      btn.textContent = 'Submission Failed';
+      status.textContent = 'Error logging order. Try again.';
+      status.className = 'manual-status error';
+      btn.disabled = false;
+    }
+  }
+
+  // Enter key submits selected manual trade
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && currentMode === 'manual' && selectedTrade) {
+      const panel = document.getElementById('manual-order-panel');
+      if (panel.classList.contains('visible')) {
+        submitManualOrder();
+      }
+    }
+  });
 
   async function logInstruction() {
     if (!currentInstruction) return;
@@ -872,6 +1504,11 @@ Respond in this exact JSON format only, no extra text:
     setTimeout(() => {
       document.getElementById('execute-btn').textContent = 'Log Instruction';
     }, 2000);
+
+    // In auto mode, show the order panel after logging
+    if (currentMode === 'auto' && currentInstruction) {
+      autofillOrderPanel(currentInstruction);
+    }
   }
 
   async function loadLog() {
@@ -895,6 +1532,81 @@ Respond in this exact JSON format only, no extra text:
         </div>
       `;
     }).join('');
+  }
+
+  function autofillOrderPanel(result) {
+    const panel = document.getElementById('order-panel');
+    const principalFloor = settings.principal_floor || 5000;
+    const maxPosPct = settings.max_position_size_pct || 10;
+
+    // Determine order type based on entry price
+    const hasLimitPrice = result.entry_price && result.entry_price > 0;
+    const orderType = hasLimitPrice ? 'Limit' : 'Market';
+
+    // Estimate dollar amount based on position size % of principal floor
+    const estimatedDollars = ((result.position_size_pct || maxPosPct) / 100) * principalFloor;
+
+    // Populate all fields
+    document.getElementById('auto-ticker').textContent = result.ticker || '—';
+    document.getElementById('auto-direction').textContent = result.direction || '—';
+    document.getElementById('auto-direction').style.color = result.direction === 'SHORT' ? 'var(--danger)' : 'var(--positive)';
+    document.getElementById('auto-order-type').textContent = orderType;
+    document.getElementById('auto-entry').textContent = hasLimitPrice ? `$${result.entry_price}` : 'Market Price';
+    document.getElementById('auto-exit').textContent = result.exit_target ? `$${result.exit_target}` : '—';
+    document.getElementById('auto-stop').textContent = result.stop_loss ? `$${result.stop_loss}` : '—';
+    document.getElementById('auto-size').textContent = result.position_size_pct ? `${result.position_size_pct}%` : `${maxPosPct}%`;
+    document.getElementById('auto-dollars').textContent = `~$${estimatedDollars.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+    document.getElementById('auto-tif').textContent = 'Day';
+
+    document.getElementById('auto-status').textContent = 'All fields auto-populated from Claude instruction — review and confirm.';
+    document.getElementById('auto-status').className = 'auto-status';
+    document.getElementById('auto-execute-btn').disabled = false;
+    document.getElementById('auto-execute-btn').textContent = 'Execute Order';
+
+    panel.classList.add('visible');
+    panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  async function executeAutoOrder() {
+    if (!currentInstruction) return;
+    const btn = document.getElementById('auto-execute-btn');
+    const status = document.getElementById('auto-status');
+
+    btn.disabled = true;
+    btn.textContent = 'Executing...';
+    status.textContent = 'Sending order to brokerage...';
+    status.className = 'auto-status firing';
+
+    try {
+      // Log to auto_trade_log with status executed
+      await db.from('auto_trade_log').insert({
+        ticker: currentInstruction.ticker,
+        direction: currentInstruction.direction,
+        instruction: JSON.stringify(currentInstruction),
+        claude_reasoning: currentInstruction.reasoning,
+        orchestrator_score: currentInstruction.orchestrator_score,
+        orchestrator_confidence: currentInstruction.confidence,
+        position_size: currentInstruction.position_size_pct,
+        entry_price: currentInstruction.entry_price,
+        exit_target: currentInstruction.exit_target,
+        stop_loss: currentInstruction.stop_loss,
+        status: 'executed',
+        brokerage: 'auto_executed',
+        executed_at: new Date().toISOString()
+      });
+
+      await loadLog();
+
+      btn.textContent = 'Order Executed ✓';
+      status.textContent = `${currentInstruction.ticker} ${currentInstruction.direction} order executed and logged.`;
+      status.className = 'auto-status done';
+
+    } catch(e) {
+      btn.textContent = 'Execution Failed';
+      status.textContent = 'Error — check brokerage connection. Instruction logged only.';
+      status.className = 'auto-status error';
+      btn.disabled = false;
+    }
   }
 
   function openNav() { document.getElementById('nav-overlay').classList.add('open'); }
