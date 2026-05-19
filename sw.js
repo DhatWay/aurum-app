@@ -13,6 +13,7 @@ const ASSETS = [
   '/aurum-app/options.html',
    '/aurum-app/report.html',
 '/aurum-app/trading.html',
+'/aurum-app/brokerage.html',
   '/aurum-app/manifest.json',
   '/aurum-app/icon-192.png',
   '/aurum-app/icon-512.png'
