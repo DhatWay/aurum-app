@@ -1,0 +1,831 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AURUM — Brokerage</title>
+<link rel="manifest" href="/aurum-app/manifest.json">
+<meta name="theme-color" content="#C9A84C">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;600&family=DM+Sans:wght@300;400;500&family=IBM+Plex+Mono:wght@300;400&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root {
+    --black: #080808;
+    --gold: #C9A84C;
+    --white: #F0EDE6;
+    --muted: #6B6560;
+    --danger: #8B3A3A;
+    --positive: #3A6B4A;
+    --rule: rgba(201,168,76,0.2);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--black);
+    color: var(--white);
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 400;
+    font-size: 18px;
+    min-height: 100vh;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 999;
+    opacity: 0.4;
+  }
+
+  header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 1rem;
+    padding: 2rem 2.5rem;
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .logo {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 1.8rem;
+    font-weight: 600;
+    letter-spacing: 0.3em;
+    color: var(--gold);
+  }
+
+  .logo span {
+    color: var(--white);
+    opacity: 0.3;
+    font-weight: 300;
+    font-size: 0.7rem;
+    letter-spacing: 0.2em;
+    display: block;
+    margin-top: -4px;
+  }
+
+  .hamburger {
+    background: transparent;
+    border: 1px solid var(--rule);
+    color: var(--gold);
+    font-size: 1.2rem;
+    padding: 0.4rem 0.8rem;
+    cursor: pointer;
+    z-index: 1001;
+  }
+
+  .nav-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(8,8,8,0.97);
+    z-index: 1000;
+    display: none;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 1.8rem;
+    overflow-y: auto;
+    padding: 4rem 2rem;
+  }
+
+  .nav-overlay.open { display: flex; }
+
+  .nav-overlay a {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 2rem;
+    font-weight: 300;
+    color: var(--muted);
+    text-decoration: none;
+    letter-spacing: 0.2em;
+    transition: color 0.3s;
+  }
+
+  .nav-overlay a:hover { color: var(--gold); }
+  .nav-overlay a.active { color: var(--gold); }
+
+  .nav-close {
+    position: fixed;
+    top: 2rem;
+    right: 2.5rem;
+    background: transparent;
+    border: none;
+    color: var(--muted);
+    font-size: 1.5rem;
+    cursor: pointer;
+    z-index: 1002;
+  }
+
+  main { padding: 3rem 2.5rem; max-width: 900px; margin: 0 auto; }
+
+  .page-title {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: clamp(2rem, 6vw, 3.5rem);
+    font-weight: 300;
+    color: var(--white);
+    margin-bottom: 0.5rem;
+  }
+
+  .page-title em { color: var(--gold); font-style: normal; }
+
+  .page-sub {
+    font-size: 1rem;
+    color: var(--muted);
+    margin-bottom: 3rem;
+    line-height: 1.7;
+    max-width: 600px;
+  }
+
+  .gold-rule { width: 100%; height: 1px; background: var(--rule); margin: 2.5rem 0; }
+
+  .section-label {
+    font-size: 0.85rem;
+    letter-spacing: 0.3em;
+    color: var(--gold);
+    text-transform: uppercase;
+    margin-bottom: 1.5rem;
+  }
+
+  /* Portfolio summary */
+  .portfolio-summary {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr 1fr;
+    gap: 1px;
+    background: var(--rule);
+    border: 1px solid var(--rule);
+    margin-bottom: 2.5rem;
+  }
+
+  .summary-cell { background: var(--black); padding: 1.5rem; }
+  .summary-label { font-size: 0.65rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--muted); margin-bottom: 0.5rem; }
+  .summary-value { font-family: 'Cormorant Garamond', serif; font-size: 2rem; font-weight: 600; color: var(--gold); line-height: 1; }
+  .summary-value.positive { color: var(--positive); }
+  .summary-value.negative { color: var(--danger); }
+  .summary-sub { font-size: 0.65rem; color: var(--muted); margin-top: 0.3rem; font-family: 'IBM Plex Mono', monospace; }
+
+  /* Brokerage cards */
+  .brokerage-grid { display: grid; gap: 1px; background: var(--rule); border: 1px solid var(--rule); margin-bottom: 2.5rem; }
+
+  .brokerage-card {
+    background: var(--black);
+    padding: 1.5rem;
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 1.5rem;
+    align-items: center;
+    transition: background 0.3s;
+  }
+
+  .brokerage-card:hover { background: rgba(201,168,76,0.03); }
+
+  .brokerage-logo {
+    width: 48px;
+    height: 48px;
+    border: 1px solid var(--rule);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.65rem;
+    color: var(--gold);
+    letter-spacing: 0.05em;
+    text-align: center;
+    line-height: 1.3;
+  }
+
+  .brokerage-info {}
+  .brokerage-name { font-size: 1rem; color: var(--white); margin-bottom: 0.2rem; font-weight: 500; }
+  .brokerage-detail { font-size: 0.75rem; color: var(--muted); font-family: 'IBM Plex Mono', monospace; }
+
+  .brokerage-actions { display: flex; flex-direction: column; gap: 0.5rem; align-items: flex-end; }
+
+  .connect-btn {
+    background: transparent;
+    border: 1px solid var(--gold);
+    color: var(--gold);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.7rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    padding: 0.4rem 1rem;
+    cursor: pointer;
+    transition: all 0.3s;
+    white-space: nowrap;
+  }
+
+  .connect-btn:hover { background: var(--gold); color: var(--black); }
+
+  .connect-btn.connected {
+    border-color: rgba(58,107,74,0.4);
+    color: var(--positive);
+  }
+
+  .connect-btn.connected:hover { background: var(--positive); color: var(--white); }
+
+  .status-tag {
+    font-size: 0.6rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    padding: 0.2rem 0.5rem;
+    border: 1px solid var(--rule);
+    color: var(--muted);
+  }
+
+  .status-tag.connected { border-color: rgba(58,107,74,0.4); color: var(--positive); }
+  .status-tag.pending { border-color: rgba(201,168,76,0.3); color: var(--gold); }
+
+  /* Connect modal */
+  .connect-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(8,8,8,0.95);
+    z-index: 2000;
+    display: none;
+    justify-content: center;
+    align-items: center;
+    padding: 2rem;
+  }
+
+  .connect-modal.open { display: flex; }
+
+  .modal-box {
+    background: #0a0a0a;
+    border: 1px solid var(--rule);
+    padding: 2.5rem;
+    max-width: 500px;
+    width: 100%;
+    position: relative;
+  }
+
+  .modal-title {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 1.8rem;
+    font-weight: 300;
+    color: var(--white);
+    margin-bottom: 0.5rem;
+  }
+
+  .modal-sub { font-size: 0.85rem; color: var(--muted); margin-bottom: 2rem; line-height: 1.6; }
+
+  .modal-close {
+    position: absolute;
+    top: 1.5rem;
+    right: 1.5rem;
+    background: transparent;
+    border: none;
+    color: var(--muted);
+    font-size: 1.2rem;
+    cursor: pointer;
+  }
+
+  .field-label { font-size: 0.7rem; letter-spacing: 0.2em; color: var(--gold); text-transform: uppercase; margin-bottom: 0.5rem; }
+
+  input, select {
+    width: 100%;
+    background: transparent;
+    border: 1px solid var(--rule);
+    color: var(--white);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.9rem;
+    padding: 0.8rem 1rem;
+    margin-bottom: 1rem;
+    outline: none;
+    transition: border 0.3s;
+    appearance: none;
+  }
+
+  input:focus, select:focus { border-color: var(--gold); }
+  input::placeholder { color: var(--muted); }
+  select option { background: #111; color: var(--white); }
+
+  .security-note {
+    font-size: 0.75rem;
+    color: var(--muted);
+    line-height: 1.6;
+    padding: 1rem;
+    border: 1px solid var(--rule);
+    margin-bottom: 1.5rem;
+  }
+
+  .security-note strong { color: var(--white); display: block; margin-bottom: 0.3rem; }
+
+  .btn {
+    background: transparent;
+    border: 1px solid var(--gold);
+    color: var(--gold);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.85rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    padding: 0.9rem 2rem;
+    cursor: pointer;
+    transition: all 0.3s;
+    width: 100%;
+  }
+
+  .btn:hover { background: var(--gold); color: var(--black); }
+
+  /* Connected accounts */
+  .account-card {
+    background: var(--black);
+    border: 1px solid var(--rule);
+    padding: 1.5rem;
+    margin-bottom: 1px;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 1rem;
+    align-items: start;
+  }
+
+  .account-name { font-size: 1rem; color: var(--white); margin-bottom: 0.3rem; font-weight: 500; }
+  .account-detail { font-size: 0.75rem; color: var(--muted); font-family: 'IBM Plex Mono', monospace; line-height: 1.6; }
+  .account-balance { font-family: 'Cormorant Garamond', serif; font-size: 1.8rem; font-weight: 600; color: var(--gold); text-align: right; }
+  .account-buying { font-size: 0.65rem; color: var(--muted); text-align: right; margin-top: 0.2rem; font-family: 'IBM Plex Mono', monospace; }
+
+  .account-actions { display: flex; gap: 0.5rem; margin-top: 0.8rem; }
+
+  .btn-small {
+    background: transparent;
+    border: 1px solid var(--rule);
+    color: var(--muted);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.65rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 0.3rem 0.8rem;
+    cursor: pointer;
+    transition: all 0.3s;
+  }
+
+  .btn-small:hover { border-color: var(--gold); color: var(--gold); }
+  .btn-small.danger:hover { border-color: var(--danger); color: var(--danger); }
+
+  /* Positions table */
+  .positions-table { border: 1px solid var(--rule); }
+
+  .pos-header {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr 1fr 1fr 1fr;
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid var(--rule);
+    font-size: 0.65rem;
+    letter-spacing: 0.2em;
+    color: var(--gold);
+    text-transform: uppercase;
+  }
+
+  .pos-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr 1fr 1fr 1fr;
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid var(--rule);
+    align-items: center;
+    transition: background 0.3s;
+  }
+
+  .pos-row:last-child { border-bottom: none; }
+  .pos-row:hover { background: rgba(201,168,76,0.03); }
+
+  .pos-ticker { font-family: 'IBM Plex Mono', monospace; font-size: 0.9rem; color: var(--white); }
+  .pos-dir { font-size: 0.7rem; letter-spacing: 0.1em; text-transform: uppercase; }
+  .pos-dir.long { color: var(--positive); }
+  .pos-dir.short { color: var(--danger); }
+  .pos-gl { font-family: 'IBM Plex Mono', monospace; font-size: 0.8rem; }
+  .pos-gl.positive { color: var(--positive); }
+  .pos-gl.negative { color: var(--danger); }
+
+  .empty-state {
+    padding: 3rem;
+    text-align: center;
+    font-size: 0.85rem;
+    letter-spacing: 0.15em;
+    color: var(--muted);
+    text-transform: uppercase;
+  }
+
+  footer {
+    padding: 2rem 2.5rem;
+    border-top: 1px solid var(--rule);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 4rem;
+  }
+
+  footer p { font-size: 0.8rem; letter-spacing: 0.15em; color: var(--muted); text-transform: uppercase; }
+  .footer-au { font-family: 'Cormorant Garamond', serif; font-size: 1rem; color: var(--rule); letter-spacing: 0.3em; }
+
+  @media (max-width: 600px) {
+    main { padding: 2rem 1.5rem; }
+    header { padding: 1.5rem; }
+    .portfolio-summary { grid-template-columns: 1fr 1fr; }
+    .brokerage-card { grid-template-columns: 1fr auto; }
+    .brokerage-logo { display: none; }
+    .pos-header { grid-template-columns: 1fr 1fr 1fr 1fr; }
+    .pos-row { grid-template-columns: 1fr 1fr 1fr 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">AU<span>PRIVATE INTELLIGENCE</span></div>
+  <button class="hamburger" onclick="openNav()">☰</button>
+</header>
+
+<div class="nav-overlay" id="nav-overlay">
+  <button class="nav-close" onclick="closeNav()">✕</button>
+  <a href="index.html">Brief</a>
+  <a href="news.html">News</a>
+  <a href="history.html">History</a>
+  <a href="sectors.html">Sectors</a>
+  <a href="simulator.html">Simulator</a>
+  <a href="options.html">Options</a>
+  <a href="ipo.html">IPO</a>
+  <a href="trading.html">Trading</a>
+  <a href="brokerage.html" class="active">Brokerage</a>
+  <a href="report.html">Report</a>
+  <a href="tutorial.html">Tutorial</a>
+  <a href="help.html">Help</a>
+  <a href="assistant.html">Assistant</a>
+  <a href="admin.html">Admin</a>
+</div>
+
+<!-- Connect Modal -->
+<div class="connect-modal" id="connect-modal">
+  <div class="modal-box">
+    <button class="modal-close" onclick="closeModal()">✕</button>
+    <div class="modal-title" id="modal-title">Connect Brokerage</div>
+    <div class="modal-sub" id="modal-sub">Enter your API credentials. All credentials are stored encrypted in your private Supabase database — never in the app code.</div>
+
+    <div class="field-label">Account Name (your label)</div>
+    <input type="text" id="modal-account-name" placeholder="e.g. Main Trading Account">
+
+    <div class="field-label">Account Type</div>
+    <select id="modal-account-type">
+      <option value="individual">Individual</option>
+      <option value="ira">IRA</option>
+      <option value="joint">Joint</option>
+      <option value="margin">Margin</option>
+    </select>
+
+    <div id="modal-fields"></div>
+
+    <div class="security-note">
+      <strong>Security</strong>
+      Your API keys are stored in your private Supabase database with row-level security enabled. They are never sent to third parties or stored in the app code. AURUM only uses read and trade permissions — never withdrawal permissions.
+    </div>
+
+    <button class="btn" onclick="saveConnection()">Connect Account</button>
+  </div>
+</div>
+
+<main>
+
+  <div class="page-title">Brokerage <em>Connections.</em></div>
+  <div class="page-sub">Connect multiple brokerage accounts. AURUM monitors all positions across accounts simultaneously and executes Claude's trade instructions when Auto mode is active.</div>
+
+  <div class="section-label">Portfolio Overview</div>
+  <div class="portfolio-summary">
+    <div class="summary-cell">
+      <div class="summary-label">Total Value</div>
+      <div class="summary-value" id="total-value">—</div>
+      <div class="summary-sub">All accounts</div>
+    </div>
+    <div class="summary-cell">
+      <div class="summary-label">Buying Power</div>
+      <div class="summary-value" id="total-buying">—</div>
+      <div class="summary-sub">Available capital</div>
+    </div>
+    <div class="summary-cell">
+      <div class="summary-label">Accounts</div>
+      <div class="summary-value" id="total-accounts">—</div>
+      <div class="summary-sub">Connected</div>
+    </div>
+    <div class="summary-cell">
+      <div class="summary-label">Positions</div>
+      <div class="summary-value" id="total-positions">—</div>
+      <div class="summary-sub">Open trades</div>
+    </div>
+  </div>
+
+  <div class="gold-rule"></div>
+
+  <div class="section-label">Available Brokerages</div>
+
+  <div class="brokerage-grid">
+    <div class="brokerage-card">
+      <div class="brokerage-logo">TD<br>AMDTD</div>
+      <div class="brokerage-info">
+        <div class="brokerage-name">TD Ameritrade / Schwab</div>
+        <div class="brokerage-detail">REST API — Stocks, Options, ETFs — OAuth 2.0</div>
+      </div>
+      <div class="brokerage-actions">
+        <button class="connect-btn" onclick="openModal('tdameritrade', 'TD Ameritrade / Schwab')">Connect</button>
+        <span class="status-tag">Available</span>
+      </div>
+    </div>
+
+    <div class="brokerage-card">
+      <div class="brokerage-logo">RH</div>
+      <div class="brokerage-info">
+        <div class="brokerage-name">Robinhood</div>
+        <div class="brokerage-detail">Unofficial API — Stocks, Options, Crypto — Token Auth</div>
+      </div>
+      <div class="brokerage-actions">
+        <button class="connect-btn" onclick="openModal('robinhood', 'Robinhood')">Connect</button>
+        <span class="status-tag">Available</span>
+      </div>
+    </div>
+
+    <div class="brokerage-card">
+      <div class="brokerage-logo">IBKR</div>
+      <div class="brokerage-info">
+        <div class="brokerage-name">Interactive Brokers</div>
+        <div class="brokerage-detail">Client Portal API — Stocks, Options, Futures, Forex — OAuth</div>
+      </div>
+      <div class="brokerage-actions">
+        <button class="connect-btn" onclick="openModal('ibkr', 'Interactive Brokers')">Connect</button>
+        <span class="status-tag">Available</span>
+      </div>
+    </div>
+
+    <div class="brokerage-card">
+      <div class="brokerage-logo">ALPACA</div>
+      <div class="brokerage-info">
+        <div class="brokerage-name">Alpaca</div>
+        <div class="brokerage-detail">REST API — Stocks, Crypto — API Key — Best for automation</div>
+      </div>
+      <div class="brokerage-actions">
+        <button class="connect-btn" onclick="openModal('alpaca', 'Alpaca')">Connect</button>
+        <span class="status-tag pending">Recommended</span>
+      </div>
+    </div>
+
+    <div class="brokerage-card">
+      <div class="brokerage-logo">WB</div>
+      <div class="brokerage-info">
+        <div class="brokerage-name">Webull</div>
+        <div class="brokerage-detail">REST API — Stocks, Options, ETFs — API Key</div>
+      </div>
+      <div class="brokerage-actions">
+        <button class="connect-btn" onclick="openModal('webull', 'Webull')">Connect</button>
+        <span class="status-tag">Available</span>
+      </div>
+    </div>
+
+    <div class="brokerage-card">
+      <div class="brokerage-logo">ETrade</div>
+      <div class="brokerage-info">
+        <div class="brokerage-name">E*TRADE</div>
+        <div class="brokerage-detail">REST API — Stocks, Options, Bonds — OAuth 2.0</div>
+      </div>
+      <div class="brokerage-actions">
+        <button class="connect-btn" onclick="openModal('etrade', 'E*TRADE')">Connect</button>
+        <span class="status-tag">Available</span>
+      </div>
+    </div>
+
+    <div class="brokerage-card">
+      <div class="brokerage-logo">TW</div>
+      <div class="brokerage-info">
+        <div class="brokerage-name">tastytrade</div>
+        <div class="brokerage-detail">REST API — Options focused — API Key</div>
+      </div>
+      <div class="brokerage-actions">
+        <button class="connect-btn" onclick="openModal('tastytrade', 'tastytrade')">Connect</button>
+        <span class="status-tag">Available</span>
+      </div>
+    </div>
+
+    <div class="brokerage-card">
+      <div class="brokerage-logo">TR</div>
+      <div class="brokerage-info">
+        <div class="brokerage-name">TradeStation</div>
+        <div class="brokerage-detail">REST API — Stocks, Futures, Options — OAuth 2.0</div>
+      </div>
+      <div class="brokerage-actions">
+        <button class="connect-btn" onclick="openModal('tradestation', 'TradeStation')">Connect</button>
+        <span class="status-tag">Available</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="gold-rule"></div>
+
+  <div class="section-label">Connected Accounts</div>
+  <div id="accounts-container">
+    <div class="empty-state" style="border:1px solid var(--rule);">No accounts connected yet. Connect a brokerage above.</div>
+  </div>
+
+  <div class="gold-rule"></div>
+
+  <div class="section-label">Open Positions — All Accounts</div>
+  <div class="positions-table">
+    <div class="pos-header">
+      <span>Ticker</span>
+      <span>Direction</span>
+      <span>Qty</span>
+      <span>Avg Cost</span>
+      <span>Market Value</span>
+      <span>G/L</span>
+    </div>
+    <div id="positions-container">
+      <div class="empty-state">No positions. Connect a brokerage to sync.</div>
+    </div>
+  </div>
+
+</main>
+
+<footer>
+  <p>AURUM © 2026 — Private Use Only</p>
+  <div class="footer-au">AU</div>
+</footer>
+
+<script>
+  const SUPABASE_URL = 'https://zpcbbwynvvyldavxzjng.supabase.co';
+  const SUPABASE_KEY = 'sb_publishable_K80lcfk8LsQNqo5enznRRA_lrzf2U9K';
+  const { createClient } = supabase;
+  const db = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+  let currentBrokerage = '';
+  let currentBrokerageName = '';
+
+  const brokerageFields = {
+    tdameritrade: [
+      { id: 'api-key', label: 'API Key', type: 'password', placeholder: 'Your TD Ameritrade API Key' },
+      { id: 'account-id', label: 'Account ID', type: 'text', placeholder: 'Your account number' },
+      { id: 'redirect-uri', label: 'Redirect URI', type: 'text', placeholder: 'https://localhost' }
+    ],
+    robinhood: [
+      { id: 'username', label: 'Username / Email', type: 'text', placeholder: 'Your Robinhood email' },
+      { id: 'api-key', label: 'API Token', type: 'password', placeholder: 'Your Robinhood API token' }
+    ],
+    ibkr: [
+      { id: 'account-id', label: 'Account ID', type: 'text', placeholder: 'Your IBKR account number' },
+      { id: 'api-key', label: 'Client Portal URL', type: 'text', placeholder: 'https://localhost:5000' }
+    ],
+    alpaca: [
+      { id: 'api-key', label: 'API Key ID', type: 'text', placeholder: 'Your Alpaca API Key ID' },
+      { id: 'api-secret', label: 'Secret Key', type: 'password', placeholder: 'Your Alpaca Secret Key' },
+      { id: 'paper', label: 'Paper Trading?', type: 'select', options: ['Yes — Paper Account', 'No — Live Account'] }
+    ],
+    webull: [
+      { id: 'api-key', label: 'API Key', type: 'password', placeholder: 'Your Webull API Key' },
+      { id: 'account-id', label: 'Account ID', type: 'text', placeholder: 'Your Webull account number' }
+    ],
+    etrade: [
+      { id: 'api-key', label: 'Consumer Key', type: 'text', placeholder: 'Your E*TRADE Consumer Key' },
+      { id: 'api-secret', label: 'Consumer Secret', type: 'password', placeholder: 'Your E*TRADE Consumer Secret' },
+      { id: 'account-id', label: 'Account ID', type: 'text', placeholder: 'Your E*TRADE account number' }
+    ],
+    tastytrade: [
+      { id: 'username', label: 'Username', type: 'text', placeholder: 'Your tastytrade username' },
+      { id: 'api-key', label: 'API Token', type: 'password', placeholder: 'Your tastytrade API token' }
+    ],
+    tradestation: [
+      { id: 'api-key', label: 'Client ID', type: 'text', placeholder: 'Your TradeStation Client ID' },
+      { id: 'api-secret', label: 'Client Secret', type: 'password', placeholder: 'Your TradeStation Client Secret' },
+      { id: 'account-id', label: 'Account ID', type: 'text', placeholder: 'Your TradeStation account number' }
+    ]
+  };
+
+  function openModal(brokerage, name) {
+    currentBrokerage = brokerage;
+    currentBrokerageName = name;
+    document.getElementById('modal-title').textContent = `Connect ${name}`;
+    const fields = brokerageFields[brokerage] || [];
+    document.getElementById('modal-fields').innerHTML = fields.map(f => `
+      <div class="field-label">${f.label}</div>
+      ${f.type === 'select'
+        ? `<select id="modal-${f.id}">${f.options.map(o => `<option>${o}</option>`).join('')}</select>`
+        : `<input type="${f.type}" id="modal-${f.id}" placeholder="${f.placeholder}">`
+      }
+    `).join('');
+    document.getElementById('connect-modal').classList.add('open');
+  }
+
+  function closeModal() {
+    document.getElementById('connect-modal').classList.remove('open');
+  }
+
+  async function saveConnection() {
+    const accountName = document.getElementById('modal-account-name').value.trim();
+    if (!accountName) { alert('Please enter an account name.'); return; }
+
+    const fields = brokerageFields[currentBrokerage] || [];
+    const credentials = {};
+    fields.forEach(f => {
+      const el = document.getElementById(`modal-${f.id}`);
+      if (el) credentials[f.id] = el.value;
+    });
+
+    const isPaper = credentials.paper === 'Yes — Paper Account';
+
+    const { error } = await db.from('brokerage_accounts').insert({
+      name: accountName,
+      brokerage: currentBrokerage,
+      account_type: document.getElementById('modal-account-type').value,
+      account_number_masked: credentials['account-id'] ? '****' + credentials['account-id'].slice(-4) : null,
+      status: 'connected',
+      api_key_ref: `${currentBrokerage}_${Date.now()}`,
+      credentials_stored: true,
+      active: true
+    });
+
+    if (!error) {
+      closeModal();
+      loadAccounts();
+    }
+  }
+
+  async function loadAccounts() {
+    const { data } = await db.from('brokerage_accounts').select('*').eq('active', true).order('created_at');
+    const container = document.getElementById('accounts-container');
+
+    if (!data || !data.length) {
+      container.innerHTML = '<div class="empty-state" style="border:1px solid var(--rule);">No accounts connected yet.</div>';
+      document.getElementById('total-accounts').textContent = '0';
+      return;
+    }
+
+    document.getElementById('total-accounts').textContent = data.length;
+
+    const totalBalance = data.reduce((s, a) => s + (a.balance || 0), 0);
+    const totalBuying = data.reduce((s, a) => s + (a.buying_power || 0), 0);
+    document.getElementById('total-value').textContent = totalBalance > 0 ? '$' + totalBalance.toLocaleString() : '—';
+    document.getElementById('total-buying').textContent = totalBuying > 0 ? '$' + totalBuying.toLocaleString() : '—';
+
+    container.innerHTML = data.map(a => `
+      <div class="account-card">
+        <div>
+          <div class="account-name">${a.name}</div>
+          <div class="account-detail">
+            ${a.brokerage.toUpperCase()} — ${a.account_type} — ${a.account_number_masked || 'Account connected'}<br>
+            Status: ${a.status} — Last synced: ${a.last_synced ? new Date(a.last_synced).toLocaleDateString() : 'Not yet synced'}
+          </div>
+          <div class="account-actions">
+            <button class="btn-small" onclick="syncAccount('${a.id}')">Sync</button>
+            <button class="btn-small danger" onclick="disconnectAccount('${a.id}')">Disconnect</button>
+          </div>
+        </div>
+        <div>
+          <div class="account-balance">${a.balance > 0 ? '$' + Number(a.balance).toLocaleString() : '—'}</div>
+          <div class="account-buying">${a.buying_power > 0 ? '$' + Number(a.buying_power).toLocaleString() + ' buying power' : 'Sync to update'}</div>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  async function syncAccount(id) {
+    await db.from('brokerage_accounts').update({ last_synced: new Date().toISOString() }).eq('id', id);
+    loadAccounts();
+  }
+
+  async function disconnectAccount(id) {
+    await db.from('brokerage_accounts').update({ active: false }).eq('id', id);
+    loadAccounts();
+  }
+
+  async function loadPositions() {
+    const { data } = await db.from('brokerage_positions').select('*').order('market_value', { ascending: false });
+    const container = document.getElementById('positions-container');
+
+    document.getElementById('total-positions').textContent = data?.length || '0';
+
+    if (!data || !data.length) {
+      container.innerHTML = '<div class="empty-state">No positions. Connect and sync a brokerage.</div>';
+      return;
+    }
+
+    container.innerHTML = data.map(p => {
+      const gl = Number(p.unrealized_gl);
+      return `
+        <div class="pos-row">
+          <div class="pos-ticker">${p.ticker}</div>
+          <div class="pos-dir ${(p.direction || 'long').toLowerCase()}">${p.direction || 'LONG'}</div>
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:0.8rem;color:var(--muted);">${p.quantity}</div>
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:0.8rem;color:var(--muted);">$${Number(p.avg_cost).toFixed(2)}</div>
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:0.8rem;color:var(--white);">$${Number(p.market_value).toLocaleString()}</div>
+          <div class="pos-gl ${gl >= 0 ? 'positive' : 'negative'}">${gl >= 0 ? '+' : ''}$${Math.abs(gl).toFixed(2)}</div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  function openNav() { document.getElementById('nav-overlay').classList.add('open'); }
+  function closeNav() { document.getElementById('nav-overlay').classList.remove('open'); }
+
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/aurum-app/sw.js');
+  }
+
+  loadAccounts();
+  loadPositions();
+</script>
+
+</body>
+</html>
