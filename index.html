@@ -3,1521 +3,769 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AURUM — Assistant</title>
-<link rel="manifest" href="/aurum-app/manifest.json">
-<meta name="theme-color" content="#C9A84C">
+<title>AURUM — Private Market Intelligence</title>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;600&family=DM+Sans:wght@300;400;500&family=IBM+Plex+Mono:wght@300;400&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
-:root {
-  --black: #080808;
-  --gold: #C9A84C;
-  --gold-light: #E8C97A;
-  --white: #F0EDE6;
-  --muted: #6B6560;
-  --danger: #8B3A3A;
-  --positive: #3A6B4A;
-  --rule: rgba(201,168,76,0.2);
-}
-
-* { margin: 0; padding: 0; box-sizing: border-box; }
-
-body {
-  background: var(--black);
-  color: var(--white);
-  font-family: 'DM Sans', sans-serif;
-  font-weight: 400;
-  font-size: 16px;
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-}
-
-body::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
-  pointer-events: none;
-  z-index: 999;
-  opacity: 0.4;
-}
-
-/* HEADER */
-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 1.5rem 2rem;
-  border-bottom: 1px solid var(--rule);
-  flex-shrink: 0;
-  position: relative;
-  z-index: 1;
-}
-
-.logo {
-  font-family: 'Cormorant Garamond', serif;
-  font-size: 1.8rem;
-  font-weight: 600;
-  letter-spacing: 0.3em;
-  color: var(--gold);
-  line-height: 1;
-}
-
-.logo span {
-  display: block;
-  font-size: 0.6rem;
-  letter-spacing: 0.2em;
-  color: var(--white);
-  opacity: 0.3;
-  margin-top: 2px;
-  font-weight: 400;
-}
-
-.hamburger {
-  background: transparent;
-  border: 1px solid var(--rule);
-  color: var(--gold);
-  font-size: 1.1rem;
-  padding: 0.4rem 0.8rem;
-  cursor: pointer;
-  z-index: 1001;
-}
-
-/* NAV */
-.nav-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(8,8,8,0.97);
-  z-index: 1000;
-  display: none;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  gap: 1.5rem;
-  padding: 4rem 2rem;
-  overflow-y: auto;
-}
-
-.nav-overlay.open { display: flex; }
-
-.nav-overlay a {
-  font-family: 'Cormorant Garamond', serif;
-  font-size: 2.2rem;
-  font-weight: 300;
-  color: var(--muted);
-  text-decoration: none;
-  letter-spacing: 0.2em;
-  transition: color 0.3s;
-}
-
-.nav-overlay a:hover, .nav-overlay a.active { color: var(--gold); }
-
-.nav-close {
-  position: fixed;
-  top: 1.5rem;
-  right: 2rem;
-  z-index: 1002;
-  background: transparent;
-  border: none;
-  color: var(--muted);
-  font-size: 1.5rem;
-  cursor: pointer;
-}
-
-/* MAIN LAYOUT */
-.main-wrap {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  max-width: 860px;
-  width: 100%;
-  margin: 0 auto;
-  padding: 0 2rem;
-  min-height: 0;
-}
-
-/* TABS */
-.mode-tabs {
-  display: flex;
-  border-bottom: 1px solid var(--rule);
-  flex-shrink: 0;
-  margin-top: 1.5rem;
-}
-
-.mode-tab {
-  flex: 1;
-  background: transparent;
-  border: none;
-  border-bottom: 2px solid transparent;
-  color: var(--muted);
-  font-family: 'DM Sans', sans-serif;
-  font-size: 0.7rem;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  padding: 0.8rem;
-  cursor: pointer;
-  transition: all 0.2s;
-  margin-bottom: -1px;
-}
-
-.mode-tab.active {
-  color: var(--gold);
-  border-bottom-color: var(--gold);
-}
-
-.mode-tab:hover:not(.active) { color: var(--white); }
-
-.tab-panel { display: none; flex-direction: column; flex: 1; min-height: 0; }
-.tab-panel.active { display: flex; }
-
-/* ── ASSISTANT TAB ── */
-.chat-header {
-  padding: 1.5rem 0 1rem;
-  border-bottom: 1px solid var(--rule);
-  flex-shrink: 0;
-}
-
-.chat-title {
-  font-family: 'Cormorant Garamond', serif;
-  font-size: 1.8rem;
-  font-weight: 600;
-  color: var(--white);
-  margin-bottom: 0.2rem;
-}
-
-.chat-title em { color: var(--gold); font-style: normal; }
-
-.chat-sub {
-  font-size: 0.78rem;
-  color: var(--muted);
-  line-height: 1.5;
-}
-
-/* FAQ */
-.faq-section {
-  padding: 1rem 0;
-  border-bottom: 1px solid var(--rule);
-  flex-shrink: 0;
-}
-
-.faq-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 0.8rem;
-}
-
-.faq-label {
-  font-size: 0.65rem;
-  letter-spacing: 0.25em;
-  color: var(--gold);
-  text-transform: uppercase;
-}
-
-.faq-badge {
-  font-size: 0.58rem;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--muted);
-  border: 1px solid var(--rule);
-  padding: 0.15rem 0.5rem;
-  font-family: 'IBM Plex Mono', monospace;
-}
-
-.faq-grid {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  background: var(--rule);
-  border: 1px solid var(--rule);
-}
-
-.faq-item { background: var(--black); }
-
-.faq-question {
-  padding: 0.75rem 1rem;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  cursor: pointer;
-  gap: 1rem;
-}
-
-.faq-question:hover { background: rgba(201,168,76,0.03); }
-
-.faq-question-text { font-size: 0.82rem; color: var(--white); line-height: 1.4; }
-
-.faq-chevron {
-  color: var(--gold);
-  font-size: 0.65rem;
-  flex-shrink: 0;
-  transition: transform 0.3s;
-}
-
-.faq-item.open .faq-chevron { transform: rotate(180deg); }
-
-.faq-answer {
-  display: none;
-  padding: 0.8rem 1rem 1rem;
-  font-size: 0.78rem;
-  color: var(--muted);
-  line-height: 1.8;
-  border-top: 1px solid var(--rule);
-}
-
-.faq-item.open .faq-answer { display: block; }
-
-.faq-toggle-btn {
-  background: transparent;
-  border: none;
-  color: var(--muted);
-  font-size: 0.65rem;
-  letter-spacing: 0.15em;
-  text-transform: uppercase;
-  cursor: pointer;
-  margin-top: 0.6rem;
-  padding: 0;
-  font-family: 'DM Sans', sans-serif;
-}
-
-.faq-toggle-btn:hover { color: var(--gold); }
-
-/* MESSAGES */
-.messages {
-  flex: 1;
-  overflow-y: auto;
-  padding: 1.5rem 0;
-  display: flex;
-  flex-direction: column;
-  gap: 1.2rem;
-  min-height: 180px;
-}
-
-.message {
-  display: flex;
-  gap: 0.8rem;
-  align-items: flex-start;
-}
-
-.message.user { flex-direction: row-reverse; }
-
-.message-avatar {
-  width: 30px;
-  height: 30px;
-  border: 1px solid var(--rule);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-family: 'Cormorant Garamond', serif;
-  font-size: 0.65rem;
-  color: var(--gold);
-  flex-shrink: 0;
-  letter-spacing: 0.1em;
-}
-
-.message.user .message-avatar { background: rgba(201,168,76,0.05); }
-
-.message-bubble {
-  max-width: 78%;
-  padding: 0.9rem 1.1rem;
-  border: 1px solid var(--rule);
-  font-size: 0.88rem;
-  line-height: 1.7;
-  color: var(--white);
-}
-
-.message.user .message-bubble {
-  background: rgba(201,168,76,0.04);
-  border-color: rgba(201,168,76,0.2);
-}
-
-.message-time {
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: 0.65rem;
-  color: var(--muted);
-  margin-top: 0.3rem;
-  letter-spacing: 0.05em;
-}
-
-.message.user .message-time { text-align: right; }
-
-/* TYPING */
-.typing {
-  display: flex;
-  gap: 4px;
-  padding: 0.9rem 1.1rem;
-  border: 1px solid var(--rule);
-  width: fit-content;
-}
-
-.typing-dot {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--gold);
-  animation: typingBounce 1.2s infinite;
-}
-
-.typing-dot:nth-child(2) { animation-delay: 0.2s; }
-.typing-dot:nth-child(3) { animation-delay: 0.4s; }
-
-@keyframes typingBounce {
-  0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
-  30% { transform: translateY(-5px); opacity: 1; }
-}
-
-/* SUGGESTIONS */
-.suggestions {
-  padding: 1rem 0;
-  border-top: 1px solid var(--rule);
-  flex-shrink: 0;
-}
-
-.suggestions-label {
-  font-size: 0.65rem;
-  letter-spacing: 0.25em;
-  color: var(--muted);
-  text-transform: uppercase;
-  margin-bottom: 0.6rem;
-}
-
-.suggestions-grid {
-  display: flex;
-  gap: 0.4rem;
-  flex-wrap: wrap;
-}
-
-.suggestion-btn {
-  background: transparent;
-  border: 1px solid var(--rule);
-  color: var(--muted);
-  font-family: 'DM Sans', sans-serif;
-  font-size: 0.72rem;
-  padding: 0.35rem 0.8rem;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.suggestion-btn:hover { border-color: var(--gold); color: var(--gold); }
-
-/* INPUT AREA */
-.input-area {
-  padding: 1rem 0 1.5rem;
-  border-top: 1px solid var(--rule);
-  flex-shrink: 0;
-}
-
-.input-row {
-  display: flex;
-  gap: 0.6rem;
-  align-items: flex-end;
-}
-
-.chat-input {
-  flex: 1;
-  background: transparent;
-  border: 1px solid var(--rule);
-  color: var(--white);
-  font-family: 'DM Sans', sans-serif;
-  font-size: 0.9rem;
-  padding: 0.8rem 1rem;
-  outline: none;
-  transition: border 0.3s;
-  resize: none;
-  min-height: 44px;
-  max-height: 120px;
-  line-height: 1.5;
-}
-
-.chat-input:focus { border-color: var(--gold); }
-.chat-input::placeholder { color: var(--muted); }
-
-.send-btn {
-  background: transparent;
-  border: 1px solid var(--gold);
-  color: var(--gold);
-  font-family: 'DM Sans', sans-serif;
-  font-size: 0.68rem;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  padding: 0.8rem 1.2rem;
-  cursor: pointer;
-  transition: all 0.3s;
-  white-space: nowrap;
-  height: 44px;
-}
-
-.send-btn:hover { background: var(--gold); color: var(--black); }
-.send-btn:disabled { opacity: 0.3; cursor: not-allowed; }
-
-.api-notice {
-  font-size: 0.65rem;
-  color: var(--muted);
-  margin-top: 0.5rem;
-  letter-spacing: 0.05em;
-}
-
-.api-notice.error { color: var(--danger); }
-
-/* ── CODE ENGINE TAB ── */
-.engine-header {
-  padding: 1.5rem 0 1rem;
-  border-bottom: 1px solid var(--rule);
-  flex-shrink: 0;
-}
-
-.engine-title {
-  font-family: 'Cormorant Garamond', serif;
-  font-size: 1.8rem;
-  font-weight: 600;
-  color: var(--white);
-  margin-bottom: 0.2rem;
-}
-
-.engine-title em { color: var(--gold); font-style: normal; }
-
-.engine-sub {
-  font-size: 0.78rem;
-  color: var(--muted);
-  line-height: 1.5;
-  margin-bottom: 1rem;
-}
-
-.engine-examples {
-  display: flex;
-  gap: 0.4rem;
-  flex-wrap: wrap;
-}
-
-.engine-example {
-  background: transparent;
-  border: 1px solid var(--rule);
-  color: var(--muted);
-  font-family: 'DM Sans', sans-serif;
-  font-size: 0.7rem;
-  padding: 0.3rem 0.7rem;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.engine-example:hover { border-color: var(--gold); color: var(--gold); }
-
-.engine-input-area {
-  padding: 1rem 0;
-  border-bottom: 1px solid var(--rule);
-  flex-shrink: 0;
-}
-
-.engine-input-row {
-  display: flex;
-  gap: 0.6rem;
-  align-items: flex-end;
-}
-
-.engine-input {
-  flex: 1;
-  background: transparent;
-  border: 1px solid var(--rule);
-  color: var(--white);
-  font-family: 'DM Sans', sans-serif;
-  font-size: 0.9rem;
-  padding: 0.8rem 1rem;
-  outline: none;
-  transition: border 0.3s;
-  resize: none;
-  min-height: 44px;
-  max-height: 120px;
-  line-height: 1.5;
-}
-
-.engine-input:focus { border-color: var(--gold); }
-.engine-input::placeholder { color: var(--muted); }
-
-.engine-btn {
-  background: var(--gold);
-  border: none;
-  color: var(--black);
-  font-family: 'DM Sans', sans-serif;
-  font-size: 0.68rem;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  padding: 0.8rem 1.2rem;
-  cursor: pointer;
-  transition: background 0.3s;
-  white-space: nowrap;
-  height: 44px;
-  font-weight: 500;
-}
-
-.engine-btn:hover { background: var(--gold-light); }
-.engine-btn:disabled { opacity: 0.3; cursor: not-allowed; }
-
-/* CHANGE PREVIEW */
-.change-preview {
-  flex: 1;
-  overflow-y: auto;
-  padding: 1.2rem 0;
-  display: flex;
-  flex-direction: column;
-  gap: 1.2rem;
-  min-height: 200px;
-}
-
-.change-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  flex: 1;
-  gap: 0.4rem;
-  color: var(--muted);
-  text-align: center;
-  padding: 3rem 0;
-}
-
-.change-empty-icon {
-  font-family: 'Cormorant Garamond', serif;
-  font-size: 2.5rem;
-  color: rgba(201,168,76,0.1);
-  letter-spacing: 0.3em;
-  margin-bottom: 0.5rem;
-}
-
-.change-empty-text { font-size: 0.78rem; letter-spacing: 0.1em; text-transform: uppercase; }
-.change-empty-sub { font-size: 0.65rem; opacity: 0.5; margin-top: 0.2rem; }
-
-.engine-thinking {
-  display: none;
-  padding: 2rem;
-  text-align: center;
-  font-size: 0.68rem;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  color: var(--gold);
-  font-family: 'IBM Plex Mono', monospace;
-}
-
-.engine-thinking.visible { display: block; animation: pulse 1.5s infinite; }
-
-@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
-
-.engine-summary {
-  font-size: 0.8rem;
-  color: var(--muted);
-  line-height: 1.6;
-  padding: 0.5rem 0;
-}
-
-/* CHANGE CARD */
-.change-card {
-  border: 1px solid var(--rule);
-  transition: border-color 0.3s;
-}
-
-.change-card-header {
-  padding: 0.8rem 1rem;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  border-bottom: 1px solid var(--rule);
-  background: rgba(201,168,76,0.02);
-}
-
-.change-file {
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: 0.72rem;
-  color: var(--gold);
-}
-
-.change-type {
-  font-size: 0.58rem;
-  letter-spacing: 0.15em;
-  text-transform: uppercase;
-  color: var(--muted);
-  border: 1px solid var(--rule);
-  padding: 0.15rem 0.5rem;
-  font-family: 'IBM Plex Mono', monospace;
-}
-
-.change-description {
-  padding: 0.7rem 1rem;
-  font-size: 0.8rem;
-  color: var(--white);
-  line-height: 1.6;
-  border-bottom: 1px solid var(--rule);
-}
-
-.change-diff {
-  padding: 0.8rem 1rem;
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: 0.68rem;
-  line-height: 1.8;
-  overflow-x: auto;
-  border-bottom: 1px solid var(--rule);
-  max-height: 260px;
-  overflow-y: auto;
-  background: rgba(0,0,0,0.3);
-}
-
-.diff-remove {
-  color: #c97a7a;
-  background: rgba(139,58,58,0.1);
-  display: block;
-  padding: 0 0.4rem;
-  white-space: pre-wrap;
-  word-break: break-all;
-}
-
-.diff-add {
-  color: #7ac99a;
-  background: rgba(58,107,74,0.1);
-  display: block;
-  padding: 0 0.4rem;
-  white-space: pre-wrap;
-  word-break: break-all;
-}
-
-.diff-divider {
-  display: block;
-  padding: 0.3rem 0.4rem;
-  color: var(--gold);
-  font-size: 0.6rem;
-  letter-spacing: 0.15em;
-  border-top: 1px solid var(--rule);
-  border-bottom: 1px solid var(--rule);
-  margin: 4px 0;
-}
-
-.change-actions {
-  padding: 0.8rem 1rem;
-  display: flex;
-  gap: 0.6rem;
-  align-items: center;
-  flex-wrap: wrap;
-}
-
-.approve-btn {
-  background: var(--positive);
-  border: none;
-  color: var(--white);
-  font-family: 'DM Sans', sans-serif;
-  font-size: 0.65rem;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  padding: 0.5rem 1.2rem;
-  cursor: pointer;
-  transition: background 0.2s;
-  font-weight: 500;
-}
-
-.approve-btn:hover { background: #4a8a5a; }
-.approve-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-
-.reject-btn {
-  background: transparent;
-  border: 1px solid rgba(139,58,58,0.4);
-  color: #c97a7a;
-  font-family: 'DM Sans', sans-serif;
-  font-size: 0.65rem;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  padding: 0.5rem 1.2rem;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.reject-btn:hover { background: rgba(139,58,58,0.1); }
-
-.change-status {
-  font-size: 0.62rem;
-  font-family: 'IBM Plex Mono', monospace;
-  letter-spacing: 0.08em;
-  margin-left: auto;
-}
-
-.change-status.approved { color: var(--positive); }
-.change-status.rejected { color: #c97a7a; }
-
-.download-link {
-  font-size: 0.65rem;
-  letter-spacing: 0.15em;
-  text-transform: uppercase;
-  color: var(--gold);
-  text-decoration: none;
-  border: 1px solid var(--rule);
-  padding: 0.4rem 0.8rem;
-  transition: all 0.2s;
-  font-family: 'DM Sans', sans-serif;
-}
-
-.download-link:hover { background: var(--gold); color: var(--black); }
-
-/* APPROVE ALL */
-.approve-all-btn {
-  width: 100%;
-  background: transparent;
-  border: 1px solid var(--positive);
-  color: var(--positive);
-  font-family: 'DM Sans', sans-serif;
-  font-size: 0.68rem;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  padding: 0.8rem;
-  cursor: pointer;
-  transition: all 0.2s;
-  font-weight: 500;
-}
-
-.approve-all-btn:hover { background: var(--positive); color: var(--white); }
-
-/* FOOTER */
-footer {
-  padding: 1.2rem 2rem;
-  border-top: 1px solid var(--rule);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex-shrink: 0;
-}
-
-footer p {
-  font-size: 0.65rem;
-  letter-spacing: 0.15em;
-  color: var(--muted);
-  text-transform: uppercase;
-}
-
-.footer-au {
-  font-family: 'Cormorant Garamond', serif;
-  font-size: 1rem;
-  color: var(--rule);
-  letter-spacing: 0.3em;
-}
-
-@media (max-width: 600px) {
-  .main-wrap { padding: 0 1.2rem; }
-  header { padding: 1.2rem 1.5rem; }
-  footer { padding: 1rem 1.5rem; }
-  .message-bubble { max-width: 88%; }
-}
+  :root {
+    --black: #080808;
+    --gold: #C9A84C;
+    --gold-light: #E8C97A;
+    --white: #F0EDE6;
+    --muted: #6B6560;
+    --danger: #8B3A3A;
+    --positive: #3A6B4A;
+    --rule: rgba(201,168,76,0.2);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--black);
+    color: var(--white);
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 600;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 999;
+    opacity: 0.4;
+  }
+
+  header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 2rem 2.5rem;
+    border-bottom: 1px solid var(--rule);
+    animation: fadeDown 1s ease forwards;
+    opacity: 0;
+  }
+
+  .logo {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 1.8rem;
+    font-weight: 600;
+    letter-spacing: 0.3em;
+    color: var(--gold);
+  }
+
+  .logo span {
+    color: var(--white);
+    opacity: 0.3;
+    font-weight: 600;
+    font-size: 0.7rem;
+    letter-spacing: 0.2em;
+    display: block;
+    margin-top: -4px;
+  }
+
+  nav {
+    display: flex;
+    gap: 1.5rem;
+    align-items: center;
+  }
+
+  .hamburger {
+    background: transparent;
+    border: 1px solid var(--rule);
+    color: var(--gold);
+    font-size: 1.2rem;
+    padding: 0.4rem 0.8rem;
+    cursor: pointer;
+    z-index: 1001;
+    position: relative;
+  }
+
+ .nav-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(8,8,8,0.97);
+    z-index: 1000;
+    display: none;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 1.8rem;
+    overflow-y: auto;
+    padding: 4rem 2rem;
+  }
+
+  .nav-overlay.open { display: flex; }
+
+  .nav-overlay a {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 2.5rem;
+    font-weight: 300;
+    color: var(--muted);
+    text-decoration: none;
+    letter-spacing: 0.2em;
+    transition: color 0.3s;
+  }
+
+  .nav-overlay a:hover { color: var(--gold); }
+  .nav-overlay a.active { color: var(--gold); }
+
+ .nav-close {
+    position: fixed;
+    top: 2rem;
+    right: 2.5rem;
+    z-index: 1002;
+    background: transparent;
+    border: none;
+    color: var(--muted);
+    font-size: 1.5rem;
+    cursor: pointer;
+  }
+
+  .status-dot {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.7rem;
+    letter-spacing: 0.15em;
+    color: var(--muted);
+    text-transform: uppercase;
+  }
+
+  .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--positive);
+    box-shadow: 0 0 8px var(--positive);
+    animation: pulse 2s infinite;
+  }
+
+  main {
+    padding: 3rem 2.5rem;
+    max-width: 900px;
+    margin: 0 auto;
+  }
+
+  .hero {
+    margin-bottom: 4rem;
+    animation: fadeUp 1s 0.3s ease forwards;
+    opacity: 0;
+  }
+
+  .hero-label {
+    font-size: 0.65rem;
+    letter-spacing: 0.25em;
+    color: var(--gold);
+    text-transform: uppercase;
+    margin-bottom: 1rem;
+  }
+
+  .hero h1 {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: clamp(2.5rem, 8vw, 5rem);
+    font-weight: 600;
+    line-height: 1.05;
+    color: var(--white);
+    margin-bottom: 1.5rem;
+  }
+
+  .hero h1 em {
+    color: var(--gold);
+    font-style: normal;
+  }
+
+  .hero p {
+    font-size: 0.85rem;
+    color: var(--muted);
+    letter-spacing: 0.05em;
+    line-height: 1.8;
+    max-width: 420px;
+  }
+
+  .gold-rule {
+    width: 100%;
+    height: 1px;
+    background: var(--rule);
+    margin: 2.5rem 0;
+  }
+
+.section-label {
+    font-size: 0.8rem;
+    letter-spacing: 0.3em;
+    color: var(--gold);
+    text-transform: uppercase;
+    margin-bottom: 1.5rem;
+  }
+
+  .picks-grid {
+    display: grid;
+    gap: 1px;
+    background: var(--rule);
+    border: 1px solid var(--rule);
+    animation: fadeUp 1s 0.6s ease forwards;
+    opacity: 0;
+  }
+
+  .pick-card {
+    background: var(--black);
+    padding: 1.5rem;
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 1.5rem;
+    align-items: center;
+    transition: background 0.3s ease;
+  }
+
+  .pick-card:hover { background: rgba(201,168,76,0.03); }
+
+  .pick-score {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 2.5rem;
+    font-weight: 600;
+    color: var(--gold);
+    line-height: 1;
+    min-width: 60px;
+  }
+
+  .pick-score.mid { color: var(--muted); }
+
+  .pick-ticker {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.9rem;
+    letter-spacing: 0.1em;
+    color: var(--white);
+    margin-bottom: 0.3rem;
+  }
+
+  .pick-brief {
+    font-size: 0.72rem;
+    color: var(--muted);
+    line-height: 1.6;
+  }
+
+  .pick-status {
+    font-size: 0.8rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    padding: 0.3rem 0.6rem;
+    border: 1px solid var(--rule);
+    color: var(--muted);
+    white-space: nowrap;
+  }
+
+  .pick-status.monitoring {
+    border-color: rgba(201,168,76,0.3);
+    color: var(--gold);
+  }
+
+  /* Accuracy panels */
+  .accuracy-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 1px;
+    background: var(--rule);
+    border: 1px solid var(--rule);
+    margin-top: 2.5rem;
+    animation: fadeUp 1s 0.9s ease forwards;
+    opacity: 0;
+  }
+
+  .accuracy-cell {
+    background: var(--black);
+    padding: 1.5rem;
+  }
+
+  .accuracy-label {
+    font-size: 0.8rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 0.5rem;
+  }
+
+  .accuracy-number {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 2.5rem;
+    font-weight: 600;
+    color: var(--gold);
+    line-height: 1;
+  }
+
+  .accuracy-sub {
+    font-size: 0.8rem;
+    color: var(--muted);
+    margin-top: 0.3rem;
+    font-family: 'IBM Plex Mono', monospace;
+  }
+
+  /* Watchlist */
+  .watchlist {
+    margin-top: 2.5rem;
+    border: 1px solid var(--rule);
+    animation: fadeUp 1s 1s ease forwards;
+    opacity: 0;
+  }
+
+  .watchlist-header {
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid var(--rule);
+    font-size: 0.8rem;
+    letter-spacing: 0.3em;
+    color: var(--gold);
+    text-transform: uppercase;
+    display: flex;
+    justify-content: space-between;
+  }
+
+  .watchlist-row {
+    padding: 1rem 1.5rem;
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    align-items: center;
+    border-bottom: 1px solid var(--rule);
+    transition: background 0.3s;
+  }
+
+  .watchlist-row:last-child { border-bottom: none; }
+  .watchlist-row:hover { background: rgba(201,168,76,0.03); }
+
+  .watchlist-ticker {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.85rem;
+    color: var(--white);
+  }
+
+  .watchlist-company {
+    font-size: 0.7rem;
+    color: var(--muted);
+  }
+
+  .watchlist-sector {
+    font-size: 0.8rem;
+    color: var(--muted);
+    letter-spacing: 0.1em;
+    text-align: right;
+  }
+
+  /* Self rating history */
+  .rating-history {
+    margin-top: 2.5rem;
+    border: 1px solid var(--rule);
+    animation: fadeUp 1s 1.1s ease forwards;
+    opacity: 0;
+  }
+
+  .rating-row {
+    padding: 1rem 1.5rem;
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr 1fr;
+    align-items: center;
+    border-bottom: 1px solid var(--rule);
+    font-size: 0.72rem;
+  }
+
+  .rating-row:last-child { border-bottom: none; }
+
+  .rating-ticker {
+    font-family: 'IBM Plex Mono', monospace;
+    color: var(--white);
+  }
+
+  .rating-return {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.7rem;
+  }
+
+  .rating-return.positive { color: var(--positive); }
+  .rating-return.negative { color: var(--danger); }
+
+  .beat-badge {
+    font-size: 0.55rem;
+    letter-spacing: 0.1em;
+    padding: 0.2rem 0.5rem;
+    text-transform: uppercase;
+  }
+
+  .beat-badge.yes {
+    border: 1px solid rgba(58,107,74,0.4);
+    color: var(--positive);
+  }
+
+  .beat-badge.no {
+    border: 1px solid rgba(139,58,58,0.4);
+    color: var(--danger);
+  }
+
+  .empty-state {
+    padding: 2rem;
+    text-align: center;
+    font-size: 0.7rem;
+    letter-spacing: 0.15em;
+    color: var(--muted);
+    text-transform: uppercase;
+  }
+
+  footer {
+    padding: 2rem 2.5rem;
+    border-top: 1px solid var(--rule);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 4rem;
+    animation: fadeUp 1s 1.2s ease forwards;
+    opacity: 0;
+  }
+
+  footer p {
+    font-size: 0.8rem;
+    letter-spacing: 0.15em;
+    color: var(--muted);
+    text-transform: uppercase;
+  }
+
+  .footer-au {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 1rem;
+    color: var(--rule);
+    letter-spacing: 0.3em;
+  }
+
+  @keyframes fadeDown {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(15px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+
+  @media (max-width: 600px) {
+    main { padding: 2rem 1.5rem; }
+    header { padding: 1.5rem; flex-wrap: wrap; gap: 1rem; }
+    .accuracy-grid { grid-template-columns: 1fr; }
+    .watchlist-row { grid-template-columns: 1fr 1fr; }
+    .watchlist-company { display: none; }
+    .rating-row { grid-template-columns: 1fr 1fr 1fr; }
+  }
+.signal-breakdown {
+    margin-top: 0.8rem;
+    display: grid;
+    gap: 0.4rem;
+  }
+
+  .signal-bar {
+    display: grid;
+    grid-template-columns: 80px 1fr 30px;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .signal-name {
+    font-size: 0.6rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .signal-track {
+    height: 2px;
+    background: var(--rule);
+    position: relative;
+  }
+
+  .signal-fill {
+    height: 100%;
+    background: var(--gold);
+    opacity: 0.6;
+  }
+
+  .signal-val {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.6rem;
+    color: var(--muted);
+    text-align: right;
+  }
+.spread-display {
+    margin-top: 1rem;
+    padding-top: 0.8rem;
+    border-top: 1px solid var(--rule);
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 0.5rem;
+  }
+
+  .spread-case {
+    text-align: center;
+    padding: 0.5rem;
+    border: 1px solid var(--rule);
+  }
+
+  .spread-case.bull { border-color: rgba(58,107,74,0.3); }
+  .spread-case.bear { border-color: rgba(139,58,58,0.3); }
+  .spread-case.base { border-color: var(--rule); }
+
+  .spread-label {
+    font-size: 0.55rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 0.3rem;
+  }
+
+  .spread-return {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 1.2rem;
+    font-weight: 600;
+    line-height: 1;
+  }
+
+  .spread-return.positive { color: var(--positive); }
+  .spread-return.negative { color: var(--danger); }
+  .spread-return.neutral { color: var(--muted); }
+
+  .spread-prob {
+    font-size: 0.6rem;
+    color: var(--muted);
+    font-family: 'IBM Plex Mono', monospace;
+    margin-top: 0.2rem;
+  }
+
+  .spread-confidence {
+    margin-top: 0.8rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .confidence-label {
+    font-size: 0.6rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .confidence-value {
+    font-size: 0.65rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 0.2rem 0.6rem;
+    border: 1px solid var(--rule);
+    color: var(--gold);
+  }
+
+  .confidence-value.high { border-color: rgba(58,107,74,0.4); color: var(--positive); }
+  .confidence-value.medium { border-color: rgba(201,168,76,0.4); color: var(--gold); }
+  .confidence-value.low { border-color: var(--rule); color: var(--muted); }
+  .confidence-value.conflicted { border-color: rgba(139,58,58,0.4); color: var(--danger); }
 </style>
 </head>
 <body>
 
 <header>
-  <div class="logo">AU<span>PRIVATE INTELLIGENCE</span></div>
-  <button class="hamburger" onclick="openNav()">&#9776;</button>
+  <div class="logo">
+    AU
+    <span>PRIVATE INTELLIGENCE</span>
+  </div>
+<button class="hamburger" onclick="openNav()">☰</button>
 </header>
 
 <div class="nav-overlay" id="nav-overlay">
-  <button class="nav-close" onclick="closeNav()">&#10005;</button>
-  <a href="index.html">Brief</a>
-  <a href="trading.html">Trading</a>
-  <a href="brokerage.html">Brokerage</a>
-  <a href="simulator.html">Simulator</a>
+  <button class="nav-close" onclick="closeNav()">✕</button>
+  <a href="index.html" class="active">Brief</a>
+   <a href="simulator.html">Simulator</a>
   <a href="sectors.html">Sectors</a>
   <a href="admin.html">Admin</a>
-  <a href="news.html">News</a>
-  <a href="history.html">History</a>
-  <a href="options.html">Options</a>
-  <a href="report.html">Report</a>
-  <a href="ipo.html">IPO</a>
-  <a href="tutorial.html">Tutorial</a>
-  <a href="help.html">Help</a>
-  <a href="assistant.html" class="active">Assistant</a>
+ <a href="tutorial.html">Tutorial</a>
+ <a href="news.html">News</a>
+<a href="help.html">Help</a>
+<a href="history.html">History</a>
+<a href="options.html">Options</a>
+ <a href="report.html">Report</a>
+  <a href="assistant.html">Assistant</a>
+  <a href="ipo.html">Ipo</a>
+ <a href="trading.html">Trading</a>
+<a href="brokerage.html">Brokerage</a>
 </div>
 
-<div class="main-wrap">
+<main>
 
-  <!-- TABS -->
-  <div class="mode-tabs">
-    <button class="mode-tab active" id="tab-assistant" onclick="switchTab('assistant')">Assistant</button>
-    <button class="mode-tab" id="tab-engine" onclick="switchTab('engine')">Code Engine</button>
+  <div class="hero">
+    <div class="hero-label">Weekly Intelligence Brief</div>
+    <h1>Market signals.<br><em>Refined.</em></h1>
+    <p>Multi-source AI analysis synthesizing economic, political, and sentiment data into precise stock intelligence.</p>
   </div>
 
-  <!-- ── ASSISTANT PANEL ── -->
-  <div class="tab-panel active" id="panel-assistant">
+  <div class="gold-rule"></div>
 
-    <div class="chat-header">
-      <div class="chat-title">AURUM <em>Assistant.</em></div>
-      <div class="chat-sub">Ask anything about picks, algorithms, signals, or how AURUM works. Common questions load offline instantly.</div>
-    </div>
-
-    <div class="faq-section">
-      <div class="faq-header">
-        <div class="faq-label">Common Questions</div>
-        <div class="faq-badge">Offline</div>
-      </div>
-      <div class="faq-grid" id="faq-grid"></div>
-      <button class="faq-toggle-btn" id="faq-toggle" onclick="toggleFAQ()">Show all questions &#8595;</button>
-    </div>
-
-    <div class="messages" id="messages">
-      <div class="message assistant">
-        <div class="message-avatar">AU</div>
-        <div>
-          <div class="message-bubble">AURUM Intelligence System online. I have full context of your watchlist, algorithms, and pick history. Ask me anything.</div>
-          <div class="message-time">System ready</div>
-        </div>
-      </div>
-    </div>
-
-    <div class="suggestions">
-      <div class="suggestions-label">Ask Claude</div>
-      <div class="suggestions-grid">
-        <button class="suggestion-btn" onclick="askSuggestion(this)">Analyze my current picks</button>
-        <button class="suggestion-btn" onclick="askSuggestion(this)">Which algorithm is most reliable?</button>
-        <button class="suggestion-btn" onclick="askSuggestion(this)">How does the orchestrator work?</button>
-        <button class="suggestion-btn" onclick="askSuggestion(this)">Should I switch to Auto mode?</button>
-        <button class="suggestion-btn" onclick="askSuggestion(this)">Explain my watchlist signals</button>
-        <button class="suggestion-btn" onclick="askSuggestion(this)">What is AURUM seeing right now?</button>
-      </div>
-    </div>
-
-    <div class="input-area">
-      <div class="input-row">
-        <textarea class="chat-input" id="chat-input" placeholder="Ask AURUM anything..." rows="1"
-          onkeydown="handleChatKey(event)" oninput="autoResize(this)"></textarea>
-        <button class="send-btn" id="send-btn" onclick="sendMessage()">Send</button>
-      </div>
-      <div class="api-notice" id="api-notice"></div>
-    </div>
-
+  <div class="section-label">Current Picks</div>
+  <div class="picks-grid" id="picks-container">
+    <div class="empty-state">No picks generated yet. Analysis pending.</div>
   </div>
 
-  <!-- ── CODE ENGINE PANEL ── -->
-  <div class="tab-panel" id="panel-engine">
+  <div class="gold-rule"></div>
 
-    <div class="engine-header">
-      <div class="engine-title">Code <em>Engine.</em></div>
-      <div class="engine-sub">Describe any change — colors, features, algorithms, layout, logic. Claude writes the exact code. Review the diff, approve to download, reject to refine.</div>
-      <div class="engine-examples">
-        <button class="engine-example" onclick="useExample(this)">Change gold to emerald green app-wide</button>
-        <button class="engine-example" onclick="useExample(this)">Rewrite Momentum algorithm to weight volume 30% higher</button>
-        <button class="engine-example" onclick="useExample(this)">Add a risk score badge to each pick card</button>
-        <button class="engine-example" onclick="useExample(this)">Make the watchlist sortable by sector</button>
-        <button class="engine-example" onclick="useExample(this)">Add confidence filter to picks grid</button>
-      </div>
+  <div class="section-label">System Accuracy</div>
+  <div class="accuracy-grid">
+    <div class="accuracy-cell">
+      <div class="accuracy-label">Total Picks</div>
+      <div class="accuracy-number" id="total-picks">—</div>
+      <div class="accuracy-sub">All time</div>
     </div>
-
-    <div class="engine-input-area">
-      <div class="engine-input-row">
-        <textarea class="engine-input" id="engine-input" placeholder="Describe what you want changed..." rows="1"
-          onkeydown="handleEngineKey(event)" oninput="autoResize(this)"></textarea>
-        <button class="engine-btn" id="engine-btn" onclick="requestChange()">Generate</button>
-      </div>
+    <div class="accuracy-cell">
+      <div class="accuracy-label">Beat Market</div>
+      <div class="accuracy-number" id="beat-market">—</div>
+      <div class="accuracy-sub">vs S&P 500</div>
     </div>
-
-    <div class="engine-thinking" id="engine-thinking">Claude is analyzing your codebase and writing the changes...</div>
-
-    <div class="change-preview" id="change-preview">
-      <div class="change-empty">
-        <div class="change-empty-icon">AU</div>
-        <div class="change-empty-text">Describe a change above</div>
-        <div class="change-empty-sub">Claude writes exact code — you review before anything deploys</div>
-      </div>
+    <div class="accuracy-cell">
+      <div class="accuracy-label">Avg Accuracy</div>
+      <div class="accuracy-number" id="avg-accuracy">—</div>
+      <div class="accuracy-sub">90 day score</div>
     </div>
-
   </div>
 
-</div>
+  <div class="gold-rule"></div>
+
+  <div class="section-label">Watchlist</div>
+  <div class="watchlist">
+    <div class="watchlist-header">
+      <span>Ticker</span>
+      <span>Company</span>
+      <span style="text-align:right">Sector</span>
+    </div>
+    <div id="watchlist-container">
+      <div class="empty-state">Loading...</div>
+    </div>
+  </div>
+
+  <div class="gold-rule"></div>
+
+  <div class="section-label">Rating History</div>
+  <div class="rating-history">
+    <div class="watchlist-header">
+      <span>Ticker</span>
+      <span>30D Return</span>
+      <span>90D Return</span>
+      <span style="text-align:right">Beat Market</span>
+    </div>
+    <div id="rating-container">
+      <div class="empty-state">No ratings yet. Accumulating track record.</div>
+    </div>
+  </div>
+
+</main>
 
 <footer>
-  <p>AURUM &copy; 2026 &mdash; Private Use Only</p>
+  <p>AURUM © 2026 — Private Use Only</p>
   <div class="footer-au">AU</div>
 </footer>
 
 <script>
-const SUPABASE_URL = 'https://zpcbbwynvvyldavxzjng.supabase.co';
-const SUPABASE_KEY = 'sb_publishable_K80lcfk8LsQNqo5enznRRA_lrzf2U9K';
-const { createClient } = supabase;
-const db = createClient(SUPABASE_URL, SUPABASE_KEY);
+  const SUPABASE_URL = 'https://zpcbbwynvvyldavxzjng.supabase.co';
+  const SUPABASE_KEY = 'sb_publishable_K80lcfk8LsQNqo5enznRRA_lrzf2U9K';
+  const { createClient } = supabase;
+  const db = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-let conversationHistory = [];
-let aurumContext = {};
-let pendingChanges = [];
-let faqExpanded = false;
-
-// ─────────────────────────────────────────────
-// AURUM KNOWLEDGE BASE — embedded offline
-// ─────────────────────────────────────────────
-const AURUM_KB = `
-AURUM — COMPLETE APP DOCUMENTATION v2.0
-========================================
-
-OVERVIEW: AURUM is a private market intelligence system with 21+ algorithms synthesized
-by a master orchestrator. PWA on GitHub Pages, Supabase backend, Claude AI analysis.
-Python FastAPI ML engine with DRL, GRU, FLSPI, Autoencoder, Mamba algorithms.
-
-PAGES:
-- index.html: Brief — picks, accuracy, watchlist, rating history
-- trading.html: Trading — Auto mode (full autofill + execute), Manual mode (ranked list, select, autofill, Enter to submit)
-- brokerage.html: Brokerage — account connections, positions
-- simulator.html: Simulator — paper trading
-- sectors.html: Sectors — sector intelligence
-- admin.html: Admin — algorithm health monitor (auto-scans on load), stock management
-- news.html: News — sentiment feed
-- history.html: History — pick performance
-- options.html: Options — options chain analysis
-- ipo.html: IPO — tracker with ipo_early_detection algorithm
-- report.html: Report — weekly briefings
-- tutorial.html: Tutorial
-- help.html: Help
-- assistant.html: Assistant — AI chat + offline FAQ + Code Engine
-
-JS ALGORITHMS (Supabase):
-momentum_detector, political_signal_detector, macro_detector, correlation_filter,
-earnings_cycle_detector, macro_regime_detector, sentiment_velocity, options_flow_detector,
-sentiment_detector, insider_transaction_tracker, probability_spread_model,
-hybrid_sentiment_pipeline, algorithm_orchestrator, ipo_early_detection,
-market_regime_adaptive_ga, mcts_formula_tester, autonomous_strategy_evolution,
-genetic_algorithm_optimizer, evolutionary_data_labeling, hybrid_ga_learning_to_rank,
-agentic_llm_workflow
-
-PYTHON ML ENGINE (FastAPI):
-/drl — Deep Reinforcement Learning (3 agents: selection, trend, risk)
-/gru — Attention-Augmented GRU (directional accuracy)
-/flspi — Fuzzy Least-Squares Policy Iteration (RSI + volatility)
-/autoencoder — Dual autoencoder (technical + fundamental)
-/mamba — State-Space Model (sequence dynamics)
-/orchestrate — Master orchestrator (synthesizes all outputs, conflict detection)
-
-ORCHESTRATOR: Weights each algorithm by historical accuracy. Conflict detected when
-score range > 35 points. Confidence: High (8+ algos, no conflict), Medium (5+, no conflict),
-Conflicted, Low. Verdict: BUY >65, WATCH >50, AVOID <=50.
-
-TRADING MODES:
-AUTO: Claude picks top trade, all 9 fields autofill, Execute Order button
-MANUAL: Claude returns ranked list of 5 trades, user selects, 12 fields autofill, press Enter
-
-SAFETY: Principal Floor (halt if balance below), Max Position Size %, Max Daily Trades
-
-SCORING: 0-100. 75+ = gold (high conviction). Score drives position size.
-
-SUPABASE TABLES: stocks, picks, algorithms, aurum_accuracy, news_feed, auto_trade_log,
-trading_settings, brokerage_accounts, brokerage_positions, self_ratings, ipo_watchlist,
-ipo_buzz, ipo_alerts, app_files
-
-WATCHLIST: Remove tickers directly from Brief page (index.html)
-HEALTH MONITOR: Admin page auto-scans algorithms on every load via Claude
-CODE ENGINE: In Assistant — describe change, Claude writes diff, approve to download
-`;
-
-// ─────────────────────────────────────────────
-// OFFLINE FAQ
-// ─────────────────────────────────────────────
-const FAQ = [
-  {
-    q: "What is AURUM and how does it work?",
-    a: "AURUM is a private market intelligence system running 21+ algorithms through a master orchestrator. The orchestrator synthesizes all signals into a score (0-100), a direction (LONG/SHORT), and a precise trade instruction with entry, exit, and stop loss. You control whether it executes automatically (Auto) or presents options for you to choose (Manual)."
-  },
-  {
-    q: "What is the difference between Auto and Manual mode?",
-    a: "Auto mode: Claude picks the single highest-conviction trade and all 9 order fields autofill automatically. One tap to execute.\n\nManual mode: Claude generates a ranked list of 5 trades. You select one, all 12 fields autofill instantly, and you press Enter to submit. Full control, zero guesswork on what to enter."
-  },
-  {
-    q: "What does the orchestrator score mean?",
-    a: "The score (0-100) reflects orchestrator conviction across all algorithms.\n\n80-100: High conviction — strong alignment\n60-79: Moderate — majority alignment with some conflict\nBelow 60: Low — rarely surfaced as a primary pick\n\nScores above 75 display in gold. The score directly drives position size recommendations."
-  },
-  {
-    q: "What does Conflicted confidence mean?",
-    a: "Conflicted means algorithms are producing opposing signals — some strongly bullish, others bearish, with no clear majority. The conflict is flagged when score range across algorithms exceeds 35 points. In Auto mode, conflicted picks get reduced position sizes or are skipped."
-  },
-  {
-    q: "What are the safety parameters?",
-    a: "Three parameters protect your capital at all times:\n\nPrincipal Floor: Auto trading halts if balance drops below this amount (default $5,000)\nMax Position Size %: No single trade exceeds this % of balance (default 10%)\nMax Daily Trades: Auto mode cap per day (default 3)\n\nThese cannot be overridden by Claude."
-  },
-  {
-    q: "What does the probability spread (Bull/Base/Bear) mean?",
-    a: "Each pick shows three scenarios:\n\nBull Case: Optimistic return % and its probability\nBase Case: Most likely outcome and probability\nBear Case: Downside scenario and probability\n\nDerived from orchestrator synthesis and the Volatility Regime algorithm."
-  },
-  {
-    q: "How do I add or remove stocks from my watchlist?",
-    a: "Add: Go to Admin page, search by ticker — company name and sector autofill.\n\nRemove: On the Brief page (home), each watchlist row has an X button. Tap it to remove the ticker from Supabase permanently."
-  },
-  {
-    q: "How does the Code Engine work?",
-    a: "Go to the Code Engine tab (this page). Describe any change in plain language — colors, features, algorithms, layout, logic. Claude writes the exact code and shows you a diff (red = removed, green = added). Approve to download the updated file, reject to refine. Nothing changes until you approve."
-  },
-  {
-    q: "How does the Algorithm Health Monitor work?",
-    a: "Every time you open the Admin page, Claude automatically scans all algorithms, trading settings, pick history, and trade log. It flags conflicts, stale logic, accuracy decay, and safety parameter issues. Results are tagged Critical / Warning / Info / OK. You can also trigger a manual scan anytime."
-  },
-  {
-    q: "Why isn't Claude responding?",
-    a: "The AI chat requires a Claude API key configured in Supabase secrets as CLAUDE_API_KEY. The offline FAQ works without any API key. If the key is set and still failing, verify the key is valid and not expired."
-  },
-  {
-    q: "How does Manual mode autofill work?",
-    a: "Claude generates a ranked list of 5 trades. Tap any trade — 12 fields autofill instantly: Ticker, Direction, Order Type, Entry Price, Exit Target, Stop Loss, Position Size %, Est. Dollar Amount, Time in Force, Confidence, Algo Score, Algo Signals. Claude also shows a written instruction. Press Enter or Submit to log the trade."
-  },
-  {
-    q: "What algorithms does AURUM run?",
-    a: "21+ algorithms including: Momentum, Sentiment, Political, Macro, Options Flow, Insider Activity, Correlation, Earnings Cycle, Macro Regime, Sentiment Velocity, Probability Spread, Hybrid Sentiment Pipeline, Market Regime GA, MCTS Formula Tester, Autonomous Strategy Evolution, Genetic Algorithm Optimizer, Evolutionary Data Labeling, Hybrid GA Learning-to-Rank, Agentic LLM Workflow, IPO Early Detection, plus Python ML algorithms: DRL, GRU, FLSPI, Autoencoder, Mamba."
-  }
-];
-
-const FAQ_PREVIEW = 4;
-
-function renderFAQ(showAll) {
-  const grid = document.getElementById('faq-grid');
-  const items = showAll ? FAQ : FAQ.slice(0, FAQ_PREVIEW);
-  grid.innerHTML = items.map((item, i) => `
-    <div class="faq-item" id="fi-${i}">
-      <div class="faq-question" onclick="toggleFAQItem(${i})">
-        <span class="faq-question-text">${item.q}</span>
-        <span class="faq-chevron">&#9660;</span>
+  async function loadPicks() {
+    const { data } = await db.from('picks').select('*').order('picked_at', { ascending: false }).limit(5);
+    const container = document.getElementById('picks-container');
+    if (!data || !data.length) return;
+   container.innerHTML = data.map(p => {
+      const signals = p.signals || {};
+      const spread = signals.spread || null;
+      return `
+      <div class="pick-card">
+        <div class="pick-score ${p.score >= 75 ? 'high' : 'mid'}">${p.score}</div>
+        <div class="pick-info">
+          <div class="pick-ticker">${p.ticker}</div>
+          <div class="pick-brief">${p.brief || '—'}</div>
+          ${signals.momentum || signals.sentiment ? `
+          <div class="signal-breakdown">
+            ${signals.momentum ? `<div class="signal-bar"><span class="signal-name">Momentum</span><div class="signal-track"><div class="signal-fill" style="width:${signals.momentum}%"></div></div><span class="signal-val">${signals.momentum}</span></div>` : ''}
+            ${signals.sentiment ? `<div class="signal-bar"><span class="signal-name">Sentiment</span><div class="signal-track"><div class="signal-fill" style="width:${signals.sentiment}%"></div></div><span class="signal-val">${signals.sentiment}</span></div>` : ''}
+            ${signals.political ? `<div class="signal-bar"><span class="signal-name">Political</span><div class="signal-track"><div class="signal-fill" style="width:${signals.political}%"></div></div><span class="signal-val">${signals.political}</span></div>` : ''}
+            ${signals.macro ? `<div class="signal-bar"><span class="signal-name">Macro</span><div class="signal-track"><div class="signal-fill" style="width:${signals.macro}%"></div></div><span class="signal-val">${signals.macro}</span></div>` : ''}
+          </div>` : ''}
+          ${spread ? `
+          <div class="spread-display">
+            <div class="spread-case bull">
+              <div class="spread-label">Bull Case</div>
+              <div class="spread-return positive">+${spread.bull_case_return}%</div>
+              <div class="spread-prob">${spread.bull_probability}% prob</div>
+            </div>
+            <div class="spread-case base">
+              <div class="spread-label">Base Case</div>
+              <div class="spread-return ${spread.base_case_return >= 0 ? 'positive' : 'negative'}">${spread.base_case_return >= 0 ? '+' : ''}${spread.base_case_return}%</div>
+              <div class="spread-prob">${spread.base_probability}% prob</div>
+            </div>
+            <div class="spread-case bear">
+              <div class="spread-label">Bear Case</div>
+              <div class="spread-return negative">${spread.bear_case_return}%</div>
+              <div class="spread-prob">${spread.bear_probability}% prob</div>
+            </div>
+          </div>
+          <div class="spread-confidence">
+            <span class="confidence-label">Confidence</span>
+            <span class="confidence-value ${spread.confidence ? spread.confidence.toLowerCase() : ''}">${spread.confidence || '—'}</span>
+          </div>` : ''}
+        </div>
+        <div class="pick-meta">
+          <div class="pick-status monitoring">Monitoring</div>
+        </div>
       </div>
-      <div class="faq-answer">${item.a.replace(/\n/g, '<br>')}</div>
-    </div>
-  `).join('');
-  const btn = document.getElementById('faq-toggle');
-  if (btn) btn.textContent = showAll ? 'Show fewer \u2191' : `Show all ${FAQ.length} questions \u2193`;
-}
-
-function toggleFAQItem(i) {
-  const el = document.getElementById('fi-' + i);
-  if (el) el.classList.toggle('open');
-}
-
-function toggleFAQ() {
-  faqExpanded = !faqExpanded;
-  renderFAQ(faqExpanded);
-}
-
-// ─────────────────────────────────────────────
-// TAB SWITCHING
-// ─────────────────────────────────────────────
-function switchTab(tab) {
-  document.querySelectorAll('.mode-tab').forEach(t => t.classList.remove('active'));
-  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
-  document.getElementById('tab-' + tab).classList.add('active');
-  document.getElementById('panel-' + tab).classList.add('active');
-}
-
-// ─────────────────────────────────────────────
-// LOAD LIVE CONTEXT
-// ─────────────────────────────────────────────
-async function loadContext() {
-  try {
-    const [stocksRes, picksRes, accuracyRes, tradesRes] = await Promise.all([
-      db.from('stocks').select('ticker, sector'),
-      db.from('picks').select('ticker, score, brief').order('picked_at', { ascending: false }).limit(5),
-      db.from('aurum_accuracy').select('*').single(),
-      db.from('auto_trade_log').select('ticker, direction, orchestrator_score, status').order('created_at', { ascending: false }).limit(5)
-    ]);
-    aurumContext = {
-      watchlist: stocksRes.data?.map(s => s.ticker + ' (' + s.sector + ')').join(', ') || 'None',
-      picks: picksRes.data?.map(p => p.ticker + ' score:' + p.score + ' — ' + p.brief).join('\n') || 'None',
-      accuracy: accuracyRes.data ? 'Total:' + accuracyRes.data.total_picks + ' BeatMkt:' + accuracyRes.data.beats_market + ' Avg:' + accuracyRes.data.avg_accuracy + '%' : 'No data',
-      trades: tradesRes.data?.map(t => t.ticker + ' ' + t.direction + ' score:' + t.orchestrator_score + ' ' + t.status).join('\n') || 'None'
-    };
-  } catch(e) {
-    aurumContext = { watchlist: 'unavailable', picks: 'unavailable', accuracy: 'unavailable', trades: 'unavailable' };
-  }
-}
-
-// ─────────────────────────────────────────────
-// ASSISTANT CHAT
-// ─────────────────────────────────────────────
-async function sendMessage() {
-  const input = document.getElementById('chat-input');
-  const msg = input.value.trim();
-  if (!msg) return;
-
-  input.value = '';
-  autoResize(input);
-  addMessage('user', msg);
-  conversationHistory.push({ role: 'user', content: msg });
-
-  const typingId = addTyping();
-  document.getElementById('send-btn').disabled = true;
-
-  const systemPrompt = `You are AURUM's private intelligence assistant. You have complete knowledge of the entire AURUM system.
-
-AURUM KNOWLEDGE BASE:
-${AURUM_KB}
-
-LIVE DATA:
-Watchlist: ${aurumContext.watchlist}
-Recent picks: ${aurumContext.picks}
-System accuracy: ${aurumContext.accuracy}
-Recent trades: ${aurumContext.trades}
-
-Answer any question about AURUM with authority. Reference live data when relevant.
-TONE: Cold, precise, confident. Like a private analyst briefing a sophisticated investor. No filler.
-FORMAT: 2-4 short paragraphs. Use line breaks. No bullet points.`;
-
-  try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 1000,
-        system: systemPrompt,
-        messages: conversationHistory
-      })
-    });
-
-    removeTyping(typingId);
-
-    if (res.status === 401 || res.status === 403) {
-      addMessage('assistant', 'Claude API key required. Add CLAUDE_API_KEY to Supabase secrets to activate the assistant.');
-      document.getElementById('api-notice').className = 'api-notice error';
-      document.getElementById('api-notice').textContent = 'API key not configured.';
-    } else {
-      const data = await res.json();
-      const reply = data.content?.[0]?.text || 'No response received.';
-      conversationHistory.push({ role: 'assistant', content: reply });
-      addMessage('assistant', reply);
-      document.getElementById('api-notice').textContent = '';
-    }
-  } catch(e) {
-    removeTyping(typingId);
-    addMessage('assistant', 'Connection error. Check your network and try again.');
+    `;}).join('');
   }
 
-  document.getElementById('send-btn').disabled = false;
-}
-
-function addMessage(role, text) {
-  const container = document.getElementById('messages');
-  const time = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-  const div = document.createElement('div');
-  div.className = 'message ' + role;
-  div.innerHTML = `
-    <div class="message-avatar">${role === 'user' ? 'YOU' : 'AU'}</div>
-    <div>
-      <div class="message-bubble">${escHtml(text).replace(/\n/g, '<br>')}</div>
-      <div class="message-time">${time}</div>
-    </div>
-  `;
-  container.appendChild(div);
-  container.scrollTop = container.scrollHeight;
-}
-
-function addTyping() {
-  const container = document.getElementById('messages');
-  const id = 'typing-' + Date.now();
-  const div = document.createElement('div');
-  div.id = id;
-  div.className = 'message assistant';
-  div.innerHTML = `
-    <div class="message-avatar">AU</div>
-    <div class="typing">
-      <div class="typing-dot"></div>
-      <div class="typing-dot"></div>
-      <div class="typing-dot"></div>
-    </div>
-  `;
-  container.appendChild(div);
-  container.scrollTop = container.scrollHeight;
-  return id;
-}
-
-function removeTyping(id) {
-  const el = document.getElementById(id);
-  if (el) el.remove();
-}
-
-function askSuggestion(btn) {
-  document.getElementById('chat-input').value = btn.textContent;
-  sendMessage();
-}
-
-function handleChatKey(e) {
-  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
-}
-
-// ─────────────────────────────────────────────
-// CODE ENGINE
-// ─────────────────────────────────────────────
-const APP_FILES = {
-  'index.html': 'Brief home dashboard — picks, accuracy, watchlist, rating history',
-  'trading.html': 'Trading — Auto/Manual mode, autofill, order execution',
-  'assistant.html': 'Assistant — AI chat, FAQ, Code Engine',
-  'admin.html': 'Admin — algorithm health monitor, stock management',
-  'brokerage.html': 'Brokerage — account connections, positions',
-  'simulator.html': 'Simulator — paper trading',
-  'sectors.html': 'Sectors — sector signals',
-  'news.html': 'News — sentiment feed',
-  'history.html': 'History — pick performance',
-  'options.html': 'Options — options analysis',
-  'ipo.html': 'IPO — tracker',
-  'report.html': 'Report — weekly briefings',
-  'tutorial.html': 'Tutorial',
-  'help.html': 'Help'
-};
-
-function useExample(btn) {
-  const input = document.getElementById('engine-input');
-  input.value = btn.textContent;
-  autoResize(input);
-  input.focus();
-}
-
-function handleEngineKey(e) {
-  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); requestChange(); }
-}
-
-async function requestChange() {
-  const input = document.getElementById('engine-input');
-  const request = input.value.trim();
-  if (!request) return;
-
-  const btn = document.getElementById('engine-btn');
-  const thinking = document.getElementById('engine-thinking');
-  const preview = document.getElementById('change-preview');
-
-  btn.disabled = true;
-  thinking.classList.add('visible');
-  preview.innerHTML = '';
-  pendingChanges = [];
-
-  // Try to load file contents from Supabase app_files table
-  let fileContents = {};
-  try {
-    const { data: files } = await db.from('app_files').select('filename, content');
-    if (files && files.length) {
-      files.forEach(f => { fileContents[f.filename] = f.content; });
-    }
-  } catch(e) {}
-
-  const fileList = Object.entries(APP_FILES)
-    .map(([f, d]) => f + ' — ' + d + (fileContents[f] ? ' [code loaded]' : ''))
-    .join('\n');
-
-  const codeContext = Object.entries(fileContents)
-    .slice(0, 3)
-    .map(([f, c]) => '=== ' + f + ' ===\n' + c.substring(0, 6000))
-    .join('\n\n');
-
-  const prompt = `You are AURUM's Code Engine. The user wants a change to the AURUM app.
-
-USER REQUEST: "${request}"
-
-APP FILES:
-${fileList}
-
-AURUM KNOWLEDGE BASE:
-${AURUM_KB}
-
-${codeContext ? 'FILE CODE:\n' + codeContext : ''}
-
-INSTRUCTIONS:
-- Identify which files need to change
-- Write precise, minimal code changes
-- For color changes: update CSS :root variables (they cascade everywhere)
-- For algorithm changes: rewrite only the relevant function
-- For new features: write complete working code
-- Never break existing functionality
-
-Respond ONLY with valid JSON, no markdown, no extra text:
-{
-  "summary": "One sentence: what changes and why",
-  "changes": [
-    {
-      "file": "index.html",
-      "type": "CSS",
-      "description": "What this change does",
-      "old_code": "exact code to find and replace (keep short, 3-15 lines)",
-      "new_code": "exact replacement code"
-    }
-  ]
-}`;
-
-  try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 4000,
-        messages: [{ role: 'user', content: prompt }]
-      })
-    });
-
-    const data = await res.json();
-    const text = data.content?.[0]?.text || '{}';
-    const parsed = JSON.parse(text.replace(/```json|```/g, '').trim());
-
-    pendingChanges = parsed.changes || [];
-
-    if (!pendingChanges.length) {
-      preview.innerHTML = '<div class="change-empty"><div class="change-empty-icon">—</div><div class="change-empty-text">No changes needed</div></div>';
-    } else {
-      if (parsed.summary) {
-        const sumEl = document.createElement('div');
-        sumEl.className = 'engine-summary';
-        sumEl.textContent = parsed.summary;
-        preview.appendChild(sumEl);
-      }
-
-      pendingChanges.forEach((change, i) => {
-        const card = document.createElement('div');
-        card.className = 'change-card';
-        card.id = 'cc-' + i;
-
-        const oldLines = (change.old_code || '').split('\n').map(l => '<span class="diff-remove">- ' + escHtml(l) + '</span>').join('');
-        const newLines = (change.new_code || '').split('\n').map(l => '<span class="diff-add">+ ' + escHtml(l) + '</span>').join('');
-
-        card.innerHTML = `
-          <div class="change-card-header">
-            <div class="change-file">${escHtml(change.file)}</div>
-            <div class="change-type">${escHtml(change.type || 'Code')}</div>
-          </div>
-          <div class="change-description">${escHtml(change.description)}</div>
-          <div class="change-diff">${oldLines}<span class="diff-divider">&darr; REPLACED WITH &darr;</span>${newLines}</div>
-          <div class="change-actions">
-            <button class="approve-btn" id="ab-${i}" onclick="approveChange(${i})">Approve</button>
-            <button class="reject-btn" onclick="rejectChange(${i})">Reject</button>
-            <div class="change-status" id="cs-${i}"></div>
-          </div>
-        `;
-        preview.appendChild(card);
-      });
-
-      if (pendingChanges.length > 1) {
-        const allBtn = document.createElement('button');
-        allBtn.className = 'approve-all-btn';
-        allBtn.textContent = 'Approve All ' + pendingChanges.length + ' Changes';
-        allBtn.onclick = () => pendingChanges.forEach((_, i) => approveChange(i));
-        preview.appendChild(allBtn);
-      }
-    }
-
-  } catch(e) {
-    preview.innerHTML = '<div class="change-empty"><div class="change-empty-icon">!</div><div class="change-empty-text">Claude API key required</div><div class="change-empty-sub">Add CLAUDE_API_KEY to Supabase secrets</div></div>';
+  async function loadAccuracy() {
+    const { data } = await db.from('aurum_accuracy').select('*').single();
+    if (!data) return;
+    document.getElementById('total-picks').textContent = data.total_picks || '—';
+    document.getElementById('beat-market').textContent = data.beats_market || '—';
+    document.getElementById('avg-accuracy').textContent = data.avg_accuracy ? data.avg_accuracy + '%' : '—';
   }
 
-  thinking.classList.remove('visible');
-  btn.disabled = false;
-  input.value = '';
-  autoResize(input);
-}
-
-async function approveChange(i) {
-  const change = pendingChanges[i];
-  if (!change) return;
-
-  const ab = document.getElementById('ab-' + i);
-  const cs = document.getElementById('cs-' + i);
-  if (ab) ab.disabled = true;
-  if (cs) { cs.textContent = 'Processing...'; cs.className = 'change-status'; }
-
-  try {
-    // Try to get file from Supabase, apply change, save back, offer download
-    const { data: fileRow } = await db.from('app_files').select('content').eq('filename', change.file).single();
-
-    if (fileRow && fileRow.content && change.old_code && change.new_code) {
-      const updated = fileRow.content.replace(change.old_code, change.new_code);
-      if (updated !== fileRow.content) {
-        await db.from('app_files').upsert({
-          filename: change.file,
-          content: updated,
-          updated_at: new Date().toISOString()
-        });
-        triggerDownload(change.file, updated, i);
-        if (cs) { cs.textContent = 'Approved — downloaded'; cs.className = 'change-status approved'; }
-      } else {
-        // Could not find old_code in file — download patch instead
-        downloadPatch(change, i);
-        if (cs) { cs.textContent = 'Patch downloaded'; cs.className = 'change-status approved'; }
-      }
-    } else {
-      // No file content in Supabase — download patch
-      downloadPatch(change, i);
-      if (cs) { cs.textContent = 'Patch downloaded — apply in ACode'; cs.className = 'change-status approved'; }
-    }
-  } catch(e) {
-    downloadPatch(change, i);
-    if (cs) { cs.textContent = 'Patch downloaded'; cs.className = 'change-status approved'; }
+  async function loadWatchlist() {
+    const { data } = await db.from('stocks').select('*').order('added_at', { ascending: false });
+    const container = document.getElementById('watchlist-container');
+    if (!data || !data.length) return;
+    container.innerHTML = data.map(s => `
+      <div class="watchlist-row">
+        <div class="watchlist-ticker">${s.ticker}</div>
+        <div class="watchlist-company">${s.company_name || '—'}</div>
+        <div class="watchlist-sector">${s.sector || '—'}</div>
+      </div>
+    `).join('');
   }
 
-  const card = document.getElementById('cc-' + i);
-  if (card) card.style.borderColor = 'rgba(58,107,74,0.5)';
-}
+  async function loadRatings() {
+    const { data } = await db.from('self_ratings').select('*').order('rated_at', { ascending: false }).limit(10);
+    const container = document.getElementById('rating-container');
+    if (!data || !data.length) return;
+    container.innerHTML = data.map(r => `
+      <div class="rating-row">
+        <div class="rating-ticker">${r.ticker}</div>
+        <div class="rating-return ${r.return_30d >= 0 ? 'positive' : 'negative'}">${r.return_30d ? r.return_30d + '%' : '—'}</div>
+        <div class="rating-return ${r.return_90d >= 0 ? 'positive' : 'negative'}">${r.return_90d ? r.return_90d + '%' : '—'}</div>
+        <div><span class="beat-badge ${r.beat_market ? 'yes' : 'no'}">${r.beat_market ? 'Yes' : 'No'}</span></div>
+      </div>
+    `).join('');
+  }
 
-function rejectChange(i) {
-  const cs = document.getElementById('cs-' + i);
-  const ab = document.getElementById('ab-' + i);
-  const card = document.getElementById('cc-' + i);
-  if (cs) { cs.textContent = 'Rejected'; cs.className = 'change-status rejected'; }
-  if (ab) ab.disabled = true;
-  if (card) card.style.opacity = '0.4';
-}
-
-function triggerDownload(filename, content, i) {
-  const blob = new Blob([content], { type: 'text/html' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  a.className = 'download-link';
-  a.textContent = '\u2193 ' + filename;
-  const actions = document.querySelector('#cc-' + i + ' .change-actions');
-  if (actions) actions.appendChild(a);
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(url), 5000);
-}
-
-function downloadPatch(change, i) {
-  const content = `AURUM CODE ENGINE PATCH
-========================
-File: ${change.file}
-Type: ${change.type}
-Description: ${change.description}
-
-FIND THIS CODE:
-${change.old_code}
-
-REPLACE WITH:
-${change.new_code}`;
-
-  const blob = new Blob([content], { type: 'text/plain' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = 'patch-' + change.file + '.txt';
-  a.className = 'download-link';
-  a.textContent = '\u2193 patch-' + change.file;
-  const actions = document.querySelector('#cc-' + i + ' .change-actions');
-  if (actions) actions.appendChild(a);
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(url), 5000);
-}
-
-// ─────────────────────────────────────────────
-// UTILITIES
-// ─────────────────────────────────────────────
-function escHtml(str) {
-  if (!str) return '';
-  return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
-
-function autoResize(el) {
-  el.style.height = 'auto';
-  el.style.height = Math.min(el.scrollHeight, 120) + 'px';
-}
-
+  loadPicks();
+  loadAccuracy();
+  loadWatchlist();
+  loadRatings();
 function openNav() { document.getElementById('nav-overlay').classList.add('open'); }
-function closeNav() { document.getElementById('nav-overlay').classList.remove('open'); }
-
-// ─────────────────────────────────────────────
-// INIT
-// ─────────────────────────────────────────────
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/aurum-app/sw.js').catch(() => {});
-}
-
-renderFAQ(false);
-loadContext();
+  function closeNav() { document.getElementById('nav-overlay').classList.remove('open'); }
 </script>
 
 </body>
