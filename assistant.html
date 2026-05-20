@@ -377,6 +377,102 @@
     30% { transform: translateY(-6px); opacity: 1; }
   }
 
+  /* FAQ section */
+  .faq-section {
+    padding: 1.5rem 0;
+    border-bottom: 1px solid var(--rule);
+    flex-shrink: 0;
+  }
+
+  .faq-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+  }
+
+  .faq-label {
+    font-size: 0.7rem;
+    letter-spacing: 0.25em;
+    color: var(--gold);
+    text-transform: uppercase;
+  }
+
+  .faq-badge {
+    font-size: 0.6rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--muted);
+    border: 1px solid var(--rule);
+    padding: 0.2rem 0.6rem;
+    font-family: 'IBM Plex Mono', monospace;
+  }
+
+  .faq-grid {
+    display: grid;
+    gap: 1px;
+    background: var(--rule);
+    border: 1px solid var(--rule);
+  }
+
+  .faq-item {
+    background: var(--black);
+  }
+
+  .faq-question {
+    padding: 0.9rem 1.2rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    transition: background 0.2s;
+    gap: 1rem;
+  }
+
+  .faq-question:hover { background: rgba(201,168,76,0.03); }
+
+  .faq-question-text {
+    font-size: 0.85rem;
+    color: var(--white);
+    line-height: 1.4;
+  }
+
+  .faq-chevron {
+    color: var(--gold);
+    font-size: 0.7rem;
+    flex-shrink: 0;
+    transition: transform 0.3s;
+  }
+
+  .faq-item.open .faq-chevron { transform: rotate(180deg); }
+
+  .faq-answer {
+    display: none;
+    padding: 0 1.2rem 1.2rem;
+    font-size: 0.82rem;
+    color: var(--muted);
+    line-height: 1.8;
+    border-top: 1px solid var(--rule);
+    padding-top: 0.9rem;
+  }
+
+  .faq-item.open .faq-answer { display: block; }
+
+  .faq-toggle-btn {
+    background: transparent;
+    border: none;
+    color: var(--muted);
+    font-size: 0.7rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    cursor: pointer;
+    margin-top: 0.8rem;
+    padding: 0;
+    font-family: 'DM Sans', sans-serif;
+  }
+
+  .faq-toggle-btn:hover { color: var(--gold); }
+
   @media (max-width: 600px) {
     .chat-container { padding: 0 1.5rem; }
     header { padding: 1.5rem; }
@@ -417,7 +513,17 @@
 
   <div class="chat-header">
     <div class="chat-title">AURUM <em>Assistant.</em></div>
-    <div class="chat-sub">Ask anything about your picks, algorithms, market signals, or how AURUM works. Powered by Claude.</div>
+    <div class="chat-sub">Ask anything about your picks, algorithms, market signals, or how AURUM works. Common questions answered offline — deeper questions powered by Claude.</div>
+  </div>
+
+  <!-- OFFLINE FAQ -->
+  <div class="faq-section" id="faq-section">
+    <div class="faq-header">
+      <div class="faq-label">Common Questions</div>
+      <div class="faq-badge">Offline — No API</div>
+    </div>
+    <div class="faq-grid" id="faq-grid"></div>
+    <button class="faq-toggle-btn" id="faq-toggle" onclick="toggleFAQ()">Show all questions ↓</button>
   </div>
 
   <div class="messages" id="messages">
@@ -433,14 +539,14 @@
   </div>
 
   <div class="suggestions">
-    <div class="suggestions-label">Suggested Questions</div>
+    <div class="suggestions-label">Ask Claude</div>
     <div class="suggestions-grid">
-      <button class="suggestion-btn" onclick="askSuggestion(this)">Why did AURUM pick NVDA?</button>
-      <button class="suggestion-btn" onclick="askSuggestion(this)">What does the probability spread mean?</button>
-      <button class="suggestion-btn" onclick="askSuggestion(this)">How does the macro regime affect my picks?</button>
-      <button class="suggestion-btn" onclick="askSuggestion(this)">Which algorithm is most reliable?</button>
-      <button class="suggestion-btn" onclick="askSuggestion(this)">Should I add more stocks to my watchlist?</button>
-      <button class="suggestion-btn" onclick="askSuggestion(this)">Explain the self-rating system</button>
+      <button class="suggestion-btn" onclick="askSuggestion(this)">Analyze my current picks</button>
+      <button class="suggestion-btn" onclick="askSuggestion(this)">Which algorithm is most reliable right now?</button>
+      <button class="suggestion-btn" onclick="askSuggestion(this)">How does the orchestrator work?</button>
+      <button class="suggestion-btn" onclick="askSuggestion(this)">Should I switch to Auto mode?</button>
+      <button class="suggestion-btn" onclick="askSuggestion(this)">Explain my watchlist signals</button>
+      <button class="suggestion-btn" onclick="askSuggestion(this)">What is AURUM seeing in the market right now?</button>
     </div>
   </div>
 
@@ -474,17 +580,278 @@
   let conversationHistory = [];
   let aurumContext = {};
 
+  // ─────────────────────────────────────────────
+  // AURUM FULL APP KNOWLEDGE BASE (OFFLINE)
+  // This is embedded directly — no API call needed.
+  // Update this block whenever features change.
+  // ─────────────────────────────────────────────
+  const AURUM_KNOWLEDGE_BASE = `
+AURUM — COMPLETE APP DOCUMENTATION v2.0
+========================================
+
+OVERVIEW
+--------
+AURUM is a private market intelligence system that synthesizes signals from 21 proprietary algorithms through a master orchestrator. It generates stock picks, trade instructions, and market analysis for a single private user. Built as a PWA (Progressive Web App) hosted on GitHub Pages, backed by Supabase for data storage, and powered by Claude (Anthropic) for AI analysis.
+
+PAGES & FEATURES
+----------------
+
+1. BRIEF (index.html) — Home dashboard
+   - Displays current weekly picks with scores (0-100), signal breakdowns, and bull/base/bear probability spreads
+   - Shows System Accuracy panel: total picks, beat-market %, avg accuracy over 90 days
+   - Watchlist overview: all tracked stocks with ticker, company name, sector
+   - Rating History: 30-day and 90-day returns, beat-market status per pick
+
+2. TRADING (trading.html) — Core trade execution
+   AUTO MODE:
+   - Toggle activates automatic trade execution
+   - Requires confirmation before activating (safety gate)
+   - Claude synthesizes all 21 algorithms and returns ONE top trade
+   - All 9 order fields auto-populate: Ticker, Direction (LONG/SHORT), Order Type (Limit/Market), Entry Price, Exit Target, Stop Loss, Position Size %, Est. Dollar Amount, Time in Force
+   - "Execute Order" button logs trade as executed to Supabase
+   - Safety parameters always enforced: Principal Floor (stops trading if balance drops below), Max Position Size %, Max Daily Trades
+   MANUAL MODE:
+   - Claude returns a ranked list of 5 trade opportunities
+   - Each trade shows: ticker, direction, orchestrator score, confidence level, reasoning
+   - User selects a trade from the list → all 12 fields autofill instantly
+   - Claude provides exact field-by-field instructions per trade
+   - Press Enter or hit "Submit Order" to log the trade
+   - Instruction Log tracks all generated and executed instructions
+
+3. BROKERAGE (brokerage.html) — Account connections
+   - Connects to: TD Ameritrade, Robinhood, IBKR, Alpaca, Webull, E*TRADE, tastytrade, TradeStation
+   - Portfolio summary: total accounts, total value, buying power, open positions
+   - Account management: sync, disconnect, status tracking
+   - Open Positions table: ticker, direction, qty, avg cost, market value, G/L
+
+4. SIMULATOR (simulator.html) — Paper trading / backtesting
+   - Test strategies without real money
+   - Simulate trades against historical or live data
+
+5. SECTORS (sectors.html) — Sector intelligence
+   - Breakdown of market sectors with signal strength
+   - Identifies which sectors AURUM's algorithms favor
+
+6. ADMIN (admin.html) — System management
+   - Add/remove stocks from watchlist
+   - Manage picks and algorithm settings
+   - System health overview
+
+7. NEWS (news.html) — News sentiment feed
+   - Real-time news filtered to watchlist stocks
+   - Algorithm alignment scores per news item
+   - Sentiment tagging per ticker
+
+8. HISTORY (history.html) — Pick performance tracking
+   - Full historical record of all AURUM picks
+   - Return data, accuracy scores, beat-market tracking
+
+9. OPTIONS (options.html) — Options intelligence
+   - Options chain analysis
+   - Algorithm signals applied to options strategies
+
+10. IPO (ipo.html) — IPO tracker
+    - Upcoming IPOs with AURUM scoring
+    - Algorithm alignment for new listings
+
+11. REPORT (report.html) — Intelligence reports
+    - Generated weekly briefings
+    - Synthesized market outlook from all algorithms
+
+12. TUTORIAL (tutorial.html) — How to use AURUM
+    - Step-by-step guides for all features
+
+13. HELP (help.html) — Support documentation
+
+14. ASSISTANT (assistant.html) — This page
+    - AI-powered chat backed by Claude
+    - Full offline FAQ for common questions
+    - Embedded app knowledge base in every Claude conversation
+
+THE 21 ALGORITHMS
+-----------------
+AURUM runs 21 proprietary algorithms, all synthesized by the Master Orchestrator into a single score (0-100) and trade instruction. Algorithms cover:
+
+1. Momentum Algorithm — Measures price momentum using rate-of-change across multiple timeframes
+2. Sentiment Algorithm — Analyzes social and news sentiment for watchlist stocks
+3. Political Algorithm — Tracks policy, regulation, and political events affecting sectors
+4. Macro Regime Algorithm — Identifies current macroeconomic regime (risk-on, risk-off, stagflation, etc.)
+5. Technical Pattern Algorithm — Detects chart patterns (breakouts, reversals, consolidations)
+6. Volume Analysis Algorithm — Identifies unusual volume signatures and institutional activity
+7. Earnings Catalyst Algorithm — Flags upcoming earnings with historical beat/miss probabilities
+8. Options Flow Algorithm — Reads unusual options activity as leading indicators
+9. Sector Rotation Algorithm — Tracks capital flow between sectors
+10. Correlation Algorithm — Monitors cross-asset correlations (bonds, gold, dollar, crypto)
+11. Volatility Regime Algorithm — Identifies VIX conditions and adjusts risk parameters
+12. Relative Strength Algorithm — Compares stocks to sector and market benchmarks
+13. Short Interest Algorithm — Tracks short float % and squeeze potential
+14. Insider Activity Algorithm — Monitors SEC filings for insider buying/selling
+15. Analyst Revision Algorithm — Tracks earnings estimate revisions and price target changes
+16. Fund Flow Algorithm — Monitors ETF inflows/outflows to detect institutional positioning
+17. Seasonal Pattern Algorithm — Historical seasonal tendencies by month and quarter
+18. News Catalyst Algorithm — Identifies binary events (mergers, FDA, contracts, lawsuits)
+19. Economic Indicator Algorithm — GDP, CPI, jobs, PMI signals and their market implications
+20. Global Macro Algorithm — International events, currency moves, geopolitical risk
+21. Self-Rating Algorithm — AURUM's own track record; adjusts confidence based on past accuracy
+
+MASTER ORCHESTRATOR
+-------------------
+The orchestrator synthesizes all 21 algorithm outputs into:
+- An overall score (0-100): 80+ = strong conviction, 60-79 = moderate, below 60 = weak
+- A direction (LONG or SHORT): based on signal majority and magnitude
+- A confidence rating: High / Medium / Low / Conflicted
+- Entry price, exit target, stop loss: derived from technical and momentum signals
+- Position size %: adjusted for confidence and volatility regime
+- Reasoning: 2-3 sentence AURUM-tone explanation of the synthesis
+
+TRADING MODES
+-------------
+AUTO: Claude + orchestrator run continuously. Best instruction auto-executes. No manual input required. Safety floors always enforced.
+MANUAL: Claude produces ranked list of 5 trades. You select, review autofilled fields, press Enter. Full control, no guesswork.
+
+SAFETY PARAMETERS
+-----------------
+Principal Floor: Auto trading halts if account balance drops below this threshold (default $5,000)
+Max Position Size %: No single trade exceeds this % of balance (default 10%)
+Max Daily Trades: Auto mode cap on trades per day (default 3)
+
+SCORING SYSTEM
+--------------
+Picks are scored 0-100. Score reflects orchestrator conviction:
+75-100: High conviction — displayed in gold
+50-74: Moderate conviction — displayed in muted color
+Below 50: Low conviction — rarely surfaced
+
+WATCHLIST
+---------
+Stocks added via Admin page. Ticker database includes 100+ stocks across: Technology, Finance, Energy, Healthcare, Consumer, Industrial, Communications, Real Estate, ETFs.
+Each stock stored with: ticker, company name, sector, added_at timestamp.
+Stocks can be removed from the watchlist directly from the main Brief page.
+
+PROBABILITY SPREAD
+------------------
+Each pick includes a 3-scenario spread:
+Bull Case: Optimistic return % + probability %
+Base Case: Most likely return % + probability %
+Bear Case: Downside return % + probability %
+These are derived from the orchestrator's signal synthesis and volatility regime algorithm.
+
+SELF-RATING SYSTEM
+------------------
+AURUM rates its own past picks after 30 and 90 days:
+- Compares predicted direction to actual price movement
+- Tracks beat-market % vs S&P 500
+- Updates avg accuracy score
+- Self-Rating Algorithm uses this data to adjust future confidence levels
+
+DATA STORAGE (SUPABASE)
+-----------------------
+Tables: stocks, picks, algorithms, aurum_accuracy, news_feed, auto_trade_log, trading_settings, brokerage_accounts, brokerage_positions, self_ratings
+All data persists across sessions. Real-time updates where applicable.
+
+KNOWN LIMITATIONS / NOTES
+--------------------------
+- Brokerage connections are configured but live execution requires valid API credentials
+- Claude API key must be configured in Supabase secrets as CLAUDE_API_KEY for AI features
+- App is offline-capable via Service Worker (sw.js) for cached pages
+- No mock or placeholder data — all features require real data inputs to function
+`;
+
+  // ─────────────────────────────────────────────
+  // OFFLINE FAQ — No API call needed
+  // Add/edit entries here when features change.
+  // ─────────────────────────────────────────────
+  const FAQ = [
+    {
+      q: "What is AURUM and how does it work?",
+      a: "AURUM is a private market intelligence system that runs 21 proprietary algorithms through a master orchestrator. The orchestrator synthesizes all signals into a single score (0-100), a direction (LONG or SHORT), and a precise trade instruction including entry price, exit target, and stop loss. You control whether it executes automatically (Auto mode) or presents options for you to choose (Manual mode)."
+    },
+    {
+      q: "What's the difference between Auto and Manual mode?",
+      a: "Auto mode: Claude + the orchestrator select the single highest-conviction trade and execute it automatically. All fields are autofilled — no input required from you. Safety limits always stay active.\n\nManual mode: Claude generates a ranked list of 5 trade opportunities. You select one from the list, all order fields autofill instantly, and you press Enter to submit. Full control, zero guesswork on what to enter."
+    },
+    {
+      q: "What do the safety parameters do?",
+      a: "Three parameters protect your capital at all times:\n\n• Principal Floor ($): Auto trading halts completely if your balance drops below this number. Default is $5,000.\n• Max Position Size (%): No single trade can exceed this percentage of your balance. Default is 10%.\n• Max Daily Trades: Auto mode will not execute more than this number of trades per day. Default is 3.\n\nThese apply even in Auto mode and cannot be overridden by Claude."
+    },
+    {
+      q: "What does the orchestrator score mean?",
+      a: "The score (0-100) represents the orchestrator's overall conviction based on all 21 algorithms:\n\n• 80-100: High conviction — strong alignment across multiple algorithms\n• 60-79: Moderate conviction — majority alignment with some conflict\n• Below 60: Low conviction — AURUM rarely surfaces these as primary picks\n\nScores above 75 are displayed in gold. The score directly influences position size recommendations."
+    },
+    {
+      q: "What are the 21 algorithms?",
+      a: "The 21 algorithms cover: Momentum, Sentiment, Political, Macro Regime, Technical Pattern, Volume Analysis, Earnings Catalyst, Options Flow, Sector Rotation, Correlation, Volatility Regime, Relative Strength, Short Interest, Insider Activity, Analyst Revision, Fund Flow, Seasonal Pattern, News Catalyst, Economic Indicator, Global Macro, and Self-Rating. All are synthesized by the master orchestrator into a single instruction."
+    },
+    {
+      q: "What does the probability spread (Bull/Base/Bear) mean?",
+      a: "Each pick includes three scenarios:\n\n• Bull Case: The optimistic return % and its probability if conditions align favorably\n• Base Case: The most likely outcome and its probability\n• Bear Case: The downside scenario and its probability\n\nThese are derived from the orchestrator's signal synthesis combined with the Volatility Regime algorithm. Use them to understand the risk/reward profile before acting."
+    },
+    {
+      q: "How does the self-rating system work?",
+      a: "After 30 and 90 days, AURUM scores its own past picks by comparing the predicted direction to actual price movement and tracking performance vs the S&P 500. This data feeds directly into the Self-Rating Algorithm, which adjusts future confidence levels. The System Accuracy panel on the Brief page shows total picks, beat-market %, and average accuracy over 90 days."
+    },
+    {
+      q: "How do I add or remove stocks from my watchlist?",
+      a: "Add stocks: Go to the Admin page. Use the ticker search (powered by a 100+ stock database) to find and add stocks. Company name and sector autofill.\n\nRemove stocks: On the Brief page (home), each stock in the watchlist has a remove button. Tap it to remove the ticker from your watchlist entirely."
+    },
+    {
+      q: "How do I connect my brokerage?",
+      a: "Go to the Brokerage page. Supported brokerages: TD Ameritrade, Robinhood, IBKR, Alpaca, Webull, E*TRADE, tastytrade, TradeStation. Click Connect next to your brokerage, enter your API credentials, and save. Once connected, AURUM can sync your positions and execute live trades in Auto mode."
+    },
+    {
+      q: "Why isn't the Assistant / Claude responding?",
+      a: "The AI-powered chat requires a Claude API key configured in your Supabase secrets as CLAUDE_API_KEY. Without it, the chat cannot connect to Claude. The offline FAQ section (this section) works without any API key. If you've set the key and still see errors, check that the key is valid and has not expired."
+    },
+    {
+      q: "What does 'Conflicted' confidence mean?",
+      a: "Conflicted means the 21 algorithms are producing mixed or opposing signals — some strongly bullish, others bearish, with no clear majority. AURUM surfaces these with caution. In Auto mode, Conflicted picks are typically skipped or given reduced position sizes. In Manual mode, you'll see the conflict flagged in the trade details."
+    },
+    {
+      q: "How does Manual mode autofill work exactly?",
+      a: "When you tap a trade from the ranked list in Manual mode, AURUM instantly fills 12 fields: Ticker, Direction, Order Type (Limit or Market), Entry Price, Exit Target, Stop Loss, Position Size %, Estimated Dollar Amount, Time in Force, Confidence, Algo Score, and Algo Signals. Claude also provides a written instruction explaining exactly what to do and why. All you do is review and press Enter."
+    }
+  ];
+
+  let faqExpanded = false;
+  const FAQ_PREVIEW_COUNT = 4;
+
+  function renderFAQ(showAll) {
+    const grid = document.getElementById('faq-grid');
+    const items = showAll ? FAQ : FAQ.slice(0, FAQ_PREVIEW_COUNT);
+    grid.innerHTML = items.map((item, i) => `
+      <div class="faq-item" id="faq-item-${i}">
+        <div class="faq-question" onclick="toggleFAQItem(${i})">
+          <span class="faq-question-text">${item.q}</span>
+          <span class="faq-chevron">▼</span>
+        </div>
+        <div class="faq-answer">${item.a.replace(/\n/g, '<br>')}</div>
+      </div>
+    `).join('');
+    const btn = document.getElementById('faq-toggle');
+    btn.textContent = showAll ? 'Show fewer ↑' : `Show all ${FAQ.length} questions ↓`;
+  }
+
+  function toggleFAQItem(i) {
+    const item = document.getElementById(`faq-item-${i}`);
+    item.classList.toggle('open');
+  }
+
+  function toggleFAQ() {
+    faqExpanded = !faqExpanded;
+    renderFAQ(faqExpanded);
+  }
+
   async function loadContext() {
     const { data: stocks } = await db.from('stocks').select('*');
     const { data: picks } = await db.from('picks').select('*').order('picked_at', { ascending: false }).limit(5);
-    const { data: algorithms } = await db.from('algorithms').select('name, description, active');
     const { data: accuracy } = await db.from('aurum_accuracy').select('*').single();
+    const { data: tradeLog } = await db.from('auto_trade_log').select('*').order('created_at', { ascending: false }).limit(5);
 
     aurumContext = {
       watchlist: stocks?.map(s => `${s.ticker} (${s.sector})`).join(', ') || 'No stocks loaded',
       recentPicks: picks?.map(p => `${p.ticker} — Score: ${p.score} — ${p.brief}`).join('\n') || 'No picks yet',
-      algorithms: algorithms?.map(a => `${a.name}: ${a.description}`).join('\n') || '',
-      accuracy: accuracy ? `Total picks: ${accuracy.total_picks}, Beat market: ${accuracy.beats_market}, Avg accuracy: ${accuracy.avg_accuracy}%` : 'No accuracy data yet'
+      accuracy: accuracy ? `Total picks: ${accuracy.total_picks}, Beat market: ${accuracy.beats_market}, Avg accuracy: ${accuracy.avg_accuracy}%` : 'No accuracy data yet',
+      recentTrades: tradeLog?.map(t => `${t.ticker} ${t.direction} — Score: ${t.orchestrator_score} — ${t.status}`).join('\n') || 'No trades yet'
     };
   }
 
@@ -495,26 +862,30 @@
 
     input.value = '';
     autoResize(input);
-
     addMessage('user', message);
 
     const typingId = addTyping();
     document.getElementById('send-btn').disabled = true;
-
     conversationHistory.push({ role: 'user', content: message });
 
-    const systemPrompt = `You are AURUM's private intelligence assistant — a cold, precise, highly knowledgeable AI advisor embedded inside a luxury stock intelligence system called AURUM.
+    const systemPrompt = `You are AURUM's private intelligence assistant — embedded inside a luxury stock intelligence system. You have complete knowledge of how AURUM works, all 21 algorithms, every feature, every page, and every setting.
 
-Your role: Answer questions about AURUM's functionality, explain picks and algorithms, interpret market signals, and provide intelligent market commentary. You speak with authority and precision. Never vague, never hedging unnecessarily.
+AURUM COMPLETE KNOWLEDGE BASE:
+${AURUM_KNOWLEDGE_BASE}
 
-Current AURUM context:
+LIVE USER DATA:
 Watchlist: ${aurumContext.watchlist}
 Recent picks: ${aurumContext.recentPicks}
 System accuracy: ${aurumContext.accuracy}
-Active algorithms: ${aurumContext.algorithms}
+Recent trades: ${aurumContext.recentTrades}
 
-Tone: Cold, precise, confident. Like a private analyst briefing a sophisticated investor. No filler. No excessive disclaimers. Intelligent and direct.
-Format: Keep responses concise — 2-4 short paragraphs maximum. Use line breaks for readability. Never use bullet points.`;
+YOUR ROLE:
+Answer any question about AURUM — how it works, what a feature does, what an algorithm means, how to use a specific page, what a score or signal indicates, trading mode guidance, or live market commentary on the user's picks and watchlist.
+
+You know this app inside and out. Answer with authority. If something is in the knowledge base, use it. If asking about live data, reference the user's actual watchlist and picks above.
+
+TONE: Cold, precise, confident. Like a private analyst briefing a sophisticated investor. No filler. No hedging. Intelligent and direct.
+FORMAT: 2-4 short paragraphs maximum. Use line breaks. No bullet points.`;
 
     try {
       const response = await fetch('https://api.anthropic.com/v1/messages', {
@@ -531,9 +902,9 @@ Format: Keep responses concise — 2-4 short paragraphs maximum. Use line breaks
       removeTyping(typingId);
 
       if (response.status === 401 || response.status === 403) {
-        addMessage('assistant', 'Claude API key required to activate the assistant. Add your key to Supabase secrets as CLAUDE_API_KEY, then wire it into this page.');
+        addMessage('assistant', 'Claude API key required. Add CLAUDE_API_KEY to Supabase secrets to activate the assistant. The offline FAQ above works without an API key.');
         document.getElementById('api-notice').className = 'api-notice error';
-        document.getElementById('api-notice').textContent = 'API key not configured. Add CLAUDE_API_KEY to activate.';
+        document.getElementById('api-notice').textContent = 'API key not configured. Offline FAQ is available above.';
       } else {
         const data = await response.json();
         const reply = data.content?.[0]?.text || 'No response received.';
@@ -544,7 +915,7 @@ Format: Keep responses concise — 2-4 short paragraphs maximum. Use line breaks
 
     } catch(e) {
       removeTyping(typingId);
-      addMessage('assistant', 'Connection error. Check your network and try again.');
+      addMessage('assistant', 'Connection error. Check your network and try again. Common questions are available in the offline FAQ above.');
     }
 
     document.getElementById('send-btn').disabled = false;
@@ -615,6 +986,7 @@ Format: Keep responses concise — 2-4 short paragraphs maximum. Use line breaks
     navigator.serviceWorker.register('/aurum-app/sw.js');
   }
 
+  renderFAQ(false);
   loadContext();
 </script>
 
