@@ -9,985 +9,1515 @@
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;600&family=DM+Sans:wght@300;400;500&family=IBM+Plex+Mono:wght@300;400&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
-  :root {
-    --black: #080808;
-    --gold: #C9A84C;
-    --white: #F0EDE6;
-    --muted: #6B6560;
-    --danger: #8B3A3A;
-    --positive: #3A6B4A;
-    --rule: rgba(201,168,76,0.2);
-  }
+:root {
+  --black: #080808;
+  --gold: #C9A84C;
+  --gold-light: #E8C97A;
+  --white: #F0EDE6;
+  --muted: #6B6560;
+  --danger: #8B3A3A;
+  --positive: #3A6B4A;
+  --rule: rgba(201,168,76,0.2);
+}
 
-  * { margin: 0; padding: 0; box-sizing: border-box; }
+* { margin: 0; padding: 0; box-sizing: border-box; }
 
-  body {
-    background: var(--black);
-    color: var(--white);
-    font-family: 'DM Sans', sans-serif;
-    font-weight: 500;
-    font-size: 20px;
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
-  }
+body {
+  background: var(--black);
+  color: var(--white);
+  font-family: 'DM Sans', sans-serif;
+  font-weight: 400;
+  font-size: 16px;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
 
-  body::before {
-    content: '';
-    position: fixed;
-    inset: 0;
-    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
-    pointer-events: none;
-    z-index: 999;
-    opacity: 0.4;
-  }
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 999;
+  opacity: 0.4;
+}
 
-  header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 1rem;
-    padding: 2rem 2.5rem;
-    border-bottom: 1px solid var(--rule);
-    flex-shrink: 0;
-  }
+/* HEADER */
+header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.5rem 2rem;
+  border-bottom: 1px solid var(--rule);
+  flex-shrink: 0;
+  position: relative;
+  z-index: 1;
+}
 
-  .logo {
-    font-family: 'Cormorant Garamond', serif;
-    font-size: 1.8rem;
-    font-weight: 600;
-    letter-spacing: 0.3em;
-    color: var(--gold);
-  }
+.logo {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 1.8rem;
+  font-weight: 600;
+  letter-spacing: 0.3em;
+  color: var(--gold);
+  line-height: 1;
+}
 
-  .logo span {
-    color: var(--white);
-    opacity: 0.3;
-    font-weight: 600;
-    font-size: 0.7rem;
-    letter-spacing: 0.2em;
-    display: block;
-    margin-top: -4px;
-  }
+.logo span {
+  display: block;
+  font-size: 0.6rem;
+  letter-spacing: 0.2em;
+  color: var(--white);
+  opacity: 0.3;
+  margin-top: 2px;
+  font-weight: 400;
+}
 
-  .hamburger {
-    background: transparent;
-    border: 1px solid var(--rule);
-    color: var(--gold);
-    font-size: 1.2rem;
-    padding: 0.4rem 0.8rem;
-    cursor: pointer;
-    z-index: 1001;
-    position: relative;
-  }
+.hamburger {
+  background: transparent;
+  border: 1px solid var(--rule);
+  color: var(--gold);
+  font-size: 1.1rem;
+  padding: 0.4rem 0.8rem;
+  cursor: pointer;
+  z-index: 1001;
+}
 
+/* NAV */
 .nav-overlay {
-    position: fixed;
-    inset: 0;
-    background: rgba(8,8,8,0.97);
-    z-index: 1000;
-    display: none;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    gap: 1.8rem;
-    overflow-y: auto;
-    padding: 4rem 2rem;
-  }
+  position: fixed;
+  inset: 0;
+  background: rgba(8,8,8,0.97);
+  z-index: 1000;
+  display: none;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 1.5rem;
+  padding: 4rem 2rem;
+  overflow-y: auto;
+}
 
-  .nav-overlay.open { display: flex; }
+.nav-overlay.open { display: flex; }
 
-  .nav-overlay a {
-    font-family: 'Cormorant Garamond', serif;
-    font-size: 2.5rem;
-    font-weight: 600;
-    color: var(--muted);
-    text-decoration: none;
-    letter-spacing: 0.2em;
-    transition: color 0.3s;
-  }
+.nav-overlay a {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 2.2rem;
+  font-weight: 300;
+  color: var(--muted);
+  text-decoration: none;
+  letter-spacing: 0.2em;
+  transition: color 0.3s;
+}
 
-  .nav-overlay a:hover { color: var(--gold); }
-  .nav-overlay a.active { color: var(--gold); }
+.nav-overlay a:hover, .nav-overlay a.active { color: var(--gold); }
 
 .nav-close {
-    position: fixed;
-    top: 2rem;
-    right: 2.5rem;
-    z-index: 1002;
-    background: transparent;
-    border: none;
-    color: var(--muted);
-    font-size: 1.5rem;
-    cursor: pointer;
-  }
+  position: fixed;
+  top: 1.5rem;
+  right: 2rem;
+  z-index: 1002;
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  font-size: 1.5rem;
+  cursor: pointer;
+}
 
-  /* Chat container */
-  .chat-container {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    max-width: 860px;
-    width: 100%;
-    margin: 0 auto;
-    padding: 0 2.5rem;
-  }
+/* MAIN LAYOUT */
+.main-wrap {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  max-width: 860px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 0 2rem;
+  min-height: 0;
+}
 
-  /* Chat header */
-  .chat-header {
-    padding: 2rem 0 1.5rem;
-    border-bottom: 1px solid var(--rule);
-    flex-shrink: 0;
-  }
+/* TABS */
+.mode-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--rule);
+  flex-shrink: 0;
+  margin-top: 1.5rem;
+}
 
-  .chat-title {
-    font-family: 'Cormorant Garamond', serif;
-    font-size: 2rem;
-    font-weight: 600;
-    color: var(--white);
-    margin-bottom: 0.3rem;
-  }
+.mode-tab {
+  flex: 1;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--muted);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.7rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  padding: 0.8rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-bottom: -1px;
+}
 
-  .chat-title em { color: var(--gold); font-style: normal; }
+.mode-tab.active {
+  color: var(--gold);
+  border-bottom-color: var(--gold);
+}
 
-  .chat-sub {
-    font-size: 0.85rem;
-    color: var(--muted);
-    line-height: 1.5;
-  }
+.mode-tab:hover:not(.active) { color: var(--white); }
 
-  /* Messages */
-  .messages {
-    flex: 1;
-    overflow-y: auto;
-    padding: 2rem 0;
-    display: flex;
-    flex-direction: column;
-    gap: 1.5rem;
-    min-height: 300px;
-    max-height: 55vh;
-  }
+.tab-panel { display: none; flex-direction: column; flex: 1; min-height: 0; }
+.tab-panel.active { display: flex; }
 
-  .message {
-    display: flex;
-    gap: 1rem;
-    align-items: flex-start;
-    animation: fadeUp 0.3s ease forwards;
-  }
+/* ── ASSISTANT TAB ── */
+.chat-header {
+  padding: 1.5rem 0 1rem;
+  border-bottom: 1px solid var(--rule);
+  flex-shrink: 0;
+}
 
-  .message.user { flex-direction: row-reverse; }
+.chat-title {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 1.8rem;
+  font-weight: 600;
+  color: var(--white);
+  margin-bottom: 0.2rem;
+}
 
-  .message-avatar {
-    width: 32px;
-    height: 32px;
-    border: 1px solid var(--rule);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-family: 'Cormorant Garamond', serif;
-    font-size: 0.75rem;
-    color: var(--gold);
-    flex-shrink: 0;
-    letter-spacing: 0.1em;
-  }
+.chat-title em { color: var(--gold); font-style: normal; }
 
-  .message.user .message-avatar {
-    background: rgba(201,168,76,0.05);
-  }
+.chat-sub {
+  font-size: 0.78rem;
+  color: var(--muted);
+  line-height: 1.5;
+}
 
-  .message-bubble {
-    max-width: 75%;
-    padding: 1rem 1.3rem;
-    border: 1px solid var(--rule);
-    font-size: 0.95rem;
-    line-height: 1.7;
-    color: var(--white);
-  }
+/* FAQ */
+.faq-section {
+  padding: 1rem 0;
+  border-bottom: 1px solid var(--rule);
+  flex-shrink: 0;
+}
 
-  .message.user .message-bubble {
-    background: rgba(201,168,76,0.04);
-    border-color: rgba(201,168,76,0.2);
-    color: var(--white);
-  }
+.faq-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.8rem;
+}
 
-  .message.assistant .message-bubble {
-    background: transparent;
-    color: var(--white);
-  }
+.faq-label {
+  font-size: 0.65rem;
+  letter-spacing: 0.25em;
+  color: var(--gold);
+  text-transform: uppercase;
+}
 
-  .message-time {
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 0.8rem;
-    color: var(--muted);
-    margin-top: 0.4rem;
-    letter-spacing: 0.05em;
-  }
+.faq-badge {
+  font-size: 0.58rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+  border: 1px solid var(--rule);
+  padding: 0.15rem 0.5rem;
+  font-family: 'IBM Plex Mono', monospace;
+}
 
-  .message.user .message-time { text-align: right; }
+.faq-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  background: var(--rule);
+  border: 1px solid var(--rule);
+}
 
-  /* Typing indicator */
-  .typing {
-    display: flex;
-    gap: 4px;
-    padding: 1rem 1.3rem;
-    border: 1px solid var(--rule);
-    width: fit-content;
-  }
+.faq-item { background: var(--black); }
 
-  .typing-dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: var(--gold);
-    animation: typingBounce 1.2s infinite;
-  }
+.faq-question {
+  padding: 0.75rem 1rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+  gap: 1rem;
+}
 
-  .typing-dot:nth-child(2) { animation-delay: 0.2s; }
-  .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+.faq-question:hover { background: rgba(201,168,76,0.03); }
 
-  /* Suggested questions */
-  .suggestions {
-    padding: 1.5rem 0;
-    border-top: 1px solid var(--rule);
-    flex-shrink: 0;
-  }
+.faq-question-text { font-size: 0.82rem; color: var(--white); line-height: 1.4; }
 
-  .suggestions-label {
-    font-size: 0.8rem;
-    letter-spacing: 0.25em;
-    color: var(--muted);
-    text-transform: uppercase;
-    margin-bottom: 0.8rem;
-  }
+.faq-chevron {
+  color: var(--gold);
+  font-size: 0.65rem;
+  flex-shrink: 0;
+  transition: transform 0.3s;
+}
 
-  .suggestions-grid {
-    display: flex;
-    gap: 0.5rem;
-    flex-wrap: wrap;
-  }
+.faq-item.open .faq-chevron { transform: rotate(180deg); }
 
-  .suggestion-btn {
-    background: transparent;
-    border: 1px solid var(--rule);
-    color: var(--muted);
-    font-family: 'DM Sans', sans-serif;
-    font-size: 0.8rem;
-    padding: 0.4rem 0.9rem;
-    cursor: pointer;
-    transition: all 0.3s;
-    text-align: left;
-    line-height: 1.4;
-  }
+.faq-answer {
+  display: none;
+  padding: 0.8rem 1rem 1rem;
+  font-size: 0.78rem;
+  color: var(--muted);
+  line-height: 1.8;
+  border-top: 1px solid var(--rule);
+}
 
-  .suggestion-btn:hover {
-    border-color: var(--gold);
-    color: var(--gold);
-  }
+.faq-item.open .faq-answer { display: block; }
 
-  /* Input area */
-  .input-area {
-    padding: 1.5rem 0 2rem;
-    border-top: 1px solid var(--rule);
-    flex-shrink: 0;
-  }
+.faq-toggle-btn {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  font-size: 0.65rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  cursor: pointer;
+  margin-top: 0.6rem;
+  padding: 0;
+  font-family: 'DM Sans', sans-serif;
+}
 
-  .input-row {
-    display: flex;
-    gap: 0.8rem;
-    align-items: flex-end;
-  }
+.faq-toggle-btn:hover { color: var(--gold); }
 
-  .chat-input {
-    flex: 1;
-    background: transparent;
-    border: 1px solid var(--rule);
-    color: var(--white);
-    font-family: 'DM Sans', sans-serif;
-    font-size: 1rem;
-    padding: 0.9rem 1.2rem;
-    outline: none;
-    transition: border 0.3s;
-    resize: none;
-    min-height: 50px;
-    max-height: 120px;
-    line-height: 1.5;
-  }
+/* MESSAGES */
+.messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1.5rem 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1.2rem;
+  min-height: 180px;
+}
 
-  .chat-input:focus { border-color: var(--gold); }
-  .chat-input::placeholder { color: var(--muted); }
+.message {
+  display: flex;
+  gap: 0.8rem;
+  align-items: flex-start;
+}
 
-  .send-btn {
-    background: transparent;
-    border: 1px solid var(--gold);
-    color: var(--gold);
-    font-family: 'DM Sans', sans-serif;
-    font-size: 0.75rem;
-    letter-spacing: 0.2em;
-    text-transform: uppercase;
-    padding: 0.9rem 1.5rem;
-    cursor: pointer;
-    transition: all 0.3s;
-    white-space: nowrap;
-    height: 50px;
-  }
+.message.user { flex-direction: row-reverse; }
 
-  .send-btn:hover { background: var(--gold); color: var(--black); }
-  .send-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+.message-avatar {
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--rule);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 0.65rem;
+  color: var(--gold);
+  flex-shrink: 0;
+  letter-spacing: 0.1em;
+}
 
-  .api-notice {
-    font-size: 0.7rem;
-    color: var(--muted);
-    margin-top: 0.6rem;
-    letter-spacing: 0.05em;
-  }
+.message.user .message-avatar { background: rgba(201,168,76,0.05); }
 
-  .api-notice.error { color: var(--danger); }
+.message-bubble {
+  max-width: 78%;
+  padding: 0.9rem 1.1rem;
+  border: 1px solid var(--rule);
+  font-size: 0.88rem;
+  line-height: 1.7;
+  color: var(--white);
+}
 
-  footer {
-    padding: 1.5rem 2.5rem;
-    border-top: 1px solid var(--rule);
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    flex-shrink: 0;
-  }
+.message.user .message-bubble {
+  background: rgba(201,168,76,0.04);
+  border-color: rgba(201,168,76,0.2);
+}
 
-  footer p {
-    font-size: 0.7rem;
-    letter-spacing: 0.15em;
-    color: var(--muted);
-    text-transform: uppercase;
-  }
+.message-time {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.65rem;
+  color: var(--muted);
+  margin-top: 0.3rem;
+  letter-spacing: 0.05em;
+}
 
-  .footer-au {
-    font-family: 'Cormorant Garamond', serif;
-    font-size: 1rem;
-    color: var(--rule);
-    letter-spacing: 0.3em;
-  }
+.message.user .message-time { text-align: right; }
 
-  @keyframes fadeUp {
-    from { opacity: 0; transform: translateY(8px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
+/* TYPING */
+.typing {
+  display: flex;
+  gap: 4px;
+  padding: 0.9rem 1.1rem;
+  border: 1px solid var(--rule);
+  width: fit-content;
+}
 
-  @keyframes typingBounce {
-    0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
-    30% { transform: translateY(-6px); opacity: 1; }
-  }
+.typing-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--gold);
+  animation: typingBounce 1.2s infinite;
+}
 
-  /* FAQ section */
-  .faq-section {
-    padding: 1.5rem 0;
-    border-bottom: 1px solid var(--rule);
-    flex-shrink: 0;
-  }
+.typing-dot:nth-child(2) { animation-delay: 0.2s; }
+.typing-dot:nth-child(3) { animation-delay: 0.4s; }
 
-  .faq-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 1rem;
-  }
+@keyframes typingBounce {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+  30% { transform: translateY(-5px); opacity: 1; }
+}
 
-  .faq-label {
-    font-size: 0.7rem;
-    letter-spacing: 0.25em;
-    color: var(--gold);
-    text-transform: uppercase;
-  }
+/* SUGGESTIONS */
+.suggestions {
+  padding: 1rem 0;
+  border-top: 1px solid var(--rule);
+  flex-shrink: 0;
+}
 
-  .faq-badge {
-    font-size: 0.6rem;
-    letter-spacing: 0.15em;
-    text-transform: uppercase;
-    color: var(--muted);
-    border: 1px solid var(--rule);
-    padding: 0.2rem 0.6rem;
-    font-family: 'IBM Plex Mono', monospace;
-  }
+.suggestions-label {
+  font-size: 0.65rem;
+  letter-spacing: 0.25em;
+  color: var(--muted);
+  text-transform: uppercase;
+  margin-bottom: 0.6rem;
+}
 
-  .faq-grid {
-    display: grid;
-    gap: 1px;
-    background: var(--rule);
-    border: 1px solid var(--rule);
-  }
+.suggestions-grid {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
 
-  .faq-item {
-    background: var(--black);
-  }
+.suggestion-btn {
+  background: transparent;
+  border: 1px solid var(--rule);
+  color: var(--muted);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.72rem;
+  padding: 0.35rem 0.8rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
 
-  .faq-question {
-    padding: 0.9rem 1.2rem;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    cursor: pointer;
-    transition: background 0.2s;
-    gap: 1rem;
-  }
+.suggestion-btn:hover { border-color: var(--gold); color: var(--gold); }
 
-  .faq-question:hover { background: rgba(201,168,76,0.03); }
+/* INPUT AREA */
+.input-area {
+  padding: 1rem 0 1.5rem;
+  border-top: 1px solid var(--rule);
+  flex-shrink: 0;
+}
 
-  .faq-question-text {
-    font-size: 0.85rem;
-    color: var(--white);
-    line-height: 1.4;
-  }
+.input-row {
+  display: flex;
+  gap: 0.6rem;
+  align-items: flex-end;
+}
 
-  .faq-chevron {
-    color: var(--gold);
-    font-size: 0.7rem;
-    flex-shrink: 0;
-    transition: transform 0.3s;
-  }
+.chat-input {
+  flex: 1;
+  background: transparent;
+  border: 1px solid var(--rule);
+  color: var(--white);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.9rem;
+  padding: 0.8rem 1rem;
+  outline: none;
+  transition: border 0.3s;
+  resize: none;
+  min-height: 44px;
+  max-height: 120px;
+  line-height: 1.5;
+}
 
-  .faq-item.open .faq-chevron { transform: rotate(180deg); }
+.chat-input:focus { border-color: var(--gold); }
+.chat-input::placeholder { color: var(--muted); }
 
-  .faq-answer {
-    display: none;
-    padding: 0 1.2rem 1.2rem;
-    font-size: 0.82rem;
-    color: var(--muted);
-    line-height: 1.8;
-    border-top: 1px solid var(--rule);
-    padding-top: 0.9rem;
-  }
+.send-btn {
+  background: transparent;
+  border: 1px solid var(--gold);
+  color: var(--gold);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.68rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  padding: 0.8rem 1.2rem;
+  cursor: pointer;
+  transition: all 0.3s;
+  white-space: nowrap;
+  height: 44px;
+}
 
-  .faq-item.open .faq-answer { display: block; }
+.send-btn:hover { background: var(--gold); color: var(--black); }
+.send-btn:disabled { opacity: 0.3; cursor: not-allowed; }
 
-  .faq-toggle-btn {
-    background: transparent;
-    border: none;
-    color: var(--muted);
-    font-size: 0.7rem;
-    letter-spacing: 0.15em;
-    text-transform: uppercase;
-    cursor: pointer;
-    margin-top: 0.8rem;
-    padding: 0;
-    font-family: 'DM Sans', sans-serif;
-  }
+.api-notice {
+  font-size: 0.65rem;
+  color: var(--muted);
+  margin-top: 0.5rem;
+  letter-spacing: 0.05em;
+}
 
-  .faq-toggle-btn:hover { color: var(--gold); }
+.api-notice.error { color: var(--danger); }
 
-  @media (max-width: 600px) {
-    .chat-container { padding: 0 1.5rem; }
-    header { padding: 1.5rem; }
-    footer { padding: 1.5rem; }
-    .message-bubble { max-width: 90%; }
-  }
+/* ── CODE ENGINE TAB ── */
+.engine-header {
+  padding: 1.5rem 0 1rem;
+  border-bottom: 1px solid var(--rule);
+  flex-shrink: 0;
+}
+
+.engine-title {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 1.8rem;
+  font-weight: 600;
+  color: var(--white);
+  margin-bottom: 0.2rem;
+}
+
+.engine-title em { color: var(--gold); font-style: normal; }
+
+.engine-sub {
+  font-size: 0.78rem;
+  color: var(--muted);
+  line-height: 1.5;
+  margin-bottom: 1rem;
+}
+
+.engine-examples {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.engine-example {
+  background: transparent;
+  border: 1px solid var(--rule);
+  color: var(--muted);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.7rem;
+  padding: 0.3rem 0.7rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.engine-example:hover { border-color: var(--gold); color: var(--gold); }
+
+.engine-input-area {
+  padding: 1rem 0;
+  border-bottom: 1px solid var(--rule);
+  flex-shrink: 0;
+}
+
+.engine-input-row {
+  display: flex;
+  gap: 0.6rem;
+  align-items: flex-end;
+}
+
+.engine-input {
+  flex: 1;
+  background: transparent;
+  border: 1px solid var(--rule);
+  color: var(--white);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.9rem;
+  padding: 0.8rem 1rem;
+  outline: none;
+  transition: border 0.3s;
+  resize: none;
+  min-height: 44px;
+  max-height: 120px;
+  line-height: 1.5;
+}
+
+.engine-input:focus { border-color: var(--gold); }
+.engine-input::placeholder { color: var(--muted); }
+
+.engine-btn {
+  background: var(--gold);
+  border: none;
+  color: var(--black);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.68rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  padding: 0.8rem 1.2rem;
+  cursor: pointer;
+  transition: background 0.3s;
+  white-space: nowrap;
+  height: 44px;
+  font-weight: 500;
+}
+
+.engine-btn:hover { background: var(--gold-light); }
+.engine-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+/* CHANGE PREVIEW */
+.change-preview {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1.2rem 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1.2rem;
+  min-height: 200px;
+}
+
+.change-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  gap: 0.4rem;
+  color: var(--muted);
+  text-align: center;
+  padding: 3rem 0;
+}
+
+.change-empty-icon {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 2.5rem;
+  color: rgba(201,168,76,0.1);
+  letter-spacing: 0.3em;
+  margin-bottom: 0.5rem;
+}
+
+.change-empty-text { font-size: 0.78rem; letter-spacing: 0.1em; text-transform: uppercase; }
+.change-empty-sub { font-size: 0.65rem; opacity: 0.5; margin-top: 0.2rem; }
+
+.engine-thinking {
+  display: none;
+  padding: 2rem;
+  text-align: center;
+  font-size: 0.68rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--gold);
+  font-family: 'IBM Plex Mono', monospace;
+}
+
+.engine-thinking.visible { display: block; animation: pulse 1.5s infinite; }
+
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+.engine-summary {
+  font-size: 0.8rem;
+  color: var(--muted);
+  line-height: 1.6;
+  padding: 0.5rem 0;
+}
+
+/* CHANGE CARD */
+.change-card {
+  border: 1px solid var(--rule);
+  transition: border-color 0.3s;
+}
+
+.change-card-header {
+  padding: 0.8rem 1rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--rule);
+  background: rgba(201,168,76,0.02);
+}
+
+.change-file {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.72rem;
+  color: var(--gold);
+}
+
+.change-type {
+  font-size: 0.58rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--muted);
+  border: 1px solid var(--rule);
+  padding: 0.15rem 0.5rem;
+  font-family: 'IBM Plex Mono', monospace;
+}
+
+.change-description {
+  padding: 0.7rem 1rem;
+  font-size: 0.8rem;
+  color: var(--white);
+  line-height: 1.6;
+  border-bottom: 1px solid var(--rule);
+}
+
+.change-diff {
+  padding: 0.8rem 1rem;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.68rem;
+  line-height: 1.8;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--rule);
+  max-height: 260px;
+  overflow-y: auto;
+  background: rgba(0,0,0,0.3);
+}
+
+.diff-remove {
+  color: #c97a7a;
+  background: rgba(139,58,58,0.1);
+  display: block;
+  padding: 0 0.4rem;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.diff-add {
+  color: #7ac99a;
+  background: rgba(58,107,74,0.1);
+  display: block;
+  padding: 0 0.4rem;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.diff-divider {
+  display: block;
+  padding: 0.3rem 0.4rem;
+  color: var(--gold);
+  font-size: 0.6rem;
+  letter-spacing: 0.15em;
+  border-top: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule);
+  margin: 4px 0;
+}
+
+.change-actions {
+  padding: 0.8rem 1rem;
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.approve-btn {
+  background: var(--positive);
+  border: none;
+  color: var(--white);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.65rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  padding: 0.5rem 1.2rem;
+  cursor: pointer;
+  transition: background 0.2s;
+  font-weight: 500;
+}
+
+.approve-btn:hover { background: #4a8a5a; }
+.approve-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.reject-btn {
+  background: transparent;
+  border: 1px solid rgba(139,58,58,0.4);
+  color: #c97a7a;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.65rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  padding: 0.5rem 1.2rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.reject-btn:hover { background: rgba(139,58,58,0.1); }
+
+.change-status {
+  font-size: 0.62rem;
+  font-family: 'IBM Plex Mono', monospace;
+  letter-spacing: 0.08em;
+  margin-left: auto;
+}
+
+.change-status.approved { color: var(--positive); }
+.change-status.rejected { color: #c97a7a; }
+
+.download-link {
+  font-size: 0.65rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--gold);
+  text-decoration: none;
+  border: 1px solid var(--rule);
+  padding: 0.4rem 0.8rem;
+  transition: all 0.2s;
+  font-family: 'DM Sans', sans-serif;
+}
+
+.download-link:hover { background: var(--gold); color: var(--black); }
+
+/* APPROVE ALL */
+.approve-all-btn {
+  width: 100%;
+  background: transparent;
+  border: 1px solid var(--positive);
+  color: var(--positive);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.68rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  padding: 0.8rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-weight: 500;
+}
+
+.approve-all-btn:hover { background: var(--positive); color: var(--white); }
+
+/* FOOTER */
+footer {
+  padding: 1.2rem 2rem;
+  border-top: 1px solid var(--rule);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+footer p {
+  font-size: 0.65rem;
+  letter-spacing: 0.15em;
+  color: var(--muted);
+  text-transform: uppercase;
+}
+
+.footer-au {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 1rem;
+  color: var(--rule);
+  letter-spacing: 0.3em;
+}
+
+@media (max-width: 600px) {
+  .main-wrap { padding: 0 1.2rem; }
+  header { padding: 1.2rem 1.5rem; }
+  footer { padding: 1rem 1.5rem; }
+  .message-bubble { max-width: 88%; }
+}
 </style>
 </head>
 <body>
 
 <header>
-  <div class="logo">
-    AU
-    <span>PRIVATE INTELLIGENCE</span>
-  </div>
-  <button class="hamburger" onclick="openNav()">☰</button>
+  <div class="logo">AU<span>PRIVATE INTELLIGENCE</span></div>
+  <button class="hamburger" onclick="openNav()">&#9776;</button>
 </header>
 
 <div class="nav-overlay" id="nav-overlay">
-  <button class="nav-close" onclick="closeNav()">✕</button>
- <a href="simulator.html">Simulator</a>
+  <button class="nav-close" onclick="closeNav()">&#10005;</button>
+  <a href="index.html">Brief</a>
+  <a href="trading.html">Trading</a>
+  <a href="brokerage.html">Brokerage</a>
+  <a href="simulator.html">Simulator</a>
   <a href="sectors.html">Sectors</a>
   <a href="admin.html">Admin</a>
- <a href="tutorial.html">Tutorial</a>
- <a href="news.html">News</a>
-<a href="help.html">Help</a>
-<a href="history.html">History</a>
-<a href="options.html">Options</a>
- <a href="report.html">Report</a>
-  <a href="index.html">Brief</a>
+  <a href="news.html">News</a>
+  <a href="history.html">History</a>
+  <a href="options.html">Options</a>
+  <a href="report.html">Report</a>
+  <a href="ipo.html">IPO</a>
+  <a href="tutorial.html">Tutorial</a>
+  <a href="help.html">Help</a>
   <a href="assistant.html" class="active">Assistant</a>
-  <a href="ipo.html">Ipo</a>
- <a href="trading.html">Trading</a>
-<a href="brokerage.html">Brokerage</a>
 </div>
 
-<div class="chat-container">
+<div class="main-wrap">
 
-  <div class="chat-header">
-    <div class="chat-title">AURUM <em>Assistant.</em></div>
-    <div class="chat-sub">Ask anything about your picks, algorithms, market signals, or how AURUM works. Common questions answered offline — deeper questions powered by Claude.</div>
+  <!-- TABS -->
+  <div class="mode-tabs">
+    <button class="mode-tab active" id="tab-assistant" onclick="switchTab('assistant')">Assistant</button>
+    <button class="mode-tab" id="tab-engine" onclick="switchTab('engine')">Code Engine</button>
   </div>
 
-  <!-- OFFLINE FAQ -->
-  <div class="faq-section" id="faq-section">
-    <div class="faq-header">
-      <div class="faq-label">Common Questions</div>
-      <div class="faq-badge">Offline — No API</div>
+  <!-- ── ASSISTANT PANEL ── -->
+  <div class="tab-panel active" id="panel-assistant">
+
+    <div class="chat-header">
+      <div class="chat-title">AURUM <em>Assistant.</em></div>
+      <div class="chat-sub">Ask anything about picks, algorithms, signals, or how AURUM works. Common questions load offline instantly.</div>
     </div>
-    <div class="faq-grid" id="faq-grid"></div>
-    <button class="faq-toggle-btn" id="faq-toggle" onclick="toggleFAQ()">Show all questions ↓</button>
-  </div>
 
-  <div class="messages" id="messages">
-    <div class="message assistant">
-      <div class="message-avatar">AU</div>
-      <div>
-        <div class="message-bubble">
-          AURUM Intelligence System online. I have full context of your watchlist, algorithms, and pick history. Ask me anything — about your current picks, how a specific algorithm works, what a market signal means, or what AURUM is seeing right now.
+    <div class="faq-section">
+      <div class="faq-header">
+        <div class="faq-label">Common Questions</div>
+        <div class="faq-badge">Offline</div>
+      </div>
+      <div class="faq-grid" id="faq-grid"></div>
+      <button class="faq-toggle-btn" id="faq-toggle" onclick="toggleFAQ()">Show all questions &#8595;</button>
+    </div>
+
+    <div class="messages" id="messages">
+      <div class="message assistant">
+        <div class="message-avatar">AU</div>
+        <div>
+          <div class="message-bubble">AURUM Intelligence System online. I have full context of your watchlist, algorithms, and pick history. Ask me anything.</div>
+          <div class="message-time">System ready</div>
         </div>
-        <div class="message-time">System ready</div>
       </div>
     </div>
+
+    <div class="suggestions">
+      <div class="suggestions-label">Ask Claude</div>
+      <div class="suggestions-grid">
+        <button class="suggestion-btn" onclick="askSuggestion(this)">Analyze my current picks</button>
+        <button class="suggestion-btn" onclick="askSuggestion(this)">Which algorithm is most reliable?</button>
+        <button class="suggestion-btn" onclick="askSuggestion(this)">How does the orchestrator work?</button>
+        <button class="suggestion-btn" onclick="askSuggestion(this)">Should I switch to Auto mode?</button>
+        <button class="suggestion-btn" onclick="askSuggestion(this)">Explain my watchlist signals</button>
+        <button class="suggestion-btn" onclick="askSuggestion(this)">What is AURUM seeing right now?</button>
+      </div>
+    </div>
+
+    <div class="input-area">
+      <div class="input-row">
+        <textarea class="chat-input" id="chat-input" placeholder="Ask AURUM anything..." rows="1"
+          onkeydown="handleChatKey(event)" oninput="autoResize(this)"></textarea>
+        <button class="send-btn" id="send-btn" onclick="sendMessage()">Send</button>
+      </div>
+      <div class="api-notice" id="api-notice"></div>
+    </div>
+
   </div>
 
-  <div class="suggestions">
-    <div class="suggestions-label">Ask Claude</div>
-    <div class="suggestions-grid">
-      <button class="suggestion-btn" onclick="askSuggestion(this)">Analyze my current picks</button>
-      <button class="suggestion-btn" onclick="askSuggestion(this)">Which algorithm is most reliable right now?</button>
-      <button class="suggestion-btn" onclick="askSuggestion(this)">How does the orchestrator work?</button>
-      <button class="suggestion-btn" onclick="askSuggestion(this)">Should I switch to Auto mode?</button>
-      <button class="suggestion-btn" onclick="askSuggestion(this)">Explain my watchlist signals</button>
-      <button class="suggestion-btn" onclick="askSuggestion(this)">What is AURUM seeing in the market right now?</button>
-    </div>
-  </div>
+  <!-- ── CODE ENGINE PANEL ── -->
+  <div class="tab-panel" id="panel-engine">
 
-  <div class="input-area">
-    <div class="input-row">
-      <textarea
-        class="chat-input"
-        id="chat-input"
-        placeholder="Ask AURUM anything..."
-        onkeydown="handleKey(event)"
-        oninput="autoResize(this)"
-      ></textarea>
-      <button class="send-btn" id="send-btn" onclick="sendMessage()">Send</button>
+    <div class="engine-header">
+      <div class="engine-title">Code <em>Engine.</em></div>
+      <div class="engine-sub">Describe any change — colors, features, algorithms, layout, logic. Claude writes the exact code. Review the diff, approve to download, reject to refine.</div>
+      <div class="engine-examples">
+        <button class="engine-example" onclick="useExample(this)">Change gold to emerald green app-wide</button>
+        <button class="engine-example" onclick="useExample(this)">Rewrite Momentum algorithm to weight volume 30% higher</button>
+        <button class="engine-example" onclick="useExample(this)">Add a risk score badge to each pick card</button>
+        <button class="engine-example" onclick="useExample(this)">Make the watchlist sortable by sector</button>
+        <button class="engine-example" onclick="useExample(this)">Add confidence filter to picks grid</button>
+      </div>
     </div>
-    <div class="api-notice" id="api-notice">Claude API key required to activate the assistant. Add your key in Supabase secrets as CLAUDE_API_KEY.</div>
+
+    <div class="engine-input-area">
+      <div class="engine-input-row">
+        <textarea class="engine-input" id="engine-input" placeholder="Describe what you want changed..." rows="1"
+          onkeydown="handleEngineKey(event)" oninput="autoResize(this)"></textarea>
+        <button class="engine-btn" id="engine-btn" onclick="requestChange()">Generate</button>
+      </div>
+    </div>
+
+    <div class="engine-thinking" id="engine-thinking">Claude is analyzing your codebase and writing the changes...</div>
+
+    <div class="change-preview" id="change-preview">
+      <div class="change-empty">
+        <div class="change-empty-icon">AU</div>
+        <div class="change-empty-text">Describe a change above</div>
+        <div class="change-empty-sub">Claude writes exact code — you review before anything deploys</div>
+      </div>
+    </div>
+
   </div>
 
 </div>
 
 <footer>
-  <p>AURUM © 2026 — Private Use Only</p>
+  <p>AURUM &copy; 2026 &mdash; Private Use Only</p>
   <div class="footer-au">AU</div>
 </footer>
 
 <script>
-  const SUPABASE_URL = 'https://zpcbbwynvvyldavxzjng.supabase.co';
-  const SUPABASE_KEY = 'sb_publishable_K80lcfk8LsQNqo5enznRRA_lrzf2U9K';
-  const { createClient } = supabase;
-  const db = createClient(SUPABASE_URL, SUPABASE_KEY);
+const SUPABASE_URL = 'https://zpcbbwynvvyldavxzjng.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_K80lcfk8LsQNqo5enznRRA_lrzf2U9K';
+const { createClient } = supabase;
+const db = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-  let conversationHistory = [];
-  let aurumContext = {};
+let conversationHistory = [];
+let aurumContext = {};
+let pendingChanges = [];
+let faqExpanded = false;
 
-  // ─────────────────────────────────────────────
-  // AURUM FULL APP KNOWLEDGE BASE (OFFLINE)
-  // This is embedded directly — no API call needed.
-  // Update this block whenever features change.
-  // ─────────────────────────────────────────────
-  const AURUM_KNOWLEDGE_BASE = `
+// ─────────────────────────────────────────────
+// AURUM KNOWLEDGE BASE — embedded offline
+// ─────────────────────────────────────────────
+const AURUM_KB = `
 AURUM — COMPLETE APP DOCUMENTATION v2.0
 ========================================
 
-OVERVIEW
---------
-AURUM is a private market intelligence system that synthesizes signals from 21 proprietary algorithms through a master orchestrator. It generates stock picks, trade instructions, and market analysis for a single private user. Built as a PWA (Progressive Web App) hosted on GitHub Pages, backed by Supabase for data storage, and powered by Claude (Anthropic) for AI analysis.
+OVERVIEW: AURUM is a private market intelligence system with 21+ algorithms synthesized
+by a master orchestrator. PWA on GitHub Pages, Supabase backend, Claude AI analysis.
+Python FastAPI ML engine with DRL, GRU, FLSPI, Autoencoder, Mamba algorithms.
 
-PAGES & FEATURES
-----------------
+PAGES:
+- index.html: Brief — picks, accuracy, watchlist, rating history
+- trading.html: Trading — Auto mode (full autofill + execute), Manual mode (ranked list, select, autofill, Enter to submit)
+- brokerage.html: Brokerage — account connections, positions
+- simulator.html: Simulator — paper trading
+- sectors.html: Sectors — sector intelligence
+- admin.html: Admin — algorithm health monitor (auto-scans on load), stock management
+- news.html: News — sentiment feed
+- history.html: History — pick performance
+- options.html: Options — options chain analysis
+- ipo.html: IPO — tracker with ipo_early_detection algorithm
+- report.html: Report — weekly briefings
+- tutorial.html: Tutorial
+- help.html: Help
+- assistant.html: Assistant — AI chat + offline FAQ + Code Engine
 
-1. BRIEF (index.html) — Home dashboard
-   - Displays current weekly picks with scores (0-100), signal breakdowns, and bull/base/bear probability spreads
-   - Shows System Accuracy panel: total picks, beat-market %, avg accuracy over 90 days
-   - Watchlist overview: all tracked stocks with ticker, company name, sector
-   - Rating History: 30-day and 90-day returns, beat-market status per pick
+JS ALGORITHMS (Supabase):
+momentum_detector, political_signal_detector, macro_detector, correlation_filter,
+earnings_cycle_detector, macro_regime_detector, sentiment_velocity, options_flow_detector,
+sentiment_detector, insider_transaction_tracker, probability_spread_model,
+hybrid_sentiment_pipeline, algorithm_orchestrator, ipo_early_detection,
+market_regime_adaptive_ga, mcts_formula_tester, autonomous_strategy_evolution,
+genetic_algorithm_optimizer, evolutionary_data_labeling, hybrid_ga_learning_to_rank,
+agentic_llm_workflow
 
-2. TRADING (trading.html) — Core trade execution
-   AUTO MODE:
-   - Toggle activates automatic trade execution
-   - Requires confirmation before activating (safety gate)
-   - Claude synthesizes all 21 algorithms and returns ONE top trade
-   - All 9 order fields auto-populate: Ticker, Direction (LONG/SHORT), Order Type (Limit/Market), Entry Price, Exit Target, Stop Loss, Position Size %, Est. Dollar Amount, Time in Force
-   - "Execute Order" button logs trade as executed to Supabase
-   - Safety parameters always enforced: Principal Floor (stops trading if balance drops below), Max Position Size %, Max Daily Trades
-   MANUAL MODE:
-   - Claude returns a ranked list of 5 trade opportunities
-   - Each trade shows: ticker, direction, orchestrator score, confidence level, reasoning
-   - User selects a trade from the list → all 12 fields autofill instantly
-   - Claude provides exact field-by-field instructions per trade
-   - Press Enter or hit "Submit Order" to log the trade
-   - Instruction Log tracks all generated and executed instructions
+PYTHON ML ENGINE (FastAPI):
+/drl — Deep Reinforcement Learning (3 agents: selection, trend, risk)
+/gru — Attention-Augmented GRU (directional accuracy)
+/flspi — Fuzzy Least-Squares Policy Iteration (RSI + volatility)
+/autoencoder — Dual autoencoder (technical + fundamental)
+/mamba — State-Space Model (sequence dynamics)
+/orchestrate — Master orchestrator (synthesizes all outputs, conflict detection)
 
-3. BROKERAGE (brokerage.html) — Account connections
-   - Connects to: TD Ameritrade, Robinhood, IBKR, Alpaca, Webull, E*TRADE, tastytrade, TradeStation
-   - Portfolio summary: total accounts, total value, buying power, open positions
-   - Account management: sync, disconnect, status tracking
-   - Open Positions table: ticker, direction, qty, avg cost, market value, G/L
+ORCHESTRATOR: Weights each algorithm by historical accuracy. Conflict detected when
+score range > 35 points. Confidence: High (8+ algos, no conflict), Medium (5+, no conflict),
+Conflicted, Low. Verdict: BUY >65, WATCH >50, AVOID <=50.
 
-4. SIMULATOR (simulator.html) — Paper trading / backtesting
-   - Test strategies without real money
-   - Simulate trades against historical or live data
+TRADING MODES:
+AUTO: Claude picks top trade, all 9 fields autofill, Execute Order button
+MANUAL: Claude returns ranked list of 5 trades, user selects, 12 fields autofill, press Enter
 
-5. SECTORS (sectors.html) — Sector intelligence
-   - Breakdown of market sectors with signal strength
-   - Identifies which sectors AURUM's algorithms favor
+SAFETY: Principal Floor (halt if balance below), Max Position Size %, Max Daily Trades
 
-6. ADMIN (admin.html) — System management
-   - Add/remove stocks from watchlist
-   - Manage picks and algorithm settings
-   - System health overview
+SCORING: 0-100. 75+ = gold (high conviction). Score drives position size.
 
-7. NEWS (news.html) — News sentiment feed
-   - Real-time news filtered to watchlist stocks
-   - Algorithm alignment scores per news item
-   - Sentiment tagging per ticker
+SUPABASE TABLES: stocks, picks, algorithms, aurum_accuracy, news_feed, auto_trade_log,
+trading_settings, brokerage_accounts, brokerage_positions, self_ratings, ipo_watchlist,
+ipo_buzz, ipo_alerts, app_files
 
-8. HISTORY (history.html) — Pick performance tracking
-   - Full historical record of all AURUM picks
-   - Return data, accuracy scores, beat-market tracking
-
-9. OPTIONS (options.html) — Options intelligence
-   - Options chain analysis
-   - Algorithm signals applied to options strategies
-
-10. IPO (ipo.html) — IPO tracker
-    - Upcoming IPOs with AURUM scoring
-    - Algorithm alignment for new listings
-
-11. REPORT (report.html) — Intelligence reports
-    - Generated weekly briefings
-    - Synthesized market outlook from all algorithms
-
-12. TUTORIAL (tutorial.html) — How to use AURUM
-    - Step-by-step guides for all features
-
-13. HELP (help.html) — Support documentation
-
-14. ASSISTANT (assistant.html) — This page
-    - AI-powered chat backed by Claude
-    - Full offline FAQ for common questions
-    - Embedded app knowledge base in every Claude conversation
-
-THE 21 ALGORITHMS
------------------
-AURUM runs 21 proprietary algorithms, all synthesized by the Master Orchestrator into a single score (0-100) and trade instruction. Algorithms cover:
-
-1. Momentum Algorithm — Measures price momentum using rate-of-change across multiple timeframes
-2. Sentiment Algorithm — Analyzes social and news sentiment for watchlist stocks
-3. Political Algorithm — Tracks policy, regulation, and political events affecting sectors
-4. Macro Regime Algorithm — Identifies current macroeconomic regime (risk-on, risk-off, stagflation, etc.)
-5. Technical Pattern Algorithm — Detects chart patterns (breakouts, reversals, consolidations)
-6. Volume Analysis Algorithm — Identifies unusual volume signatures and institutional activity
-7. Earnings Catalyst Algorithm — Flags upcoming earnings with historical beat/miss probabilities
-8. Options Flow Algorithm — Reads unusual options activity as leading indicators
-9. Sector Rotation Algorithm — Tracks capital flow between sectors
-10. Correlation Algorithm — Monitors cross-asset correlations (bonds, gold, dollar, crypto)
-11. Volatility Regime Algorithm — Identifies VIX conditions and adjusts risk parameters
-12. Relative Strength Algorithm — Compares stocks to sector and market benchmarks
-13. Short Interest Algorithm — Tracks short float % and squeeze potential
-14. Insider Activity Algorithm — Monitors SEC filings for insider buying/selling
-15. Analyst Revision Algorithm — Tracks earnings estimate revisions and price target changes
-16. Fund Flow Algorithm — Monitors ETF inflows/outflows to detect institutional positioning
-17. Seasonal Pattern Algorithm — Historical seasonal tendencies by month and quarter
-18. News Catalyst Algorithm — Identifies binary events (mergers, FDA, contracts, lawsuits)
-19. Economic Indicator Algorithm — GDP, CPI, jobs, PMI signals and their market implications
-20. Global Macro Algorithm — International events, currency moves, geopolitical risk
-21. Self-Rating Algorithm — AURUM's own track record; adjusts confidence based on past accuracy
-
-MASTER ORCHESTRATOR
--------------------
-The orchestrator synthesizes all 21 algorithm outputs into:
-- An overall score (0-100): 80+ = strong conviction, 60-79 = moderate, below 60 = weak
-- A direction (LONG or SHORT): based on signal majority and magnitude
-- A confidence rating: High / Medium / Low / Conflicted
-- Entry price, exit target, stop loss: derived from technical and momentum signals
-- Position size %: adjusted for confidence and volatility regime
-- Reasoning: 2-3 sentence AURUM-tone explanation of the synthesis
-
-TRADING MODES
--------------
-AUTO: Claude + orchestrator run continuously. Best instruction auto-executes. No manual input required. Safety floors always enforced.
-MANUAL: Claude produces ranked list of 5 trades. You select, review autofilled fields, press Enter. Full control, no guesswork.
-
-SAFETY PARAMETERS
------------------
-Principal Floor: Auto trading halts if account balance drops below this threshold (default $5,000)
-Max Position Size %: No single trade exceeds this % of balance (default 10%)
-Max Daily Trades: Auto mode cap on trades per day (default 3)
-
-SCORING SYSTEM
---------------
-Picks are scored 0-100. Score reflects orchestrator conviction:
-75-100: High conviction — displayed in gold
-50-74: Moderate conviction — displayed in muted color
-Below 50: Low conviction — rarely surfaced
-
-WATCHLIST
----------
-Stocks added via Admin page. Ticker database includes 100+ stocks across: Technology, Finance, Energy, Healthcare, Consumer, Industrial, Communications, Real Estate, ETFs.
-Each stock stored with: ticker, company name, sector, added_at timestamp.
-Stocks can be removed from the watchlist directly from the main Brief page.
-
-PROBABILITY SPREAD
-------------------
-Each pick includes a 3-scenario spread:
-Bull Case: Optimistic return % + probability %
-Base Case: Most likely return % + probability %
-Bear Case: Downside return % + probability %
-These are derived from the orchestrator's signal synthesis and volatility regime algorithm.
-
-SELF-RATING SYSTEM
-------------------
-AURUM rates its own past picks after 30 and 90 days:
-- Compares predicted direction to actual price movement
-- Tracks beat-market % vs S&P 500
-- Updates avg accuracy score
-- Self-Rating Algorithm uses this data to adjust future confidence levels
-
-DATA STORAGE (SUPABASE)
------------------------
-Tables: stocks, picks, algorithms, aurum_accuracy, news_feed, auto_trade_log, trading_settings, brokerage_accounts, brokerage_positions, self_ratings
-All data persists across sessions. Real-time updates where applicable.
-
-KNOWN LIMITATIONS / NOTES
---------------------------
-- Brokerage connections are configured but live execution requires valid API credentials
-- Claude API key must be configured in Supabase secrets as CLAUDE_API_KEY for AI features
-- App is offline-capable via Service Worker (sw.js) for cached pages
-- No mock or placeholder data — all features require real data inputs to function
+WATCHLIST: Remove tickers directly from Brief page (index.html)
+HEALTH MONITOR: Admin page auto-scans algorithms on every load via Claude
+CODE ENGINE: In Assistant — describe change, Claude writes diff, approve to download
 `;
 
-  // ─────────────────────────────────────────────
-  // OFFLINE FAQ — No API call needed
-  // Add/edit entries here when features change.
-  // ─────────────────────────────────────────────
-  const FAQ = [
-    {
-      q: "What is AURUM and how does it work?",
-      a: "AURUM is a private market intelligence system that runs 21 proprietary algorithms through a master orchestrator. The orchestrator synthesizes all signals into a single score (0-100), a direction (LONG or SHORT), and a precise trade instruction including entry price, exit target, and stop loss. You control whether it executes automatically (Auto mode) or presents options for you to choose (Manual mode)."
-    },
-    {
-      q: "What's the difference between Auto and Manual mode?",
-      a: "Auto mode: Claude + the orchestrator select the single highest-conviction trade and execute it automatically. All fields are autofilled — no input required from you. Safety limits always stay active.\n\nManual mode: Claude generates a ranked list of 5 trade opportunities. You select one from the list, all order fields autofill instantly, and you press Enter to submit. Full control, zero guesswork on what to enter."
-    },
-    {
-      q: "What do the safety parameters do?",
-      a: "Three parameters protect your capital at all times:\n\n• Principal Floor ($): Auto trading halts completely if your balance drops below this number. Default is $5,000.\n• Max Position Size (%): No single trade can exceed this percentage of your balance. Default is 10%.\n• Max Daily Trades: Auto mode will not execute more than this number of trades per day. Default is 3.\n\nThese apply even in Auto mode and cannot be overridden by Claude."
-    },
-    {
-      q: "What does the orchestrator score mean?",
-      a: "The score (0-100) represents the orchestrator's overall conviction based on all 21 algorithms:\n\n• 80-100: High conviction — strong alignment across multiple algorithms\n• 60-79: Moderate conviction — majority alignment with some conflict\n• Below 60: Low conviction — AURUM rarely surfaces these as primary picks\n\nScores above 75 are displayed in gold. The score directly influences position size recommendations."
-    },
-    {
-      q: "What are the 21 algorithms?",
-      a: "The 21 algorithms cover: Momentum, Sentiment, Political, Macro Regime, Technical Pattern, Volume Analysis, Earnings Catalyst, Options Flow, Sector Rotation, Correlation, Volatility Regime, Relative Strength, Short Interest, Insider Activity, Analyst Revision, Fund Flow, Seasonal Pattern, News Catalyst, Economic Indicator, Global Macro, and Self-Rating. All are synthesized by the master orchestrator into a single instruction."
-    },
-    {
-      q: "What does the probability spread (Bull/Base/Bear) mean?",
-      a: "Each pick includes three scenarios:\n\n• Bull Case: The optimistic return % and its probability if conditions align favorably\n• Base Case: The most likely outcome and its probability\n• Bear Case: The downside scenario and its probability\n\nThese are derived from the orchestrator's signal synthesis combined with the Volatility Regime algorithm. Use them to understand the risk/reward profile before acting."
-    },
-    {
-      q: "How does the self-rating system work?",
-      a: "After 30 and 90 days, AURUM scores its own past picks by comparing the predicted direction to actual price movement and tracking performance vs the S&P 500. This data feeds directly into the Self-Rating Algorithm, which adjusts future confidence levels. The System Accuracy panel on the Brief page shows total picks, beat-market %, and average accuracy over 90 days."
-    },
-    {
-      q: "How do I add or remove stocks from my watchlist?",
-      a: "Add stocks: Go to the Admin page. Use the ticker search (powered by a 100+ stock database) to find and add stocks. Company name and sector autofill.\n\nRemove stocks: On the Brief page (home), each stock in the watchlist has a remove button. Tap it to remove the ticker from your watchlist entirely."
-    },
-    {
-      q: "How do I connect my brokerage?",
-      a: "Go to the Brokerage page. Supported brokerages: TD Ameritrade, Robinhood, IBKR, Alpaca, Webull, E*TRADE, tastytrade, TradeStation. Click Connect next to your brokerage, enter your API credentials, and save. Once connected, AURUM can sync your positions and execute live trades in Auto mode."
-    },
-    {
-      q: "Why isn't the Assistant / Claude responding?",
-      a: "The AI-powered chat requires a Claude API key configured in your Supabase secrets as CLAUDE_API_KEY. Without it, the chat cannot connect to Claude. The offline FAQ section (this section) works without any API key. If you've set the key and still see errors, check that the key is valid and has not expired."
-    },
-    {
-      q: "What does 'Conflicted' confidence mean?",
-      a: "Conflicted means the 21 algorithms are producing mixed or opposing signals — some strongly bullish, others bearish, with no clear majority. AURUM surfaces these with caution. In Auto mode, Conflicted picks are typically skipped or given reduced position sizes. In Manual mode, you'll see the conflict flagged in the trade details."
-    },
-    {
-      q: "How does Manual mode autofill work exactly?",
-      a: "When you tap a trade from the ranked list in Manual mode, AURUM instantly fills 12 fields: Ticker, Direction, Order Type (Limit or Market), Entry Price, Exit Target, Stop Loss, Position Size %, Estimated Dollar Amount, Time in Force, Confidence, Algo Score, and Algo Signals. Claude also provides a written instruction explaining exactly what to do and why. All you do is review and press Enter."
-    }
-  ];
+// ─────────────────────────────────────────────
+// OFFLINE FAQ
+// ─────────────────────────────────────────────
+const FAQ = [
+  {
+    q: "What is AURUM and how does it work?",
+    a: "AURUM is a private market intelligence system running 21+ algorithms through a master orchestrator. The orchestrator synthesizes all signals into a score (0-100), a direction (LONG/SHORT), and a precise trade instruction with entry, exit, and stop loss. You control whether it executes automatically (Auto) or presents options for you to choose (Manual)."
+  },
+  {
+    q: "What is the difference between Auto and Manual mode?",
+    a: "Auto mode: Claude picks the single highest-conviction trade and all 9 order fields autofill automatically. One tap to execute.\n\nManual mode: Claude generates a ranked list of 5 trades. You select one, all 12 fields autofill instantly, and you press Enter to submit. Full control, zero guesswork on what to enter."
+  },
+  {
+    q: "What does the orchestrator score mean?",
+    a: "The score (0-100) reflects orchestrator conviction across all algorithms.\n\n80-100: High conviction — strong alignment\n60-79: Moderate — majority alignment with some conflict\nBelow 60: Low — rarely surfaced as a primary pick\n\nScores above 75 display in gold. The score directly drives position size recommendations."
+  },
+  {
+    q: "What does Conflicted confidence mean?",
+    a: "Conflicted means algorithms are producing opposing signals — some strongly bullish, others bearish, with no clear majority. The conflict is flagged when score range across algorithms exceeds 35 points. In Auto mode, conflicted picks get reduced position sizes or are skipped."
+  },
+  {
+    q: "What are the safety parameters?",
+    a: "Three parameters protect your capital at all times:\n\nPrincipal Floor: Auto trading halts if balance drops below this amount (default $5,000)\nMax Position Size %: No single trade exceeds this % of balance (default 10%)\nMax Daily Trades: Auto mode cap per day (default 3)\n\nThese cannot be overridden by Claude."
+  },
+  {
+    q: "What does the probability spread (Bull/Base/Bear) mean?",
+    a: "Each pick shows three scenarios:\n\nBull Case: Optimistic return % and its probability\nBase Case: Most likely outcome and probability\nBear Case: Downside scenario and probability\n\nDerived from orchestrator synthesis and the Volatility Regime algorithm."
+  },
+  {
+    q: "How do I add or remove stocks from my watchlist?",
+    a: "Add: Go to Admin page, search by ticker — company name and sector autofill.\n\nRemove: On the Brief page (home), each watchlist row has an X button. Tap it to remove the ticker from Supabase permanently."
+  },
+  {
+    q: "How does the Code Engine work?",
+    a: "Go to the Code Engine tab (this page). Describe any change in plain language — colors, features, algorithms, layout, logic. Claude writes the exact code and shows you a diff (red = removed, green = added). Approve to download the updated file, reject to refine. Nothing changes until you approve."
+  },
+  {
+    q: "How does the Algorithm Health Monitor work?",
+    a: "Every time you open the Admin page, Claude automatically scans all algorithms, trading settings, pick history, and trade log. It flags conflicts, stale logic, accuracy decay, and safety parameter issues. Results are tagged Critical / Warning / Info / OK. You can also trigger a manual scan anytime."
+  },
+  {
+    q: "Why isn't Claude responding?",
+    a: "The AI chat requires a Claude API key configured in Supabase secrets as CLAUDE_API_KEY. The offline FAQ works without any API key. If the key is set and still failing, verify the key is valid and not expired."
+  },
+  {
+    q: "How does Manual mode autofill work?",
+    a: "Claude generates a ranked list of 5 trades. Tap any trade — 12 fields autofill instantly: Ticker, Direction, Order Type, Entry Price, Exit Target, Stop Loss, Position Size %, Est. Dollar Amount, Time in Force, Confidence, Algo Score, Algo Signals. Claude also shows a written instruction. Press Enter or Submit to log the trade."
+  },
+  {
+    q: "What algorithms does AURUM run?",
+    a: "21+ algorithms including: Momentum, Sentiment, Political, Macro, Options Flow, Insider Activity, Correlation, Earnings Cycle, Macro Regime, Sentiment Velocity, Probability Spread, Hybrid Sentiment Pipeline, Market Regime GA, MCTS Formula Tester, Autonomous Strategy Evolution, Genetic Algorithm Optimizer, Evolutionary Data Labeling, Hybrid GA Learning-to-Rank, Agentic LLM Workflow, IPO Early Detection, plus Python ML algorithms: DRL, GRU, FLSPI, Autoencoder, Mamba."
+  }
+];
 
-  let faqExpanded = false;
-  const FAQ_PREVIEW_COUNT = 4;
+const FAQ_PREVIEW = 4;
 
-  function renderFAQ(showAll) {
-    const grid = document.getElementById('faq-grid');
-    const items = showAll ? FAQ : FAQ.slice(0, FAQ_PREVIEW_COUNT);
-    grid.innerHTML = items.map((item, i) => `
-      <div class="faq-item" id="faq-item-${i}">
-        <div class="faq-question" onclick="toggleFAQItem(${i})">
-          <span class="faq-question-text">${item.q}</span>
-          <span class="faq-chevron">▼</span>
-        </div>
-        <div class="faq-answer">${item.a.replace(/\n/g, '<br>')}</div>
+function renderFAQ(showAll) {
+  const grid = document.getElementById('faq-grid');
+  const items = showAll ? FAQ : FAQ.slice(0, FAQ_PREVIEW);
+  grid.innerHTML = items.map((item, i) => `
+    <div class="faq-item" id="fi-${i}">
+      <div class="faq-question" onclick="toggleFAQItem(${i})">
+        <span class="faq-question-text">${item.q}</span>
+        <span class="faq-chevron">&#9660;</span>
       </div>
-    `).join('');
-    const btn = document.getElementById('faq-toggle');
-    btn.textContent = showAll ? 'Show fewer ↑' : `Show all ${FAQ.length} questions ↓`;
-  }
+      <div class="faq-answer">${item.a.replace(/\n/g, '<br>')}</div>
+    </div>
+  `).join('');
+  const btn = document.getElementById('faq-toggle');
+  if (btn) btn.textContent = showAll ? 'Show fewer \u2191' : `Show all ${FAQ.length} questions \u2193`;
+}
 
-  function toggleFAQItem(i) {
-    const item = document.getElementById(`faq-item-${i}`);
-    item.classList.toggle('open');
-  }
+function toggleFAQItem(i) {
+  const el = document.getElementById('fi-' + i);
+  if (el) el.classList.toggle('open');
+}
 
-  function toggleFAQ() {
-    faqExpanded = !faqExpanded;
-    renderFAQ(faqExpanded);
-  }
+function toggleFAQ() {
+  faqExpanded = !faqExpanded;
+  renderFAQ(faqExpanded);
+}
 
-  async function loadContext() {
-    const { data: stocks } = await db.from('stocks').select('*');
-    const { data: picks } = await db.from('picks').select('*').order('picked_at', { ascending: false }).limit(5);
-    const { data: accuracy } = await db.from('aurum_accuracy').select('*').single();
-    const { data: tradeLog } = await db.from('auto_trade_log').select('*').order('created_at', { ascending: false }).limit(5);
+// ─────────────────────────────────────────────
+// TAB SWITCHING
+// ─────────────────────────────────────────────
+function switchTab(tab) {
+  document.querySelectorAll('.mode-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('tab-' + tab).classList.add('active');
+  document.getElementById('panel-' + tab).classList.add('active');
+}
 
+// ─────────────────────────────────────────────
+// LOAD LIVE CONTEXT
+// ─────────────────────────────────────────────
+async function loadContext() {
+  try {
+    const [stocksRes, picksRes, accuracyRes, tradesRes] = await Promise.all([
+      db.from('stocks').select('ticker, sector'),
+      db.from('picks').select('ticker, score, brief').order('picked_at', { ascending: false }).limit(5),
+      db.from('aurum_accuracy').select('*').single(),
+      db.from('auto_trade_log').select('ticker, direction, orchestrator_score, status').order('created_at', { ascending: false }).limit(5)
+    ]);
     aurumContext = {
-      watchlist: stocks?.map(s => `${s.ticker} (${s.sector})`).join(', ') || 'No stocks loaded',
-      recentPicks: picks?.map(p => `${p.ticker} — Score: ${p.score} — ${p.brief}`).join('\n') || 'No picks yet',
-      accuracy: accuracy ? `Total picks: ${accuracy.total_picks}, Beat market: ${accuracy.beats_market}, Avg accuracy: ${accuracy.avg_accuracy}%` : 'No accuracy data yet',
-      recentTrades: tradeLog?.map(t => `${t.ticker} ${t.direction} — Score: ${t.orchestrator_score} — ${t.status}`).join('\n') || 'No trades yet'
+      watchlist: stocksRes.data?.map(s => s.ticker + ' (' + s.sector + ')').join(', ') || 'None',
+      picks: picksRes.data?.map(p => p.ticker + ' score:' + p.score + ' — ' + p.brief).join('\n') || 'None',
+      accuracy: accuracyRes.data ? 'Total:' + accuracyRes.data.total_picks + ' BeatMkt:' + accuracyRes.data.beats_market + ' Avg:' + accuracyRes.data.avg_accuracy + '%' : 'No data',
+      trades: tradesRes.data?.map(t => t.ticker + ' ' + t.direction + ' score:' + t.orchestrator_score + ' ' + t.status).join('\n') || 'None'
     };
+  } catch(e) {
+    aurumContext = { watchlist: 'unavailable', picks: 'unavailable', accuracy: 'unavailable', trades: 'unavailable' };
+  }
+}
+
+// ─────────────────────────────────────────────
+// ASSISTANT CHAT
+// ─────────────────────────────────────────────
+async function sendMessage() {
+  const input = document.getElementById('chat-input');
+  const msg = input.value.trim();
+  if (!msg) return;
+
+  input.value = '';
+  autoResize(input);
+  addMessage('user', msg);
+  conversationHistory.push({ role: 'user', content: msg });
+
+  const typingId = addTyping();
+  document.getElementById('send-btn').disabled = true;
+
+  const systemPrompt = `You are AURUM's private intelligence assistant. You have complete knowledge of the entire AURUM system.
+
+AURUM KNOWLEDGE BASE:
+${AURUM_KB}
+
+LIVE DATA:
+Watchlist: ${aurumContext.watchlist}
+Recent picks: ${aurumContext.picks}
+System accuracy: ${aurumContext.accuracy}
+Recent trades: ${aurumContext.trades}
+
+Answer any question about AURUM with authority. Reference live data when relevant.
+TONE: Cold, precise, confident. Like a private analyst briefing a sophisticated investor. No filler.
+FORMAT: 2-4 short paragraphs. Use line breaks. No bullet points.`;
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1000,
+        system: systemPrompt,
+        messages: conversationHistory
+      })
+    });
+
+    removeTyping(typingId);
+
+    if (res.status === 401 || res.status === 403) {
+      addMessage('assistant', 'Claude API key required. Add CLAUDE_API_KEY to Supabase secrets to activate the assistant.');
+      document.getElementById('api-notice').className = 'api-notice error';
+      document.getElementById('api-notice').textContent = 'API key not configured.';
+    } else {
+      const data = await res.json();
+      const reply = data.content?.[0]?.text || 'No response received.';
+      conversationHistory.push({ role: 'assistant', content: reply });
+      addMessage('assistant', reply);
+      document.getElementById('api-notice').textContent = '';
+    }
+  } catch(e) {
+    removeTyping(typingId);
+    addMessage('assistant', 'Connection error. Check your network and try again.');
   }
 
-  async function sendMessage() {
-    const input = document.getElementById('chat-input');
-    const message = input.value.trim();
-    if (!message) return;
+  document.getElementById('send-btn').disabled = false;
+}
 
-    input.value = '';
-    autoResize(input);
-    addMessage('user', message);
+function addMessage(role, text) {
+  const container = document.getElementById('messages');
+  const time = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+  const div = document.createElement('div');
+  div.className = 'message ' + role;
+  div.innerHTML = `
+    <div class="message-avatar">${role === 'user' ? 'YOU' : 'AU'}</div>
+    <div>
+      <div class="message-bubble">${escHtml(text).replace(/\n/g, '<br>')}</div>
+      <div class="message-time">${time}</div>
+    </div>
+  `;
+  container.appendChild(div);
+  container.scrollTop = container.scrollHeight;
+}
 
-    const typingId = addTyping();
-    document.getElementById('send-btn').disabled = true;
-    conversationHistory.push({ role: 'user', content: message });
+function addTyping() {
+  const container = document.getElementById('messages');
+  const id = 'typing-' + Date.now();
+  const div = document.createElement('div');
+  div.id = id;
+  div.className = 'message assistant';
+  div.innerHTML = `
+    <div class="message-avatar">AU</div>
+    <div class="typing">
+      <div class="typing-dot"></div>
+      <div class="typing-dot"></div>
+      <div class="typing-dot"></div>
+    </div>
+  `;
+  container.appendChild(div);
+  container.scrollTop = container.scrollHeight;
+  return id;
+}
 
-    const systemPrompt = `You are AURUM's private intelligence assistant — embedded inside a luxury stock intelligence system. You have complete knowledge of how AURUM works, all 21 algorithms, every feature, every page, and every setting.
+function removeTyping(id) {
+  const el = document.getElementById(id);
+  if (el) el.remove();
+}
 
-AURUM COMPLETE KNOWLEDGE BASE:
-${AURUM_KNOWLEDGE_BASE}
+function askSuggestion(btn) {
+  document.getElementById('chat-input').value = btn.textContent;
+  sendMessage();
+}
 
-LIVE USER DATA:
-Watchlist: ${aurumContext.watchlist}
-Recent picks: ${aurumContext.recentPicks}
-System accuracy: ${aurumContext.accuracy}
-Recent trades: ${aurumContext.recentTrades}
+function handleChatKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+}
 
-YOUR ROLE:
-Answer any question about AURUM — how it works, what a feature does, what an algorithm means, how to use a specific page, what a score or signal indicates, trading mode guidance, or live market commentary on the user's picks and watchlist.
+// ─────────────────────────────────────────────
+// CODE ENGINE
+// ─────────────────────────────────────────────
+const APP_FILES = {
+  'index.html': 'Brief home dashboard — picks, accuracy, watchlist, rating history',
+  'trading.html': 'Trading — Auto/Manual mode, autofill, order execution',
+  'assistant.html': 'Assistant — AI chat, FAQ, Code Engine',
+  'admin.html': 'Admin — algorithm health monitor, stock management',
+  'brokerage.html': 'Brokerage — account connections, positions',
+  'simulator.html': 'Simulator — paper trading',
+  'sectors.html': 'Sectors — sector signals',
+  'news.html': 'News — sentiment feed',
+  'history.html': 'History — pick performance',
+  'options.html': 'Options — options analysis',
+  'ipo.html': 'IPO — tracker',
+  'report.html': 'Report — weekly briefings',
+  'tutorial.html': 'Tutorial',
+  'help.html': 'Help'
+};
 
-You know this app inside and out. Answer with authority. If something is in the knowledge base, use it. If asking about live data, reference the user's actual watchlist and picks above.
+function useExample(btn) {
+  const input = document.getElementById('engine-input');
+  input.value = btn.textContent;
+  autoResize(input);
+  input.focus();
+}
 
-TONE: Cold, precise, confident. Like a private analyst briefing a sophisticated investor. No filler. No hedging. Intelligent and direct.
-FORMAT: 2-4 short paragraphs maximum. Use line breaks. No bullet points.`;
+function handleEngineKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); requestChange(); }
+}
 
-    try {
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 1000,
-          system: systemPrompt,
-          messages: conversationHistory
-        })
-      });
+async function requestChange() {
+  const input = document.getElementById('engine-input');
+  const request = input.value.trim();
+  if (!request) return;
 
-      removeTyping(typingId);
+  const btn = document.getElementById('engine-btn');
+  const thinking = document.getElementById('engine-thinking');
+  const preview = document.getElementById('change-preview');
 
-      if (response.status === 401 || response.status === 403) {
-        addMessage('assistant', 'Claude API key required. Add CLAUDE_API_KEY to Supabase secrets to activate the assistant. The offline FAQ above works without an API key.');
-        document.getElementById('api-notice').className = 'api-notice error';
-        document.getElementById('api-notice').textContent = 'API key not configured. Offline FAQ is available above.';
-      } else {
-        const data = await response.json();
-        const reply = data.content?.[0]?.text || 'No response received.';
-        conversationHistory.push({ role: 'assistant', content: reply });
-        addMessage('assistant', reply);
-        document.getElementById('api-notice').textContent = '';
+  btn.disabled = true;
+  thinking.classList.add('visible');
+  preview.innerHTML = '';
+  pendingChanges = [];
+
+  // Try to load file contents from Supabase app_files table
+  let fileContents = {};
+  try {
+    const { data: files } = await db.from('app_files').select('filename, content');
+    if (files && files.length) {
+      files.forEach(f => { fileContents[f.filename] = f.content; });
+    }
+  } catch(e) {}
+
+  const fileList = Object.entries(APP_FILES)
+    .map(([f, d]) => f + ' — ' + d + (fileContents[f] ? ' [code loaded]' : ''))
+    .join('\n');
+
+  const codeContext = Object.entries(fileContents)
+    .slice(0, 3)
+    .map(([f, c]) => '=== ' + f + ' ===\n' + c.substring(0, 6000))
+    .join('\n\n');
+
+  const prompt = `You are AURUM's Code Engine. The user wants a change to the AURUM app.
+
+USER REQUEST: "${request}"
+
+APP FILES:
+${fileList}
+
+AURUM KNOWLEDGE BASE:
+${AURUM_KB}
+
+${codeContext ? 'FILE CODE:\n' + codeContext : ''}
+
+INSTRUCTIONS:
+- Identify which files need to change
+- Write precise, minimal code changes
+- For color changes: update CSS :root variables (they cascade everywhere)
+- For algorithm changes: rewrite only the relevant function
+- For new features: write complete working code
+- Never break existing functionality
+
+Respond ONLY with valid JSON, no markdown, no extra text:
+{
+  "summary": "One sentence: what changes and why",
+  "changes": [
+    {
+      "file": "index.html",
+      "type": "CSS",
+      "description": "What this change does",
+      "old_code": "exact code to find and replace (keep short, 3-15 lines)",
+      "new_code": "exact replacement code"
+    }
+  ]
+}`;
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 4000,
+        messages: [{ role: 'user', content: prompt }]
+      })
+    });
+
+    const data = await res.json();
+    const text = data.content?.[0]?.text || '{}';
+    const parsed = JSON.parse(text.replace(/```json|```/g, '').trim());
+
+    pendingChanges = parsed.changes || [];
+
+    if (!pendingChanges.length) {
+      preview.innerHTML = '<div class="change-empty"><div class="change-empty-icon">—</div><div class="change-empty-text">No changes needed</div></div>';
+    } else {
+      if (parsed.summary) {
+        const sumEl = document.createElement('div');
+        sumEl.className = 'engine-summary';
+        sumEl.textContent = parsed.summary;
+        preview.appendChild(sumEl);
       }
 
-    } catch(e) {
-      removeTyping(typingId);
-      addMessage('assistant', 'Connection error. Check your network and try again. Common questions are available in the offline FAQ above.');
+      pendingChanges.forEach((change, i) => {
+        const card = document.createElement('div');
+        card.className = 'change-card';
+        card.id = 'cc-' + i;
+
+        const oldLines = (change.old_code || '').split('\n').map(l => '<span class="diff-remove">- ' + escHtml(l) + '</span>').join('');
+        const newLines = (change.new_code || '').split('\n').map(l => '<span class="diff-add">+ ' + escHtml(l) + '</span>').join('');
+
+        card.innerHTML = `
+          <div class="change-card-header">
+            <div class="change-file">${escHtml(change.file)}</div>
+            <div class="change-type">${escHtml(change.type || 'Code')}</div>
+          </div>
+          <div class="change-description">${escHtml(change.description)}</div>
+          <div class="change-diff">${oldLines}<span class="diff-divider">&darr; REPLACED WITH &darr;</span>${newLines}</div>
+          <div class="change-actions">
+            <button class="approve-btn" id="ab-${i}" onclick="approveChange(${i})">Approve</button>
+            <button class="reject-btn" onclick="rejectChange(${i})">Reject</button>
+            <div class="change-status" id="cs-${i}"></div>
+          </div>
+        `;
+        preview.appendChild(card);
+      });
+
+      if (pendingChanges.length > 1) {
+        const allBtn = document.createElement('button');
+        allBtn.className = 'approve-all-btn';
+        allBtn.textContent = 'Approve All ' + pendingChanges.length + ' Changes';
+        allBtn.onclick = () => pendingChanges.forEach((_, i) => approveChange(i));
+        preview.appendChild(allBtn);
+      }
     }
 
-    document.getElementById('send-btn').disabled = false;
+  } catch(e) {
+    preview.innerHTML = '<div class="change-empty"><div class="change-empty-icon">!</div><div class="change-empty-text">Claude API key required</div><div class="change-empty-sub">Add CLAUDE_API_KEY to Supabase secrets</div></div>';
   }
 
-  function addMessage(role, text) {
-    const container = document.getElementById('messages');
-    const time = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-    const div = document.createElement('div');
-    div.className = `message ${role}`;
-    div.innerHTML = `
-      <div class="message-avatar">${role === 'user' ? 'YOU' : 'AU'}</div>
-      <div>
-        <div class="message-bubble">${text.replace(/\n/g, '<br>')}</div>
-        <div class="message-time">${time}</div>
-      </div>
-    `;
-    container.appendChild(div);
-    container.scrollTop = container.scrollHeight;
-    return div;
-  }
+  thinking.classList.remove('visible');
+  btn.disabled = false;
+  input.value = '';
+  autoResize(input);
+}
 
-  function addTyping() {
-    const container = document.getElementById('messages');
-    const id = 'typing-' + Date.now();
-    const div = document.createElement('div');
-    div.id = id;
-    div.className = 'message assistant';
-    div.innerHTML = `
-      <div class="message-avatar">AU</div>
-      <div class="typing">
-        <div class="typing-dot"></div>
-        <div class="typing-dot"></div>
-        <div class="typing-dot"></div>
-      </div>
-    `;
-    container.appendChild(div);
-    container.scrollTop = container.scrollHeight;
-    return id;
-  }
+async function approveChange(i) {
+  const change = pendingChanges[i];
+  if (!change) return;
 
-  function removeTyping(id) {
-    const el = document.getElementById(id);
-    if (el) el.remove();
-  }
+  const ab = document.getElementById('ab-' + i);
+  const cs = document.getElementById('cs-' + i);
+  if (ab) ab.disabled = true;
+  if (cs) { cs.textContent = 'Processing...'; cs.className = 'change-status'; }
 
-  function askSuggestion(btn) {
-    document.getElementById('chat-input').value = btn.textContent;
-    sendMessage();
-  }
+  try {
+    // Try to get file from Supabase, apply change, save back, offer download
+    const { data: fileRow } = await db.from('app_files').select('content').eq('filename', change.file).single();
 
-  function handleKey(e) {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      sendMessage();
+    if (fileRow && fileRow.content && change.old_code && change.new_code) {
+      const updated = fileRow.content.replace(change.old_code, change.new_code);
+      if (updated !== fileRow.content) {
+        await db.from('app_files').upsert({
+          filename: change.file,
+          content: updated,
+          updated_at: new Date().toISOString()
+        });
+        triggerDownload(change.file, updated, i);
+        if (cs) { cs.textContent = 'Approved — downloaded'; cs.className = 'change-status approved'; }
+      } else {
+        // Could not find old_code in file — download patch instead
+        downloadPatch(change, i);
+        if (cs) { cs.textContent = 'Patch downloaded'; cs.className = 'change-status approved'; }
+      }
+    } else {
+      // No file content in Supabase — download patch
+      downloadPatch(change, i);
+      if (cs) { cs.textContent = 'Patch downloaded — apply in ACode'; cs.className = 'change-status approved'; }
     }
+  } catch(e) {
+    downloadPatch(change, i);
+    if (cs) { cs.textContent = 'Patch downloaded'; cs.className = 'change-status approved'; }
   }
 
-  function autoResize(el) {
-    el.style.height = 'auto';
-    el.style.height = Math.min(el.scrollHeight, 120) + 'px';
-  }
+  const card = document.getElementById('cc-' + i);
+  if (card) card.style.borderColor = 'rgba(58,107,74,0.5)';
+}
 
-  function openNav() { document.getElementById('nav-overlay').classList.add('open'); }
-  function closeNav() { document.getElementById('nav-overlay').classList.remove('open'); }
+function rejectChange(i) {
+  const cs = document.getElementById('cs-' + i);
+  const ab = document.getElementById('ab-' + i);
+  const card = document.getElementById('cc-' + i);
+  if (cs) { cs.textContent = 'Rejected'; cs.className = 'change-status rejected'; }
+  if (ab) ab.disabled = true;
+  if (card) card.style.opacity = '0.4';
+}
 
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/aurum-app/sw.js');
-  }
+function triggerDownload(filename, content, i) {
+  const blob = new Blob([content], { type: 'text/html' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.className = 'download-link';
+  a.textContent = '\u2193 ' + filename;
+  const actions = document.querySelector('#cc-' + i + ' .change-actions');
+  if (actions) actions.appendChild(a);
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+}
 
-  renderFAQ(false);
-  loadContext();
+function downloadPatch(change, i) {
+  const content = `AURUM CODE ENGINE PATCH
+========================
+File: ${change.file}
+Type: ${change.type}
+Description: ${change.description}
+
+FIND THIS CODE:
+${change.old_code}
+
+REPLACE WITH:
+${change.new_code}`;
+
+  const blob = new Blob([content], { type: 'text/plain' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'patch-' + change.file + '.txt';
+  a.className = 'download-link';
+  a.textContent = '\u2193 patch-' + change.file;
+  const actions = document.querySelector('#cc-' + i + ' .change-actions');
+  if (actions) actions.appendChild(a);
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+}
+
+// ─────────────────────────────────────────────
+// UTILITIES
+// ─────────────────────────────────────────────
+function escHtml(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function autoResize(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+}
+
+function openNav() { document.getElementById('nav-overlay').classList.add('open'); }
+function closeNav() { document.getElementById('nav-overlay').classList.remove('open'); }
+
+// ─────────────────────────────────────────────
+// INIT
+// ─────────────────────────────────────────────
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/aurum-app/sw.js').catch(() => {});
+}
+
+renderFAQ(false);
+loadContext();
 </script>
 
 </body>
