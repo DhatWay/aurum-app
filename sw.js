@@ -14,6 +14,7 @@ const ASSETS = [
    '/aurum-app/report.html',
 '/aurum-app/trading.html',
 '/aurum-app/brokerage.html',
+'/aurum-app/ipo.html',
   '/aurum-app/manifest.json',
   '/aurum-app/icon-192.png',
   '/aurum-app/icon-512.png'
