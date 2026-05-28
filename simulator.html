@@ -4,448 +4,701 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>AURUM — Simulator</title>
+<link rel="manifest" href="/aurum-app/manifest.json">
+<meta name="theme-color" content="#C9A84C">
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;600&family=DM+Sans:wght@300;400;500&family=IBM+Plex+Mono:wght@300;400&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
-  :root {
-    --black: #080808;
-    --gold: #C9A84C;
-    --gold-light: #E8C97A;
-    --white: #F0EDE6;
-    --muted: #6B6560;
-    --danger: #8B3A3A;
-    --positive: #3A6B4A;
-    --rule: rgba(201,168,76,0.2);
-  }
+:root {
+  --black: #080808;
+  --gold: #C9A84C;
+  --white: #F0EDE6;
+  --muted: #6B6560;
+  --danger: #8B3A3A;
+  --positive: #3A6B4A;
+  --rule: rgba(201,168,76,0.2);
+}
 
-  * { margin: 0; padding: 0; box-sizing: border-box; }
+* { margin: 0; padding: 0; box-sizing: border-box; }
 
-  body {
-    background: var(--black);
-    color: var(--white);
-    font-family: 'DM Sans', sans-serif;
-    font-weight: 300;
-    min-height: 100vh;
-  }
+body {
+  background: var(--black);
+  color: var(--white);
+  font-family: 'DM Sans', sans-serif;
+  font-weight: 400;
+  min-height: 100vh;
+}
 
-  body::before {
-    content: '';
-    position: fixed;
-    inset: 0;
-    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
-    pointer-events: none;
-    z-index: 999;
-    opacity: 0.4;
-  }
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 999;
+  opacity: 0.4;
+}
 
-  header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 2rem 2.5rem;
-    border-bottom: 1px solid var(--rule);
-  }
+header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.5rem 2.5rem;
+  border-bottom: 1px solid var(--rule);
+}
 
-  .logo {
-    font-family: 'Cormorant Garamond', serif;
-    font-size: 1.8rem;
-    font-weight: 600;
-    letter-spacing: 0.3em;
-    color: var(--gold);
-  }
+.logo {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 1.8rem;
+  font-weight: 600;
+  letter-spacing: 0.3em;
+  color: var(--gold);
+  line-height: 1;
+}
 
-  .logo span {
-    color: var(--white);
-    opacity: 0.3;
-    font-weight: 300;
-    font-size: 0.7rem;
-    letter-spacing: 0.2em;
-    display: block;
-    margin-top: -4px;
-  }
+.logo span {
+  display: block;
+  font-size: 0.6rem;
+  letter-spacing: 0.2em;
+  color: var(--white);
+  opacity: 0.3;
+  margin-top: 2px;
+}
 
-  .hamburger {
-    background: transparent;
-    border: 1px solid var(--rule);
-    color: var(--gold);
-    font-size: 1.2rem;
-    padding: 0.4rem 0.8rem;
-    cursor: pointer;
-    z-index: 1001;
-    position: relative;
-  }
+.hamburger {
+  background: transparent;
+  border: 1px solid var(--rule);
+  color: var(--gold);
+  font-size: 1.1rem;
+  padding: 0.4rem 0.8rem;
+  cursor: pointer;
+  z-index: 1001;
+}
 
 .nav-overlay {
-    position: fixed;
-    inset: 0;
-    background: rgba(8,8,8,0.97);
-    z-index: 1000;
-    display: none;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    gap: 1.8rem;
-    overflow-y: auto;
-    padding: 4rem 2rem;
-  }
+  position: fixed;
+  inset: 0;
+  background: rgba(8,8,8,0.97);
+  z-index: 1000;
+  display: none;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 1.5rem;
+  overflow-y: auto;
+  padding: 4rem 2rem;
+}
 
-  .nav-overlay.open { display: flex; }
+.nav-overlay.open { display: flex; }
 
 .nav-overlay a {
-    font-family: 'Cormorant Garamond', serif;
-    font-size: 2.5rem;
-    font-weight: 300;
-    color: var(--muted);
-    text-decoration: none;
-    letter-spacing: 0.2em;
-    transition: color 0.3s;
-  }
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 2rem;
+  font-weight: 300;
+  color: var(--muted);
+  text-decoration: none;
+  letter-spacing: 0.2em;
+  transition: color 0.3s;
+}
 
-  .nav-overlay a:hover { color: var(--gold); }
-  .nav-overlay a.active { color: var(--gold); }
+.nav-overlay a:hover, .nav-overlay a.active { color: var(--gold); }
 
 .nav-close {
-    position: fixed;
-    top: 2rem;
-    right: 2.5rem;
-    z-index: 1002;
-    background: transparent;
-    border: none;
-    color: var(--muted);
-    font-size: 1.5rem;
-    cursor: pointer;
-  }
+  position: fixed;
+  top: 1.5rem;
+  right: 2rem;
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  font-size: 1.5rem;
+  cursor: pointer;
+  z-index: 1002;
+}
 
-  main {
-    padding: 3rem 2.5rem;
-    max-width: 900px;
-    margin: 0 auto;
-  }
+main { padding: 2.5rem; max-width: 960px; margin: 0 auto; }
 
-  .section-label {
-    font-size: 0.6rem;
-    letter-spacing: 0.3em;
-    color: var(--gold);
-    text-transform: uppercase;
-    margin-bottom: 1.5rem;
-  }
+.page-title {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: clamp(2rem, 6vw, 3.2rem);
+  font-weight: 300;
+  color: var(--white);
+  margin-bottom: 0.3rem;
+}
 
-  .gold-rule {
-    width: 100%;
-    height: 1px;
-    background: var(--rule);
-    margin: 2.5rem 0;
-  }
+.page-title em { color: var(--gold); font-style: normal; }
 
-  /* Portfolio summary */
-  .portfolio-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr 1fr 1fr;
-    gap: 1px;
-    background: var(--rule);
-    border: 1px solid var(--rule);
-    margin-bottom: 2.5rem;
-  }
+.page-sub {
+  font-size: 0.82rem;
+  color: var(--muted);
+  margin-bottom: 2rem;
+  line-height: 1.6;
+  max-width: 560px;
+}
 
-  .portfolio-cell {
-    background: var(--black);
-    padding: 1.5rem;
-  }
+.gold-rule { width: 100%; height: 1px; background: var(--rule); margin: 2rem 0; }
 
-  .cell-label {
-    font-size: 0.6rem;
-    letter-spacing: 0.2em;
-    text-transform: uppercase;
-    color: var(--muted);
-    margin-bottom: 0.5rem;
-  }
+.section-label {
+  font-size: 0.68rem;
+  letter-spacing: 0.3em;
+  color: var(--gold);
+  text-transform: uppercase;
+  margin-bottom: 1.2rem;
+}
 
-  .cell-value {
-    font-family: 'Cormorant Garamond', serif;
-    font-size: 1.8rem;
-    font-weight: 600;
-    color: var(--gold);
-    line-height: 1;
-  }
+/* STRATEGY / INSTRUMENT TABS */
+.mode-tabs {
+  display: flex;
+  gap: 1px;
+  background: var(--rule);
+  border: 1px solid var(--rule);
+  margin-bottom: 1.5rem;
+}
 
-  .cell-value.positive { color: var(--positive); }
-  .cell-value.negative { color: var(--danger); }
+.mode-tab {
+  flex: 1;
+  background: var(--black);
+  border: none;
+  color: var(--muted);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.68rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  padding: 0.8rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
 
-  .cell-sub {
-    font-size: 0.6rem;
-    color: var(--muted);
-    margin-top: 0.3rem;
-    font-family: 'IBM Plex Mono', monospace;
-  }
+.mode-tab.active { color: var(--gold); background: rgba(201,168,76,0.04); }
+.mode-tab:hover:not(.active) { color: var(--white); }
 
-  /* Simulate panel */
-  .simulate-panel {
-    border: 1px solid var(--rule);
-    padding: 2rem;
-    margin-bottom: 2.5rem;
-  }
+/* PORTFOLIO GRID */
+.portfolio-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 1px;
+  background: var(--rule);
+  border: 1px solid var(--rule);
+  margin-bottom: 2rem;
+}
 
-  .simulate-title {
-    font-family: 'Cormorant Garamond', serif;
-    font-size: 1.5rem;
-    font-weight: 300;
-    color: var(--white);
-    margin-bottom: 0.5rem;
-  }
+.portfolio-cell { background: var(--black); padding: 1.2rem 1.5rem; }
+.cell-label { font-size: 0.58rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--muted); margin-bottom: 0.4rem; }
+.cell-value { font-family: 'Cormorant Garamond', serif; font-size: 1.6rem; font-weight: 600; color: var(--gold); line-height: 1; }
+.cell-value.positive { color: var(--positive); }
+.cell-value.negative { color: #c97a7a; }
+.cell-sub { font-size: 0.58rem; color: var(--muted); margin-top: 0.2rem; font-family: 'IBM Plex Mono', monospace; }
 
-  .simulate-sub {
-    font-size: 0.72rem;
-    color: var(--muted);
-    margin-bottom: 2rem;
-    line-height: 1.6;
-  }
+/* ANALYTICS PANEL */
+.analytics-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1px;
+  background: var(--rule);
+  border: 1px solid var(--rule);
+  margin-bottom: 2rem;
+}
 
-  .field-label {
-    font-size: 0.6rem;
-    letter-spacing: 0.2em;
-    color: var(--gold);
-    text-transform: uppercase;
-    margin-bottom: 0.5rem;
-  }
+.analytics-cell { background: var(--black); padding: 1rem 1.2rem; }
+.analytics-label { font-size: 0.55rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--muted); margin-bottom: 0.3rem; }
+.analytics-value { font-family: 'IBM Plex Mono', monospace; font-size: 0.9rem; color: var(--white); }
+.analytics-value.gold { color: var(--gold); }
+.analytics-value.positive { color: var(--positive); }
+.analytics-value.negative { color: #c97a7a; }
 
-  select, input[type="number"], input[type="text"] {
-    width: 100%;
-    background: transparent;
-    border: 1px solid var(--rule);
-    color: var(--white);
-    font-family: 'DM Sans', sans-serif;
-    font-size: 0.8rem;
-    padding: 0.8rem 1rem;
-    margin-bottom: 1.5rem;
-    outline: none;
-    transition: border 0.3s;
-    appearance: none;
-  }
+/* EQUITY CURVE */
+.equity-panel {
+  border: 1px solid var(--rule);
+  padding: 1.5rem;
+  margin-bottom: 2rem;
+}
 
-  select:focus, input:focus { border-color: var(--gold); }
-  select option { background: #111; color: var(--white); }
+.equity-title {
+  font-size: 0.65rem;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  color: var(--gold);
+  margin-bottom: 1rem;
+}
 
-  .inline-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 1rem;
-  }
+.equity-canvas-wrap { position: relative; height: 120px; }
 
-  .btn {
-    background: transparent;
-    border: 1px solid var(--gold);
-    color: var(--gold);
-    font-family: 'DM Sans', sans-serif;
-    font-size: 0.7rem;
-    letter-spacing: 0.2em;
-    text-transform: uppercase;
-    padding: 0.8rem 2rem;
-    cursor: pointer;
-    transition: all 0.3s;
-    width: 100%;
-  }
+canvas#equity-chart {
+  width: 100%;
+  height: 120px;
+  display: block;
+}
 
-  .btn:hover { background: var(--gold); color: var(--black); }
+.equity-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  color: var(--muted);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
 
-  .btn-danger {
-    border-color: var(--danger);
-    color: var(--danger);
-    margin-top: 0.5rem;
-  }
+/* CLAUDE SUGGESTION */
+.suggestion-panel {
+  border: 1px solid rgba(201,168,76,0.3);
+  background: rgba(201,168,76,0.02);
+  padding: 1.5rem;
+  margin-bottom: 2rem;
+  display: none;
+}
 
-  .btn-danger:hover { background: var(--danger); color: var(--white); }
+.suggestion-panel.visible { display: block; }
 
-  .success-msg {
-    font-size: 0.7rem;
-    color: var(--positive);
-    letter-spacing: 0.1em;
-    text-align: center;
-    padding: 0.8rem;
-    display: none;
-    border: 1px solid rgba(58,107,74,0.3);
-    margin-top: 1rem;
-  }
+.suggestion-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
 
-  .success-msg.visible { display: block; }
+.suggestion-label {
+  font-size: 0.62rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--gold);
+}
 
-  /* Trades table */
-  .trades-table {
-    border: 1px solid var(--rule);
-  }
+.suggestion-badge {
+  font-size: 0.55rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  border: 1px solid var(--rule);
+  color: var(--muted);
+  padding: 0.15rem 0.5rem;
+  font-family: 'IBM Plex Mono', monospace;
+}
 
-  .trades-header {
-    display: grid;
-    grid-template-columns: 1fr 1fr 1fr 1fr 1fr auto;
-    padding: 1rem 1.5rem;
-    border-bottom: 1px solid var(--rule);
-    font-size: 0.6rem;
-    letter-spacing: 0.2em;
-    color: var(--gold);
-    text-transform: uppercase;
-  }
+.suggestion-text {
+  font-size: 0.82rem;
+  color: var(--white);
+  line-height: 1.7;
+  margin-bottom: 1rem;
+}
 
-  .trade-row {
-    display: grid;
-    grid-template-columns: 1fr 1fr 1fr 1fr 1fr auto;
-    padding: 1rem 1.5rem;
-    border-bottom: 1px solid var(--rule);
-    align-items: center;
-    transition: background 0.3s;
-  }
+.suggestion-fields {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1px;
+  background: var(--rule);
+  border: 1px solid var(--rule);
+  margin-bottom: 1rem;
+}
 
-  .trade-row:last-child { border-bottom: none; }
-  .trade-row:hover { background: rgba(201,168,76,0.03); }
+.sugg-field { background: var(--black); padding: 0.7rem 0.9rem; }
+.sugg-field-label { font-size: 0.52rem; letter-spacing: 0.15em; text-transform: uppercase; color: var(--muted); margin-bottom: 0.2rem; }
+.sugg-field-value { font-family: 'IBM Plex Mono', monospace; font-size: 0.8rem; color: var(--gold); }
+.sugg-field-value.danger { color: #c97a7a; }
+.sugg-field-value.positive { color: var(--positive); }
 
-  .trade-ticker {
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 0.85rem;
-    color: var(--white);
-  }
+.apply-btn {
+  background: var(--gold);
+  border: none;
+  color: var(--black);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.65rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  padding: 0.6rem 1.5rem;
+  cursor: pointer;
+  transition: background 0.2s;
+  font-weight: 500;
+}
 
-  .trade-value {
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 0.75rem;
-    color: var(--muted);
-  }
+.apply-btn:hover { background: #E8C97A; }
 
-  .trade-gl {
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 0.75rem;
-  }
+/* TRADE ENTRY PANEL */
+.simulate-panel {
+  border: 1px solid var(--rule);
+  padding: 1.8rem;
+  margin-bottom: 2rem;
+}
 
-  .trade-gl.positive { color: var(--positive); }
-  .trade-gl.negative { color: var(--danger); }
+.simulate-title {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 1.4rem;
+  font-weight: 300;
+  color: var(--white);
+  margin-bottom: 0.3rem;
+}
 
-  .close-btn {
-    background: transparent;
-    border: 1px solid var(--rule);
-    color: var(--muted);
-    font-size: 0.6rem;
-    letter-spacing: 0.1em;
-    padding: 0.3rem 0.6rem;
-    cursor: pointer;
-    text-transform: uppercase;
-    transition: all 0.3s;
-  }
+.simulate-sub {
+  font-size: 0.75rem;
+  color: var(--muted);
+  margin-bottom: 1.5rem;
+  line-height: 1.6;
+}
 
-  .close-btn:hover {
-    border-color: var(--danger);
-    color: var(--danger);
-  }
+.field-label {
+  font-size: 0.6rem;
+  letter-spacing: 0.18em;
+  color: var(--gold);
+  text-transform: uppercase;
+  margin-bottom: 0.4rem;
+}
 
-  .empty-state {
-    padding: 2rem;
-    text-align: center;
-    font-size: 0.7rem;
-    letter-spacing: 0.15em;
-    color: var(--muted);
-    text-transform: uppercase;
-  }
+input[type="number"], input[type="text"], select, textarea {
+  width: 100%;
+  background: transparent;
+  border: 1px solid var(--rule);
+  color: var(--white);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.85rem;
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+  outline: none;
+  transition: border 0.3s;
+  appearance: none;
+  -webkit-appearance: none;
+}
 
-  /* Reset panel */
-  .reset-panel {
-    border: 1px solid var(--rule);
-    padding: 1.5rem;
-    margin-top: 2.5rem;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-  }
+input:focus, select:focus, textarea:focus { border-color: var(--gold); }
+input::placeholder, textarea::placeholder { color: var(--muted); }
+select option { background: #111; color: var(--white); }
+textarea { resize: vertical; min-height: 60px; }
 
-  .reset-text {
-    font-size: 0.72rem;
-    color: var(--muted);
-  }
+.inline-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+.three-grid  { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; }
 
-  .reset-text strong {
-    display: block;
-    color: var(--white);
-    font-size: 0.8rem;
-    margin-bottom: 0.3rem;
-  }
+/* OPTIONS FIELDS */
+.options-fields { display: none; }
+.options-fields.visible { display: block; }
+.stock-fields { display: block; }
+.stock-fields.hidden { display: none; }
 
-  .btn-reset {
-    background: transparent;
-    border: 1px solid var(--danger);
-    color: var(--danger);
-    font-family: 'DM Sans', sans-serif;
-    font-size: 0.65rem;
-    letter-spacing: 0.15em;
-    text-transform: uppercase;
-    padding: 0.6rem 1.2rem;
-    cursor: pointer;
-    transition: all 0.3s;
-    white-space: nowrap;
-  }
+/* DIRECTION TOGGLE */
+.direction-tabs {
+  display: flex;
+  gap: 1px;
+  background: var(--rule);
+  border: 1px solid var(--rule);
+  margin-bottom: 1rem;
+}
 
-  .btn-reset:hover { background: var(--danger); color: var(--white); }
+.direction-tab {
+  flex: 1;
+  background: var(--black);
+  border: none;
+  color: var(--muted);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.65rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  padding: 0.6rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
 
-  footer {
-    padding: 2rem 2.5rem;
-    border-top: 1px solid var(--rule);
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-top: 4rem;
-  }
+.direction-tab.long.active  { color: var(--positive); background: rgba(58,107,74,0.06); }
+.direction-tab.short.active { color: #c97a7a; background: rgba(139,58,58,0.06); }
+.direction-tab.call.active  { color: var(--positive); background: rgba(58,107,74,0.06); }
+.direction-tab.put.active   { color: #c97a7a; background: rgba(139,58,58,0.06); }
 
-  footer p {
-    font-size: 0.6rem;
-    letter-spacing: 0.15em;
-    color: var(--muted);
-    text-transform: uppercase;
-  }
+/* SLIPPAGE / COMMISSION PANEL */
+.sim-settings {
+  border: 1px solid var(--rule);
+  padding: 1.2rem;
+  margin-bottom: 1.5rem;
+  background: rgba(201,168,76,0.01);
+}
 
-  .footer-au {
-    font-family: 'Cormorant Garamond', serif;
-    font-size: 1rem;
-    color: var(--rule);
-    letter-spacing: 0.3em;
-  }
+.sim-settings-title {
+  font-size: 0.6rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 0.8rem;
+}
 
-  @media (max-width: 600px) {
-    main { padding: 2rem 1.5rem; }
-    header { padding: 1.5rem; flex-wrap: wrap; gap: 1rem; }
-    .portfolio-grid { grid-template-columns: 1fr 1fr; }
-    .inline-grid { grid-template-columns: 1fr; }
-    .trades-header { grid-template-columns: 1fr 1fr 1fr auto; }
-    .trade-row { grid-template-columns: 1fr 1fr 1fr auto; }
-    .trade-value:nth-child(3) { display: none; }
-  }
+.sim-settings-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 0.8rem;
+}
+
+.sim-setting { }
+.sim-setting label { font-size: 0.58rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); display: block; margin-bottom: 0.3rem; }
+.sim-setting input { margin-bottom: 0; }
+
+.btn {
+  background: transparent;
+  border: 1px solid var(--gold);
+  color: var(--gold);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.68rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  padding: 0.8rem 2rem;
+  cursor: pointer;
+  transition: all 0.3s;
+  width: 100%;
+  font-weight: 500;
+}
+
+.btn:hover { background: var(--gold); color: var(--black); }
+.btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+.btn-claude {
+  background: transparent;
+  border: 1px solid rgba(201,168,76,0.4);
+  color: var(--muted);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.65rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  padding: 0.6rem 1.2rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-bottom: 1.2rem;
+  width: 100%;
+}
+
+.btn-claude:hover { border-color: var(--gold); color: var(--gold); }
+.btn-claude:disabled { opacity: 0.3; cursor: not-allowed; }
+
+.claude-thinking {
+  display: none;
+  font-size: 0.65rem;
+  color: var(--gold);
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  text-align: center;
+  padding: 0.5rem;
+  animation: pulse 1.5s infinite;
+}
+
+.claude-thinking.visible { display: block; }
+
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+.success-msg {
+  font-size: 0.65rem;
+  color: var(--positive);
+  letter-spacing: 0.1em;
+  text-align: center;
+  padding: 0.7rem;
+  display: none;
+  border: 1px solid rgba(58,107,74,0.3);
+  margin-top: 0.8rem;
+}
+
+.success-msg.visible { display: block; }
+
+/* POSITIONS TABLE */
+.trades-table { border: 1px solid var(--rule); }
+
+.trades-header {
+  display: grid;
+  grid-template-columns: auto 1fr auto auto auto auto auto auto;
+  padding: 0.8rem 1.2rem;
+  border-bottom: 1px solid var(--rule);
+  font-size: 0.55rem;
+  letter-spacing: 0.18em;
+  color: var(--gold);
+  text-transform: uppercase;
+  background: rgba(201,168,76,0.02);
+  gap: 0.8rem;
+  align-items: center;
+}
+
+.trade-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto auto auto auto auto auto;
+  padding: 0.9rem 1.2rem;
+  border-bottom: 1px solid var(--rule);
+  align-items: center;
+  transition: background 0.2s;
+  gap: 0.8rem;
+}
+
+.trade-row:last-child { border-bottom: none; }
+.trade-row:hover { background: rgba(201,168,76,0.02); }
+
+.trade-ticker { font-family: 'IBM Plex Mono', monospace; font-size: 0.85rem; color: var(--white); min-width: 60px; }
+.trade-note { font-size: 0.68rem; color: var(--muted); line-height: 1.4; }
+
+.trade-dir {
+  font-size: 0.55rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 0.18rem 0.4rem;
+  border: 1px solid;
+  white-space: nowrap;
+}
+
+.trade-dir.long, .trade-dir.call { border-color: rgba(58,107,74,0.4); color: var(--positive); }
+.trade-dir.short, .trade-dir.put { border-color: rgba(139,58,58,0.4); color: #c97a7a; }
+
+.trade-val { font-family: 'IBM Plex Mono', monospace; font-size: 0.75rem; color: var(--muted); white-space: nowrap; }
+.trade-gl { font-family: 'IBM Plex Mono', monospace; font-size: 0.75rem; white-space: nowrap; }
+.trade-gl.positive { color: var(--positive); }
+.trade-gl.negative { color: #c97a7a; }
+
+/* STOP LOSS INDICATOR */
+.stop-badge {
+  font-size: 0.52rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #c97a7a;
+  border: 1px solid rgba(139,58,58,0.3);
+  padding: 0.1rem 0.35rem;
+  font-family: 'IBM Plex Mono', monospace;
+  white-space: nowrap;
+}
+
+.stop-badge.triggered { background: rgba(139,58,58,0.1); }
+
+.close-btn {
+  background: transparent;
+  border: 1px solid var(--rule);
+  color: var(--muted);
+  font-size: 0.55rem;
+  letter-spacing: 0.08em;
+  padding: 0.25rem 0.5rem;
+  cursor: pointer;
+  text-transform: uppercase;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.close-btn:hover { border-color: #c97a7a; color: #c97a7a; }
+
+.empty-state {
+  padding: 2.5rem;
+  text-align: center;
+  font-size: 0.72rem;
+  letter-spacing: 0.12em;
+  color: var(--muted);
+  text-transform: uppercase;
+}
+
+/* TRADE HISTORY */
+.history-table { border: 1px solid var(--rule); margin-top: 0.5rem; }
+
+.history-row {
+  display: grid;
+  grid-template-columns: auto auto auto auto auto 1fr;
+  padding: 0.7rem 1.2rem;
+  border-bottom: 1px solid var(--rule);
+  align-items: center;
+  gap: 1rem;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.72rem;
+}
+
+.history-row:last-child { border-bottom: none; }
+.history-ticker { color: var(--white); }
+.history-dir { color: var(--muted); }
+.history-gl { }
+.history-gl.positive { color: var(--positive); }
+.history-gl.negative { color: #c97a7a; }
+.history-note { color: var(--muted); font-size: 0.65rem; font-family: 'DM Sans', sans-serif; }
+
+/* RESET PANEL */
+.reset-panel {
+  border: 1px solid var(--rule);
+  padding: 1.2rem 1.5rem;
+  margin-top: 2rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+}
+
+.reset-text { font-size: 0.72rem; color: var(--muted); }
+.reset-text strong { display: block; color: var(--white); font-size: 0.78rem; margin-bottom: 0.2rem; }
+
+.btn-reset {
+  background: transparent;
+  border: 1px solid rgba(139,58,58,0.5);
+  color: #c97a7a;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.62rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.btn-reset:hover { background: rgba(139,58,58,0.1); }
+
+footer {
+  padding: 1.2rem 2.5rem;
+  border-top: 1px solid var(--rule);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 3rem;
+}
+
+footer p { font-size: 0.6rem; letter-spacing: 0.12em; color: var(--muted); text-transform: uppercase; }
+.footer-au { font-family: 'Cormorant Garamond', serif; font-size: 1rem; color: var(--rule); letter-spacing: 0.3em; }
+
+@media (max-width: 640px) {
+  main { padding: 1.5rem; }
+  header { padding: 1.2rem 1.5rem; }
+  .portfolio-grid { grid-template-columns: 1fr 1fr; }
+  .analytics-grid { grid-template-columns: 1fr 1fr; }
+  .inline-grid, .three-grid { grid-template-columns: 1fr; }
+  .sim-settings-row { grid-template-columns: 1fr; }
+  .trades-header, .trade-row { grid-template-columns: auto 1fr auto auto auto; }
+  .suggestion-fields { grid-template-columns: 1fr 1fr; }
+}
 </style>
 </head>
 <body>
 
 <header>
-  <div class="logo">
-    AU
-    <span>PRIVATE INTELLIGENCE</span>
-  </div>
-  <button class="hamburger" onclick="openNav()">☰</button>
+  <div class="logo">AU<span>PRIVATE INTELLIGENCE</span></div>
+  <button class="hamburger" onclick="openNav()">&#9776;</button>
 </header>
 
 <div class="nav-overlay" id="nav-overlay">
-  <button class="nav-close" onclick="closeNav()">✕</button>
- <a href="history.html">History</a>
+  <button class="nav-close" onclick="closeNav()">&#10005;</button>
+  <a href="index.html">Brief</a>
+  <a href="trading.html">Trading</a>
+  <a href="brokerage.html">Brokerage</a>
+  <a href="simulator.html" class="active">Simulator</a>
   <a href="sectors.html">Sectors</a>
   <a href="admin.html">Admin</a>
- <a href="tutorial.html">Tutorial</a>
- <a href="news.html">News</a>
-<a href="help.html">Help</a>
-<a href="assistant.html">Assistant</a>
-<a href="options.html">Options</a>
- <a href="report.html">Report</a>
-  <a href="index.html">Brief</a>
-  <a href="simulator.html" class="active">Simulator</a>
-  <a href="ipo.html">Ipo</a>
- <a href="trading.html">Trading</a>
-<a href="brokerage.html">Brokerage</a>
+  <a href="news.html">News</a>
+  <a href="history.html">History</a>
+  <a href="options.html">Options</a>
+  <a href="report.html">Report</a>
+  <a href="ipo.html">IPO</a>
+  <a href="tutorial.html">Tutorial</a>
+  <a href="help.html">Help</a>
+  <a href="assistant.html">Assistant</a>
 </div>
 
 <main>
 
-  <div class="section-label">Paper Portfolio</div>
+  <div class="page-title">AURUM <em>Simulator.</em></div>
+  <div class="page-sub">Paper trade stocks and options — swing and intraday — with slippage, commission, and stop-loss simulation. Validate strategies before going live.</div>
 
+  <!-- STRATEGY / INSTRUMENT TABS -->
+  <div class="section-label">Strategy</div>
+  <div class="mode-tabs" style="margin-bottom:0.8rem;">
+    <button class="mode-tab active" id="strat-swing" onclick="setStrategy('swing')">Swing Trade</button>
+    <button class="mode-tab" id="strat-day" onclick="setStrategy('day')">Day Trade</button>
+  </div>
+
+  <div class="section-label">Instrument</div>
+  <div class="mode-tabs">
+    <button class="mode-tab active" id="inst-stock" onclick="setInstrument('stock')">Stocks</button>
+    <button class="mode-tab" id="inst-options" onclick="setInstrument('options')">Options</button>
+  </div>
+
+  <!-- PORTFOLIO SUMMARY -->
+  <div class="section-label">Paper Portfolio</div>
   <div class="portfolio-grid">
     <div class="portfolio-cell">
       <div class="cell-label">Starting Balance</div>
@@ -455,60 +708,219 @@
     <div class="portfolio-cell">
       <div class="cell-label">Current Value</div>
       <div class="cell-value" id="current-balance">—</div>
-      <div class="cell-sub">Open positions</div>
+      <div class="cell-sub">Cash + positions</div>
     </div>
     <div class="portfolio-cell">
-      <div class="cell-label">Total Return</div>
+      <div class="cell-label">Total P&amp;L</div>
       <div class="cell-value" id="total-return">—</div>
-      <div class="cell-sub">Gain / Loss</div>
+      <div class="cell-sub">Realized + unrealized</div>
     </div>
     <div class="portfolio-cell">
       <div class="cell-label">Return %</div>
       <div class="cell-value" id="return-pct">—</div>
       <div class="cell-sub">All time</div>
     </div>
+    <div class="portfolio-cell">
+      <div class="cell-label">Open Positions</div>
+      <div class="cell-value gold" id="open-count">—</div>
+      <div class="cell-sub">Active trades</div>
+    </div>
+  </div>
+
+  <!-- PERFORMANCE ANALYTICS -->
+  <div class="section-label">Performance Analytics</div>
+  <div class="analytics-grid">
+    <div class="analytics-cell">
+      <div class="analytics-label">Win Rate</div>
+      <div class="analytics-value" id="win-rate">—</div>
+    </div>
+    <div class="analytics-cell">
+      <div class="analytics-label">Sharpe Ratio</div>
+      <div class="analytics-value gold" id="sharpe">—</div>
+    </div>
+    <div class="analytics-cell">
+      <div class="analytics-label">Max Drawdown</div>
+      <div class="analytics-value" id="max-dd">—</div>
+    </div>
+    <div class="analytics-cell">
+      <div class="analytics-label">Avg Return/Trade</div>
+      <div class="analytics-value" id="avg-return">—</div>
+    </div>
+    <div class="analytics-cell">
+      <div class="analytics-label">Total Trades</div>
+      <div class="analytics-value" id="total-trades">—</div>
+    </div>
+    <div class="analytics-cell">
+      <div class="analytics-label">Profit Factor</div>
+      <div class="analytics-value gold" id="profit-factor">—</div>
+    </div>
+    <div class="analytics-cell">
+      <div class="analytics-label">Total Commission</div>
+      <div class="analytics-value" id="total-commission">—</div>
+    </div>
+    <div class="analytics-cell">
+      <div class="analytics-label">Total Slippage</div>
+      <div class="analytics-value" id="total-slippage">—</div>
+    </div>
+  </div>
+
+  <!-- EQUITY CURVE -->
+  <div class="equity-panel">
+    <div class="equity-title">Equity Curve</div>
+    <div class="equity-canvas-wrap">
+      <canvas id="equity-chart"></canvas>
+      <div class="equity-empty" id="equity-empty">No closed trades yet — equity curve populates as you close positions.</div>
+    </div>
   </div>
 
   <div class="gold-rule"></div>
 
-  <div class="section-label">Simulate a Trade</div>
+  <!-- CLAUDE SUGGESTION -->
+  <button class="btn-claude" id="claude-btn" onclick="getClaudeSuggestion()">Get Claude Trade Suggestion</button>
+  <div class="claude-thinking" id="claude-thinking">Claude is analyzing your watchlist and algorithms...</div>
 
+  <div class="suggestion-panel" id="suggestion-panel">
+    <div class="suggestion-header">
+      <div class="suggestion-label">Claude Suggestion</div>
+      <div class="suggestion-badge" id="suggestion-strategy-badge">Swing</div>
+    </div>
+    <div class="suggestion-text" id="suggestion-text">—</div>
+    <div class="suggestion-fields" id="suggestion-fields"></div>
+    <button class="apply-btn" onclick="applySuggestion()">Apply to Trade Form</button>
+  </div>
+
+  <!-- TRADE ENTRY -->
+  <div class="section-label">Open a Position</div>
   <div class="simulate-panel">
-    <div class="simulate-title">Open a Position</div>
-    <div class="simulate-sub">Select a stock from your watchlist, enter an entry price and number of shares. AURUM will track the position and calculate real gain/loss over time.</div>
+    <div class="simulate-title">Position Entry</div>
+    <div class="simulate-sub" id="entry-sub">Enter trade details. Slippage and commission are applied automatically based on your simulation settings.</div>
 
-    <div class="inline-grid">
-      <div>
-        <div class="field-label">Ticker</div>
-        <input type="text" id="trade-ticker" placeholder="e.g. NVDA" autocomplete="off">
+    <!-- Direction -->
+    <div class="field-label">Direction</div>
+    <div class="direction-tabs" id="direction-tabs">
+      <button class="direction-tab long active" id="dir-long"  onclick="setDirection('long')">Long</button>
+      <button class="direction-tab short"       id="dir-short" onclick="setDirection('short')">Short</button>
+    </div>
+
+    <!-- Stock fields -->
+    <div class="stock-fields" id="stock-fields">
+      <div class="inline-grid">
+        <div>
+          <div class="field-label">Ticker</div>
+          <input type="text" id="trade-ticker" placeholder="e.g. NVDA" autocomplete="off">
+        </div>
+        <div>
+          <div class="field-label">Number of Shares</div>
+          <input type="number" id="num-shares" placeholder="e.g. 10" step="1" min="1">
+        </div>
+      </div>
+      <div class="three-grid">
+        <div>
+          <div class="field-label">Entry Price ($)</div>
+          <input type="number" id="entry-price" placeholder="e.g. 135.50" step="0.01">
+        </div>
+        <div>
+          <div class="field-label">Stop Loss ($)</div>
+          <input type="number" id="stop-loss" placeholder="e.g. 128.00" step="0.01">
+        </div>
+        <div>
+          <div class="field-label">Target Price ($)</div>
+          <input type="number" id="target-price" placeholder="e.g. 148.00" step="0.01">
+        </div>
       </div>
       <div>
-        <div class="field-label">Entry Price ($)</div>
-        <input type="number" id="entry-price" placeholder="e.g. 135.50" step="0.01">
+        <div class="field-label">Current / Mark Price ($)</div>
+        <input type="number" id="current-price" placeholder="e.g. 137.00" step="0.01">
       </div>
     </div>
 
-    <div class="field-label">Number of Shares</div>
-    <input type="number" id="num-shares" placeholder="e.g. 10" step="1" min="1">
+    <!-- Options fields -->
+    <div class="options-fields" id="options-fields">
+      <div class="field-label">Contract Type</div>
+      <div class="direction-tabs" id="contract-tabs" style="margin-bottom:1rem;">
+        <button class="direction-tab call active" id="dir-call" onclick="setContractType('call')">Call</button>
+        <button class="direction-tab put"         id="dir-put"  onclick="setContractType('put')">Put</button>
+      </div>
+      <div class="inline-grid">
+        <div>
+          <div class="field-label">Underlying Ticker</div>
+          <input type="text" id="opt-ticker" placeholder="e.g. NVDA">
+        </div>
+        <div>
+          <div class="field-label">Contracts</div>
+          <input type="number" id="opt-contracts" placeholder="e.g. 2" step="1" min="1">
+        </div>
+      </div>
+      <div class="three-grid">
+        <div>
+          <div class="field-label">Strike ($)</div>
+          <input type="number" id="opt-strike" placeholder="e.g. 140" step="0.50">
+        </div>
+        <div>
+          <div class="field-label">Expiration</div>
+          <input type="text" id="opt-expiry" placeholder="e.g. 2026-06-20">
+        </div>
+        <div>
+          <div class="field-label">Premium / Contract ($)</div>
+          <input type="number" id="opt-premium" placeholder="e.g. 8.50" step="0.05">
+        </div>
+      </div>
+      <div class="three-grid">
+        <div>
+          <div class="field-label">Stop Premium ($)</div>
+          <input type="number" id="opt-stop" placeholder="e.g. 4.00" step="0.05">
+        </div>
+        <div>
+          <div class="field-label">Target Premium ($)</div>
+          <input type="number" id="opt-target" placeholder="e.g. 16.00" step="0.05">
+        </div>
+        <div>
+          <div class="field-label">Current Premium ($)</div>
+          <input type="number" id="opt-current" placeholder="e.g. 9.00" step="0.05">
+        </div>
+      </div>
+    </div>
 
-    <div class="field-label">Current Price ($) — Update anytime</div>
-    <input type="number" id="current-price" placeholder="e.g. 142.00" step="0.01">
+    <!-- Trade note -->
+    <div class="field-label">Trade Note (optional)</div>
+    <textarea id="trade-note" placeholder="Strategy rationale, AURUM signal, catalyst..."></textarea>
+
+    <!-- Simulation settings -->
+    <div class="sim-settings">
+      <div class="sim-settings-title">Simulation Settings</div>
+      <div class="sim-settings-row">
+        <div class="sim-setting">
+          <label>Slippage (%)</label>
+          <input type="number" id="slippage-pct" value="0.05" step="0.01" min="0" max="2">
+        </div>
+        <div class="sim-setting">
+          <label>Commission ($)</label>
+          <input type="number" id="commission" value="0.65" step="0.05" min="0">
+        </div>
+        <div class="sim-setting">
+          <label>Starting Balance ($)</label>
+          <input type="number" id="starting-bal-input" value="10000" step="100" min="1000">
+        </div>
+      </div>
+    </div>
 
     <button class="btn" onclick="openTrade()">Open Simulated Position</button>
-    <div class="success-msg" id="trade-success">Position opened successfully.</div>
+    <div class="success-msg" id="trade-success">Position opened. Slippage and commission applied.</div>
   </div>
 
   <div class="gold-rule"></div>
 
+  <!-- OPEN POSITIONS -->
   <div class="section-label">Open Positions</div>
-
   <div class="trades-table">
     <div class="trades-header">
       <span>Ticker</span>
-      <span>Shares</span>
+      <span>Note</span>
+      <span>Dir</span>
       <span>Entry</span>
       <span>Current</span>
-      <span>G/L</span>
+      <span>Stop</span>
+      <span>P&amp;L</span>
       <span></span>
     </div>
     <div id="trades-container">
@@ -516,163 +928,665 @@
     </div>
   </div>
 
+  <div class="gold-rule"></div>
+
+  <!-- TRADE HISTORY -->
+  <div class="section-label">Closed Trades</div>
+  <div class="history-table" id="history-container">
+    <div class="empty-state">No closed trades yet.</div>
+  </div>
+
+  <!-- RESET -->
   <div class="reset-panel">
     <div class="reset-text">
       <strong>Reset Portfolio</strong>
-      Clears all positions and resets balance to $10,000.
+      Clears all positions, history, and resets balance.
     </div>
-    <button class="btn-reset" onclick="resetPortfolio()">Reset</button>
+    <button class="btn-reset" onclick="resetPortfolio()">Reset All</button>
   </div>
 
 </main>
 
 <footer>
-  <p>AURUM © 2026 — Simulation Only. Not Financial Advice.</p>
+  <p>AURUM &copy; 2026 &mdash; Simulation Only. Not Financial Advice.</p>
   <div class="footer-au">AU</div>
 </footer>
 
 <script>
-  const SUPABASE_URL = 'https://zpcbbwynvvyldavxzjng.supabase.co';
-  const SUPABASE_KEY = 'sb_publishable_K80lcfk8LsQNqo5enznRRA_lrzf2U9K';
-  const { createClient } = supabase;
-  const db = createClient(SUPABASE_URL, SUPABASE_KEY);
+const SUPABASE_URL = 'https://zpcbbwynvvyldavxzjng.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_K80lcfk8LsQNqo5enznRRA_lrzf2U9K';
+const { createClient } = supabase;
+const db = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-  async function loadStocks() {
-    const { data } = await db.from('stocks').select('*');
-    if (!data) return;
-    const select = document.getElementById('trade-ticker');
-    select.innerHTML = '<option value="">— Select Stock —</option>' +
-      data.map(s => `<option value="${s.ticker}">${s.ticker} — ${s.company_name || ''}</option>`).join('');
+// ── STATE ──
+let currentStrategy  = 'swing';
+let currentInstrument = 'stock';
+let currentDirection  = 'long';
+let currentContract   = 'call';
+let claudeSuggestion  = null;
+let equityHistory     = [];
+
+// ── TABS ──
+function setStrategy(s) {
+  currentStrategy = s;
+  document.querySelectorAll('[id^="strat-"]').forEach(t => t.classList.remove('active'));
+  document.getElementById('strat-' + s).classList.add('active');
+  document.getElementById('entry-sub').textContent =
+    s === 'day'
+      ? 'Day trade mode — slippage is amplified, commissions per-side. Intraday stop-loss monitoring active.'
+      : 'Swing trade mode — multi-day positions. Stop-loss checked on each price update.';
+}
+
+function setInstrument(inst) {
+  currentInstrument = inst;
+  document.querySelectorAll('[id^="inst-"]').forEach(t => t.classList.remove('active'));
+  document.getElementById('inst-' + inst).classList.add('active');
+
+  const sf = document.getElementById('stock-fields');
+  const of = document.getElementById('options-fields');
+  const dt = document.getElementById('direction-tabs');
+  const ct = document.getElementById('contract-tabs');
+
+  if (inst === 'stock') {
+    sf.classList.remove('hidden');
+    of.classList.remove('visible');
+    dt.style.display = 'flex';
+    ct.style.display = 'none';
+  } else {
+    sf.classList.add('hidden');
+    of.classList.add('visible');
+    dt.style.display = 'none';
+    ct.style.display = 'flex';
   }
+}
 
-  async function loadPortfolio() {
+function setDirection(dir) {
+  currentDirection = dir;
+  document.querySelectorAll('.direction-tab.long, .direction-tab.short').forEach(t => t.classList.remove('active'));
+  document.getElementById('dir-' + dir).classList.add('active');
+}
+
+function setContractType(type) {
+  currentContract = type;
+  document.querySelectorAll('.direction-tab.call, .direction-tab.put').forEach(t => t.classList.remove('active'));
+  document.getElementById('dir-' + type).classList.add('active');
+}
+
+// ── LOAD PORTFOLIO ──
+async function loadPortfolio() {
+  try {
     const { data } = await db.from('paper_portfolio').select('*').single();
-    if (!data) return;
-    document.getElementById('starting-balance').textContent = '$' + Number(data.starting_balance).toLocaleString();
-    document.getElementById('current-balance').textContent = '$' + Number(data.current_balance).toLocaleString();
+    if (!data) { initPortfolio(); return; }
 
-    const ret = Number(data.total_return);
-    const retEl = document.getElementById('total-return');
-    retEl.textContent = (ret >= 0 ? '+$' : '-$') + Math.abs(ret).toLocaleString();
+    const startBal = Number(data.starting_balance) || 10000;
+    document.getElementById('starting-balance').textContent = '$' + startBal.toLocaleString();
+    document.getElementById('starting-bal-input').value = startBal;
+
+    const curBal = Number(data.current_balance) || startBal;
+    document.getElementById('current-balance').textContent = '$' + curBal.toLocaleString();
+
+    const ret    = Number(data.total_return) || 0;
+    const retPct = Number(data.total_return_pct) || 0;
+
+    const retEl  = document.getElementById('total-return');
+    retEl.textContent = (ret >= 0 ? '+$' : '-$') + Math.abs(ret).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     retEl.className = 'cell-value ' + (ret >= 0 ? 'positive' : 'negative');
 
-    const pct = Number(data.total_return_pct);
-    const pctEl = document.getElementById('return-pct');
-    pctEl.textContent = (pct >= 0 ? '+' : '') + pct.toFixed(2) + '%';
-    pctEl.className = 'cell-value ' + (pct >= 0 ? 'positive' : 'negative');
+    const pctEl  = document.getElementById('return-pct');
+    pctEl.textContent = (retPct >= 0 ? '+' : '') + retPct.toFixed(2) + '%';
+    pctEl.className = 'cell-value ' + (retPct >= 0 ? 'positive' : 'negative');
+
+  } catch(e) { initPortfolio(); }
+}
+
+async function initPortfolio() {
+  try {
+    await db.from('paper_portfolio').insert({
+      starting_balance: 10000,
+      current_balance:  10000,
+      total_return:     0,
+      total_return_pct: 0
+    });
+    loadPortfolio();
+  } catch(e) {}
+}
+
+// ── LOAD TRADES ──
+async function loadTrades() {
+  const { data } = await db.from('paper_trades').select('*').eq('status', 'open').order('opened_at', { ascending: false });
+  const container = document.getElementById('trades-container');
+  document.getElementById('open-count').textContent = data?.length || 0;
+
+  if (!data || !data.length) {
+    container.innerHTML = '<div class="empty-state">No open positions. Simulate a trade above.</div>';
+    return;
   }
 
-  async function loadTrades() {
-    const { data } = await db.from('paper_trades').select('*').eq('status', 'open').order('opened_at', { ascending: false });
-    const container = document.getElementById('trades-container');
-    if (!data || !data.length) {
-      container.innerHTML = '<div class="empty-state">No open positions. Simulate a trade above.</div>';
-      return;
-    }
-    container.innerHTML = data.map(t => {
-      const gl = Number(t.gain_loss);
-      const glPct = Number(t.gain_loss_pct);
-      return `
-        <div class="trade-row">
-          <div class="trade-ticker">${t.ticker}</div>
-          <div class="trade-value">${Number(t.shares).toFixed(0)}</div>
-          <div class="trade-value">$${Number(t.entry_price).toFixed(2)}</div>
-          <div class="trade-value">$${Number(t.current_price).toFixed(2)}</div>
-          <div class="trade-gl ${gl >= 0 ? 'positive' : 'negative'}">${gl >= 0 ? '+' : ''}$${Math.abs(gl).toFixed(2)} (${glPct >= 0 ? '+' : ''}${glPct.toFixed(2)}%)</div>
-          <button class="close-btn" onclick="closeTrade('${t.id}', ${t.position_value})">Close</button>
-        </div>
-      `;
-    }).join('');
+  // Check stop-loss triggers
+  container.innerHTML = data.map(t => {
+    const gl    = Number(t.gain_loss);
+    const glPct = Number(t.gain_loss_pct);
+    const stopTriggered = t.stop_loss && (
+      (t.direction === 'long'  && Number(t.current_price) <= Number(t.stop_loss)) ||
+      (t.direction === 'short' && Number(t.current_price) >= Number(t.stop_loss)) ||
+      (t.direction === 'call'  && Number(t.current_price) <= Number(t.stop_loss)) ||
+      (t.direction === 'put'   && Number(t.current_price) <= Number(t.stop_loss))
+    );
+
+    const dirClass = t.direction || 'long';
+    const isOptions = t.instrument === 'options';
+    const entryLabel  = isOptions ? '$' + Number(t.entry_price).toFixed(2) + '/contract' : '$' + Number(t.entry_price).toFixed(2);
+    const currentLabel = isOptions ? '$' + Number(t.current_price).toFixed(2) + '/contract' : '$' + Number(t.current_price).toFixed(2);
+    const stopLabel    = t.stop_loss ? '$' + Number(t.stop_loss).toFixed(2) : '—';
+
+    return `
+      <div class="trade-row" id="row-${t.id}" style="${stopTriggered ? 'background:rgba(139,58,58,0.04);' : ''}">
+        <div class="trade-ticker">${t.ticker}</div>
+        <div class="trade-note">${t.note || '—'}</div>
+        <div><span class="trade-dir ${dirClass}">${(t.direction || 'long').toUpperCase()}</span></div>
+        <div class="trade-val">${entryLabel}</div>
+        <div class="trade-val">${currentLabel}</div>
+        <div>${t.stop_loss ? '<span class="stop-badge' + (stopTriggered ? ' triggered' : '') + '">' + stopLabel + (stopTriggered ? ' !' : '') + '</span>' : '<span style="color:var(--muted);font-size:0.65rem">—</span>'}</div>
+        <div class="trade-gl ${gl >= 0 ? 'positive' : 'negative'}">${gl >= 0 ? '+' : ''}$${Math.abs(gl).toFixed(2)} (${glPct >= 0 ? '+' : ''}${glPct.toFixed(2)}%)</div>
+        <button class="close-btn" onclick="closeTrade('${t.id}')">Close</button>
+      </div>
+    `;
+  }).join('');
+}
+
+// ── LOAD HISTORY ──
+async function loadHistory() {
+  const { data } = await db.from('paper_trades').select('*').eq('status', 'closed').order('closed_at', { ascending: false }).limit(20);
+  const container = document.getElementById('history-container');
+
+  if (!data || !data.length) {
+    container.innerHTML = '<div class="empty-state">No closed trades yet.</div>';
+    computeAnalytics([]);
+    return;
   }
 
-  async function openTrade() {
-    const ticker = document.getElementById('trade-ticker').value;
-    const entryPrice = parseFloat(document.getElementById('entry-price').value);
-    const shares = parseFloat(document.getElementById('num-shares').value);
-    const currentPrice = parseFloat(document.getElementById('current-price').value) || entryPrice;
+  container.innerHTML = data.map(t => {
+    const gl    = Number(t.gain_loss);
+    const glPct = Number(t.gain_loss_pct);
+    const date  = new Date(t.closed_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    return `
+      <div class="history-row">
+        <div class="history-ticker">${t.ticker}</div>
+        <div class="history-dir">${(t.direction || 'LONG').toUpperCase()}</div>
+        <div class="history-gl ${gl >= 0 ? 'positive' : 'negative'}">${gl >= 0 ? '+' : ''}$${Math.abs(gl).toFixed(2)}</div>
+        <div class="history-gl ${gl >= 0 ? 'positive' : 'negative'}">${glPct >= 0 ? '+' : ''}${glPct.toFixed(2)}%</div>
+        <div style="color:var(--muted);font-size:0.65rem;font-family:'IBM Plex Mono',monospace;">${date}</div>
+        <div class="history-note">${t.note || '—'}</div>
+      </div>
+    `;
+  }).join('');
 
-    if (!ticker || !entryPrice || !shares) return;
+  computeAnalytics(data);
+  drawEquityCurve(data);
+}
 
-    const positionValue = shares * currentPrice;
-    const gainLoss = (currentPrice - entryPrice) * shares;
-    const gainLossPct = ((currentPrice - entryPrice) / entryPrice) * 100;
+// ── ANALYTICS ──
+function computeAnalytics(trades) {
+  if (!trades || !trades.length) {
+    ['win-rate','sharpe','max-dd','avg-return','total-trades','profit-factor','total-commission','total-slippage'].forEach(id => {
+      document.getElementById(id).textContent = '—';
+      document.getElementById(id).className = 'analytics-value';
+    });
+    return;
+  }
 
-    await db.from('paper_trades').insert({
-      ticker,
-      shares,
-      entry_price: entryPrice,
-      current_price: currentPrice,
-      position_value: positionValue,
-      gain_loss: gainLoss,
-      gain_loss_pct: gainLossPct,
-      status: 'open'
+  const returns   = trades.map(t => Number(t.gain_loss_pct) / 100);
+  const wins      = returns.filter(r => r > 0);
+  const losses    = returns.filter(r => r < 0);
+  const winRate   = returns.length > 0 ? wins.length / returns.length : 0;
+
+  const mean      = returns.reduce((a, b) => a + b, 0) / returns.length;
+  const std       = Math.sqrt(returns.reduce((s, v) => s + (v - mean) ** 2, 0) / returns.length);
+  const sharpe    = std > 0 ? (mean / std) * Math.sqrt(252) : 0;
+
+  // Max drawdown from equity curve
+  const equity    = [10000];
+  trades.forEach(t => { equity.push(equity[equity.length-1] + Number(t.gain_loss)); });
+  let peak = equity[0], maxDD = 0;
+  equity.forEach(v => {
+    if (v > peak) peak = v;
+    const dd = (peak - v) / peak;
+    if (dd > maxDD) maxDD = dd;
+  });
+
+  const avgReturn  = mean * 100;
+  const grossWins  = wins.reduce((a, b) => a + b, 0);
+  const grossLoss  = Math.abs(losses.reduce((a, b) => a + b, 0));
+  const profFactor = grossLoss > 0 ? grossWins / grossLoss : grossWins > 0 ? 999 : 0;
+
+  const totalComm  = trades.reduce((s, t) => s + (Number(t.commission) || 0), 0);
+  const totalSlip  = trades.reduce((s, t) => s + (Number(t.slippage_cost) || 0), 0);
+
+  document.getElementById('win-rate').textContent   = Math.round(winRate * 100) + '%';
+  document.getElementById('win-rate').className     = 'analytics-value ' + (winRate >= 0.5 ? 'positive' : 'negative');
+
+  document.getElementById('sharpe').textContent     = sharpe.toFixed(2);
+  document.getElementById('sharpe').className       = 'analytics-value gold';
+
+  document.getElementById('max-dd').textContent     = '-' + (maxDD * 100).toFixed(2) + '%';
+  document.getElementById('max-dd').className       = 'analytics-value negative';
+
+  document.getElementById('avg-return').textContent = (avgReturn >= 0 ? '+' : '') + avgReturn.toFixed(2) + '%';
+  document.getElementById('avg-return').className   = 'analytics-value ' + (avgReturn >= 0 ? 'positive' : 'negative');
+
+  document.getElementById('total-trades').textContent  = trades.length;
+  document.getElementById('profit-factor').textContent = profFactor >= 999 ? '∞' : profFactor.toFixed(2);
+  document.getElementById('profit-factor').className   = 'analytics-value ' + (profFactor >= 1 ? 'gold' : 'negative');
+
+  document.getElementById('total-commission').textContent = '$' + totalComm.toFixed(2);
+  document.getElementById('total-slippage').textContent   = '$' + totalSlip.toFixed(2);
+}
+
+// ── EQUITY CURVE ──
+function drawEquityCurve(trades) {
+  const canvas = document.getElementById('equity-chart');
+  const empty  = document.getElementById('equity-empty');
+
+  if (!trades || !trades.length) {
+    empty.style.display = 'flex';
+    return;
+  }
+
+  empty.style.display = 'none';
+  const ctx = canvas.getContext('2d');
+  canvas.width  = canvas.offsetWidth * window.devicePixelRatio;
+  canvas.height = 120 * window.devicePixelRatio;
+  ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+
+  const w = canvas.offsetWidth;
+  const h = 120;
+  const pad = { top: 10, bottom: 20, left: 8, right: 8 };
+
+  // Build equity points
+  let eq = 10000;
+  const points = [{ x: 0, y: eq }];
+  trades.slice().reverse().forEach((t, i) => {
+    eq += Number(t.gain_loss);
+    points.push({ x: i + 1, y: eq });
+  });
+
+  const minY = Math.min(...points.map(p => p.y));
+  const maxY = Math.max(...points.map(p => p.y));
+  const rangeY = maxY - minY || 1;
+  const scaleX = (w - pad.left - pad.right) / Math.max(points.length - 1, 1);
+  const scaleY = (h - pad.top - pad.bottom) / rangeY;
+
+  const toX = (i) => pad.left + i * scaleX;
+  const toY = (v) => h - pad.bottom - (v - minY) * scaleY;
+
+  // Background
+  ctx.fillStyle = '#080808';
+  ctx.fillRect(0, 0, w, h);
+
+  // Baseline
+  const baseY = toY(10000);
+  ctx.beginPath();
+  ctx.moveTo(pad.left, baseY);
+  ctx.lineTo(w - pad.right, baseY);
+  ctx.strokeStyle = 'rgba(201,168,76,0.15)';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([4, 4]);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Fill area
+  const gradient = ctx.createLinearGradient(0, pad.top, 0, h - pad.bottom);
+  const lastY = points[points.length - 1].y;
+  const isPositive = lastY >= 10000;
+  gradient.addColorStop(0, isPositive ? 'rgba(58,107,74,0.3)' : 'rgba(139,58,58,0.3)');
+  gradient.addColorStop(1, 'rgba(8,8,8,0)');
+
+  ctx.beginPath();
+  ctx.moveTo(toX(0), toY(points[0].y));
+  points.forEach((p, i) => { ctx.lineTo(toX(i), toY(p.y)); });
+  ctx.lineTo(toX(points.length - 1), h - pad.bottom);
+  ctx.lineTo(toX(0), h - pad.bottom);
+  ctx.closePath();
+  ctx.fillStyle = gradient;
+  ctx.fill();
+
+  // Line
+  ctx.beginPath();
+  ctx.moveTo(toX(0), toY(points[0].y));
+  points.forEach((p, i) => { ctx.lineTo(toX(i), toY(p.y)); });
+  ctx.strokeStyle = isPositive ? '#3A6B4A' : '#8B3A3A';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // Start/end labels
+  ctx.fillStyle = '#6B6560';
+  ctx.font = '10px IBM Plex Mono';
+  ctx.fillText('$' + points[0].y.toLocaleString(), pad.left, h - 4);
+  ctx.fillText('$' + Math.round(lastY).toLocaleString(), w - pad.right - 60, h - 4);
+}
+
+// ── CLAUDE SUGGESTION ──
+async function getClaudeSuggestion() {
+  const btn = document.getElementById('claude-btn');
+  const thinking = document.getElementById('claude-thinking');
+  btn.disabled = true;
+  thinking.classList.add('visible');
+  document.getElementById('suggestion-panel').classList.remove('visible');
+
+  try {
+    const { data: stocks } = await db.from('stocks').select('ticker, sector');
+    const { data: picks  } = await db.from('picks').select('ticker, score, brief').order('picked_at', { ascending: false }).limit(5);
+
+    const watchlist  = stocks?.map(s => s.ticker + '(' + s.sector + ')').join(', ') || 'None';
+    const pickSum    = picks?.map(p => p.ticker + ':' + p.score + ' ' + p.brief).join(' | ') || 'None';
+    const stratLabel = currentStrategy === 'day' ? 'DAY TRADE (intraday, tighter stops, IOC orders)' : 'SWING TRADE (days to weeks, standard stops)';
+    const instLabel  = currentInstrument === 'options' ? 'OPTIONS (calls or puts)' : 'STOCKS (long or short)';
+
+    const prompt = `You are AURUM — private market intelligence system with 21 algorithms.
+
+Strategy: ${stratLabel}
+Instrument: ${instLabel}
+Watchlist: ${watchlist}
+Recent picks: ${pickSum}
+
+Suggest ONE specific paper trade for the simulator. Be precise — give exact prices. This is for simulation so give realistic current-market prices.
+
+Respond ONLY in JSON, no extra text:
+{
+  "ticker": "NVDA",
+  "direction": "long",
+  "reasoning": "2-3 sentence AURUM-tone rationale",
+  "entry_price": 875.50,
+  "stop_loss": 850.00,
+  "target_price": 920.00,
+  "shares": 5,
+  "confidence": "High",
+  "contract_type": null,
+  "strike": null,
+  "expiration": null,
+  "premium": null,
+  "contracts": null,
+  "stop_premium": null,
+  "target_premium": null
+}`;
+
+    const res  = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 800,
+        messages: [{ role: 'user', content: prompt }]
+      })
     });
 
-    await updatePortfolio();
+    const data = await res.json();
+    const text = data.content?.[0]?.text || '{}';
+    claudeSuggestion = JSON.parse(text.replace(/```json|```/g, '').trim());
 
-    document.getElementById('trade-success').classList.add('visible');
-    setTimeout(() => document.getElementById('trade-success').classList.remove('visible'), 3000);
+    renderSuggestion(claudeSuggestion);
+    document.getElementById('suggestion-panel').classList.add('visible');
 
-    document.getElementById('trade-ticker').value = '';
-    document.getElementById('entry-price').value = '';
-    document.getElementById('num-shares').value = '';
-    document.getElementById('current-price').value = '';
-
-    loadTrades();
+  } catch(e) {
+    document.getElementById('suggestion-panel').classList.add('visible');
+    document.getElementById('suggestion-text').textContent = 'Claude API key required. Add CLAUDE_API_KEY to Supabase secrets.';
+    document.getElementById('suggestion-fields').innerHTML = '';
   }
 
-  async function closeTrade(id, positionValue) {
-    await db.from('paper_trades').update({ status: 'closed', closed_at: new Date().toISOString() }).eq('id', id);
-    await updatePortfolio();
-    loadTrades();
-    loadPortfolio();
+  thinking.classList.remove('visible');
+  btn.disabled = false;
+}
+
+function renderSuggestion(s) {
+  document.getElementById('suggestion-strategy-badge').textContent = currentStrategy === 'day' ? 'Day Trade' : 'Swing';
+  document.getElementById('suggestion-text').textContent = s.reasoning || '—';
+
+  const isOptions = currentInstrument === 'options';
+  const fields = isOptions ? [
+    { label: 'Ticker',    value: s.ticker },
+    { label: 'Direction', value: (s.direction || '').toUpperCase(), cls: s.direction === 'long' ? 'positive' : 'danger' },
+    { label: 'Contract',  value: (s.contract_type || '—').toUpperCase() },
+    { label: 'Strike',    value: s.strike ? '$' + s.strike : '—' },
+    { label: 'Expiry',    value: s.expiration || '—' },
+    { label: 'Premium',   value: s.premium ? '$' + s.premium : '—' },
+    { label: 'Stop Prem', value: s.stop_premium ? '$' + s.stop_premium : '—', cls: 'danger' },
+    { label: 'Target Prem', value: s.target_premium ? '$' + s.target_premium : '—', cls: 'positive' }
+  ] : [
+    { label: 'Ticker',    value: s.ticker },
+    { label: 'Direction', value: (s.direction || '').toUpperCase(), cls: s.direction === 'long' ? 'positive' : 'danger' },
+    { label: 'Shares',    value: s.shares || '—' },
+    { label: 'Entry',     value: s.entry_price ? '$' + s.entry_price : '—' },
+    { label: 'Stop Loss', value: s.stop_loss ? '$' + s.stop_loss : '—', cls: 'danger' },
+    { label: 'Target',    value: s.target_price ? '$' + s.target_price : '—', cls: 'positive' },
+    { label: 'Confidence', value: s.confidence || '—' },
+    { label: 'Cost',       value: s.entry_price && s.shares ? '$' + (s.entry_price * s.shares).toFixed(2) : '—' }
+  ];
+
+  document.getElementById('suggestion-fields').innerHTML = fields.map(f => `
+    <div class="sugg-field">
+      <div class="sugg-field-label">${f.label}</div>
+      <div class="sugg-field-value ${f.cls || ''}">${f.value || '—'}</div>
+    </div>
+  `).join('');
+}
+
+function applySuggestion() {
+  if (!claudeSuggestion) return;
+  const s = claudeSuggestion;
+
+  if (currentInstrument === 'stock') {
+    document.getElementById('trade-ticker').value  = s.ticker || '';
+    document.getElementById('entry-price').value   = s.entry_price || '';
+    document.getElementById('num-shares').value    = s.shares || '';
+    document.getElementById('stop-loss').value     = s.stop_loss || '';
+    document.getElementById('target-price').value  = s.target_price || '';
+    document.getElementById('current-price').value = s.entry_price || '';
+    document.getElementById('trade-note').value    = s.reasoning || '';
+    if (s.direction === 'short') setDirection('short'); else setDirection('long');
+  } else {
+    document.getElementById('opt-ticker').value    = s.ticker || '';
+    document.getElementById('opt-strike').value    = s.strike || '';
+    document.getElementById('opt-expiry').value    = s.expiration || '';
+    document.getElementById('opt-premium').value   = s.premium || '';
+    document.getElementById('opt-contracts').value = s.contracts || 1;
+    document.getElementById('opt-stop').value      = s.stop_premium || '';
+    document.getElementById('opt-target').value    = s.target_premium || '';
+    document.getElementById('opt-current').value   = s.premium || '';
+    document.getElementById('trade-note').value    = s.reasoning || '';
+    if (s.contract_type === 'put') setContractType('put'); else setContractType('call');
   }
 
-  async function updatePortfolio() {
-    const { data: trades } = await db.from('paper_trades').select('*').eq('status', 'open');
-    const { data: portfolio } = await db.from('paper_portfolio').select('*').single();
-    if (!portfolio) return;
+  window.scrollTo({ top: document.getElementById('stock-fields').offsetTop - 100, behavior: 'smooth' });
+}
 
-    const totalValue = trades ? trades.reduce((sum, t) => sum + Number(t.position_value), 0) : 0;
-    const totalGL = trades ? trades.reduce((sum, t) => sum + Number(t.gain_loss), 0) : 0;
-    const glPct = (totalGL / Number(portfolio.starting_balance)) * 100;
+// ── OPEN TRADE ──
+async function openTrade() {
+  const slippagePct  = parseFloat(document.getElementById('slippage-pct').value) / 100 || 0.0005;
+  const commission   = parseFloat(document.getElementById('commission').value) || 0.65;
+  const startingBal  = parseFloat(document.getElementById('starting-bal-input').value) || 10000;
+  const note         = document.getElementById('trade-note').value.trim();
 
+  let record = {
+    status:    'open',
+    strategy:  currentStrategy,
+    instrument: currentInstrument,
+    direction: currentInstrument === 'options' ? currentContract : currentDirection,
+    note,
+    slippage_pct: slippagePct * 100,
+    opened_at: new Date().toISOString()
+  };
+
+  if (currentInstrument === 'stock') {
+    const ticker  = document.getElementById('trade-ticker').value.trim().toUpperCase();
+    const entry   = parseFloat(document.getElementById('entry-price').value);
+    const shares  = parseFloat(document.getElementById('num-shares').value);
+    const stop    = parseFloat(document.getElementById('stop-loss').value)   || null;
+    const target  = parseFloat(document.getElementById('target-price').value) || null;
+    const current = parseFloat(document.getElementById('current-price').value) || entry;
+
+    if (!ticker || !entry || !shares) { alert('Ticker, entry price, and shares are required.'); return; }
+
+    // Apply slippage to entry (buy at slightly higher, short at slightly lower)
+    const slippageAmount = entry * slippagePct;
+    const effectiveEntry = currentDirection === 'long' ? entry + slippageAmount : entry - slippageAmount;
+    const slippageCost   = slippageAmount * shares;
+    const commissionCost = commission * 2; // round trip
+    const posValue       = shares * current;
+    const gl = currentDirection === 'long'
+      ? (current - effectiveEntry) * shares - commissionCost
+      : (effectiveEntry - current) * shares - commissionCost;
+    const glPct = (gl / (effectiveEntry * shares)) * 100;
+
+    Object.assign(record, {
+      ticker,
+      shares,
+      entry_price:   effectiveEntry,
+      current_price: current,
+      stop_loss:     stop,
+      target_price:  target,
+      position_value: posValue,
+      gain_loss:     gl,
+      gain_loss_pct: glPct,
+      slippage_cost: slippageCost,
+      commission:    commissionCost
+    });
+
+  } else {
+    const ticker    = document.getElementById('opt-ticker').value.trim().toUpperCase();
+    const contracts = parseFloat(document.getElementById('opt-contracts').value) || 1;
+    const strike    = parseFloat(document.getElementById('opt-strike').value);
+    const expiry    = document.getElementById('opt-expiry').value.trim();
+    const premium   = parseFloat(document.getElementById('opt-premium').value);
+    const stop      = parseFloat(document.getElementById('opt-stop').value)   || null;
+    const target    = parseFloat(document.getElementById('opt-target').value) || null;
+    const current   = parseFloat(document.getElementById('opt-current').value) || premium;
+
+    if (!ticker || !premium || !contracts) { alert('Ticker, premium, and contracts are required.'); return; }
+
+    const slippageAmount = premium * slippagePct;
+    const effectivePrem  = premium + slippageAmount;
+    const slippageCost   = slippageAmount * contracts * 100;
+    const commissionCost = (commission + 0.15) * contracts * 2; // options commission per contract
+    const posValue       = contracts * current * 100;
+    const gl             = (current - effectivePrem) * contracts * 100 - commissionCost;
+    const glPct          = (gl / (effectivePrem * contracts * 100)) * 100;
+
+    Object.assign(record, {
+      ticker,
+      shares: contracts,
+      entry_price:   effectivePrem,
+      current_price: current,
+      stop_loss:     stop,
+      target_price:  target,
+      strike_price:  strike,
+      expiration:    expiry,
+      position_value: posValue,
+      gain_loss:     gl,
+      gain_loss_pct: glPct,
+      slippage_cost: slippageCost,
+      commission:    commissionCost
+    });
+  }
+
+  await db.from('paper_trades').insert(record);
+  await updatePortfolioBalance();
+
+  // Clear form
+  ['trade-ticker','entry-price','num-shares','stop-loss','target-price','current-price',
+   'opt-ticker','opt-contracts','opt-strike','opt-expiry','opt-premium','opt-stop','opt-target','opt-current','trade-note']
+    .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+
+  document.getElementById('trade-success').classList.add('visible');
+  setTimeout(() => document.getElementById('trade-success').classList.remove('visible'), 3000);
+
+  loadTrades();
+  loadPortfolio();
+}
+
+// ── CLOSE TRADE ──
+async function closeTrade(id) {
+  const { data: t } = await db.from('paper_trades').select('*').eq('id', id).single();
+  if (!t) return;
+
+  // Apply closing slippage
+  const slippagePct    = (t.slippage_pct || 0.05) / 100;
+  const slippageClose  = Number(t.current_price) * slippagePct;
+  const closingCommission = Number(t.commission || 0);
+
+  await db.from('paper_trades').update({
+    status:    'closed',
+    closed_at: new Date().toISOString()
+  }).eq('id', id);
+
+  await updatePortfolioBalance();
+  loadTrades();
+  loadHistory();
+  loadPortfolio();
+}
+
+// ── UPDATE PORTFOLIO BALANCE ──
+async function updatePortfolioBalance() {
+  const { data: open }  = await db.from('paper_trades').select('gain_loss, slippage_cost, commission').eq('status', 'open');
+  const { data: closed } = await db.from('paper_trades').select('gain_loss, slippage_cost, commission').eq('status', 'closed');
+  const { data: port }   = await db.from('paper_portfolio').select('*').single();
+  if (!port) return;
+
+  const startBal   = Number(port.starting_balance) || 10000;
+  const openGL     = (open   || []).reduce((s, t) => s + Number(t.gain_loss   || 0), 0);
+  const closedGL   = (closed || []).reduce((s, t) => s + Number(t.gain_loss   || 0), 0);
+  const totalGL    = openGL + closedGL;
+  const totalCosts = [...(open||[]), ...(closed||[])].reduce((s,t) => s + Number(t.commission||0) + Number(t.slippage_cost||0), 0);
+  const netGL      = totalGL;
+  const curBal     = startBal + netGL;
+  const glPct      = (netGL / startBal) * 100;
+
+  await db.from('paper_portfolio').update({
+    current_balance:  curBal,
+    total_return:     netGL,
+    total_return_pct: glPct,
+    updated_at:       new Date().toISOString()
+  }).eq('id', port.id);
+}
+
+// ── RESET ──
+async function resetPortfolio() {
+  if (!confirm('Reset all positions and history? This cannot be undone.')) return;
+  await db.from('paper_trades').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+  const { data: port } = await db.from('paper_portfolio').select('id').single();
+  if (port) {
+    const startBal = parseFloat(document.getElementById('starting-bal-input').value) || 10000;
     await db.from('paper_portfolio').update({
-      current_balance: Number(portfolio.starting_balance) + totalGL,
-      total_return: totalGL,
-      total_return_pct: glPct,
-      updated_at: new Date().toISOString()
-    }).eq('id', portfolio.id);
-
-    loadPortfolio();
-  }
-
-  async function resetPortfolio() {
-    await db.from('paper_trades').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-    await db.from('paper_portfolio').update({
-      current_balance: 10000,
-      total_return: 0,
+      starting_balance: startBal,
+      current_balance:  startBal,
+      total_return:     0,
       total_return_pct: 0,
-      updated_at: new Date().toISOString()
-    }).eq('id', (await db.from('paper_portfolio').select('id').single()).data.id);
-    loadTrades();
-    loadPortfolio();
+      updated_at:       new Date().toISOString()
+    }).eq('id', port.id);
   }
-
-  loadStocks();
   loadPortfolio();
   loadTrades();
+  loadHistory();
+}
+
+function openNav() { document.getElementById('nav-overlay').classList.add('open'); }
+function closeNav() { document.getElementById('nav-overlay').classList.remove('open'); }
 
 if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/aurum-app/sw.js');
-  }
- function openNav() { document.getElementById('nav-overlay').classList.add('open'); }
-  function closeNav() { document.getElementById('nav-overlay').classList.remove('open'); }
+  navigator.serviceWorker.register('/aurum-app/sw.js').catch(() => {});
+}
+
+loadPortfolio();
+loadTrades();
+loadHistory();
 </script>
 
 <script src="tickers.js"></script>
 <script>
+if (typeof initTickerAutocomplete === 'function') {
   initTickerAutocomplete('trade-ticker');
+  initTickerAutocomplete('opt-ticker');
+}
 </script>
+
 </body>
 </html>
