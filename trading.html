@@ -18,739 +18,186 @@
   --positive: #3A6B4A;
   --rule: rgba(201,168,76,0.2);
 }
-
 * { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: var(--black); color: var(--white); font-family: 'DM Sans', sans-serif; font-weight: 400; font-size: 16px; min-height: 100vh; }
+body::before { content: ''; position: fixed; inset: 0; background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E"); pointer-events: none; z-index: 999; opacity: 0.4; }
+header { display: flex; justify-content: space-between; align-items: center; padding: 1.5rem 2.5rem; border-bottom: 1px solid var(--rule); }
+.logo { font-family: 'Cormorant Garamond', serif; font-size: 1.8rem; font-weight: 600; letter-spacing: 0.3em; color: var(--gold); line-height: 1; }
+.logo span { display: block; font-size: 0.6rem; letter-spacing: 0.2em; color: var(--white); opacity: 0.3; margin-top: 2px; }
+.hamburger { background: transparent; border: 1px solid var(--rule); color: var(--gold); font-size: 1.1rem; padding: 0.4rem 0.8rem; cursor: pointer; z-index: 1001; }
+.nav-overlay { position: fixed; inset: 0; background: rgba(8,8,8,0.97); z-index: 1000; display: none; flex-direction: column; justify-content: center; align-items: center; gap: 1.5rem; padding: 4rem 2rem; overflow-y: auto; }
+.nav-overlay.open { display: flex; }
+.nav-overlay a { font-family: 'Cormorant Garamond', serif; font-size: 2rem; font-weight: 300; color: var(--muted); text-decoration: none; letter-spacing: 0.2em; transition: color 0.3s; }
+.nav-overlay a:hover, .nav-overlay a.active { color: var(--gold); }
+.nav-close { position: fixed; top: 1.5rem; right: 2rem; background: transparent; border: none; color: var(--muted); font-size: 1.5rem; cursor: pointer; z-index: 1002; }
 
-body {
-  background: var(--black);
-  color: var(--white);
-  font-family: 'DM Sans', sans-serif;
-  font-weight: 400;
-  font-size: 16px;
-  min-height: 100vh;
-}
+/* PRICE FEED BAR */
+.price-feed-bar { display: flex; align-items: center; gap: 1.5rem; padding: 0.6rem 1.5rem; border-bottom: 1px solid var(--rule); overflow-x: auto; background: rgba(201,168,76,0.01); scrollbar-width: none; }
+.price-feed-bar::-webkit-scrollbar { display: none; }
+.price-feed-item { display: flex; align-items: center; gap: 0.4rem; flex-shrink: 0; font-family: 'IBM Plex Mono', monospace; font-size: 0.68rem; white-space: nowrap; cursor: pointer; padding: 0.2rem 0.4rem; border: 1px solid transparent; transition: border-color 0.2s; }
+.price-feed-item:hover { border-color: var(--rule); }
+.price-feed-item.selected { border-color: var(--gold); background: rgba(201,168,76,0.04); }
+.feed-ticker { color: var(--muted); letter-spacing: 0.1em; }
+.feed-price { color: var(--white); }
+.feed-change { }
+.feed-change.up { color: var(--positive); }
+.feed-change.down { color: #c97a7a; }
+.feed-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--positive); box-shadow: 0 0 5px var(--positive); animation: pulseDot 2s infinite; flex-shrink: 0; }
+.feed-label { font-size: 0.55rem; letter-spacing: 0.15em; text-transform: uppercase; color: var(--muted); flex-shrink: 0; }
+@keyframes pulseDot { 0%,100%{opacity:1} 50%{opacity:0.3} }
 
-body::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
-  pointer-events: none;
-  z-index: 999;
-  opacity: 0.4;
-}
-
-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 1.5rem 2.5rem;
-  border-bottom: 1px solid var(--rule);
-}
-
-.logo {
-  font-family: 'Cormorant Garamond', serif;
-  font-size: 1.8rem;
-  font-weight: 600;
-  letter-spacing: 0.3em;
-  color: var(--gold);
-  line-height: 1;
-}
-
-.logo span {
-  display: block;
-  font-size: 0.6rem;
-  letter-spacing: 0.2em;
-  color: var(--white);
-  opacity: 0.3;
-  margin-top: 2px;
-}
-
-.hamburger {
-  background: transparent;
-  border: 1px solid var(--rule);
-  color: var(--gold);
-  font-size: 1.1rem;
-  padding: 0.4rem 0.8rem;
-  cursor: pointer;
-  z-index: 1001;
-}
-
-.nav-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(8,8,8,0.97);
-  z-index: 1000;
+/* SELECTED PRICE DISPLAY */
+.live-price-display {
+  border: 1px solid rgba(201,168,76,0.3);
+  background: rgba(201,168,76,0.02);
+  padding: 0.8rem 1.2rem;
   display: none;
-  flex-direction: column;
-  justify-content: center;
   align-items: center;
   gap: 1.5rem;
-  padding: 4rem 2rem;
-  overflow-y: auto;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
 }
-
-.nav-overlay.open { display: flex; }
-
-.nav-overlay a {
-  font-family: 'Cormorant Garamond', serif;
-  font-size: 2rem;
-  font-weight: 300;
-  color: var(--muted);
-  text-decoration: none;
-  letter-spacing: 0.2em;
-  transition: color 0.3s;
-}
-
-.nav-overlay a:hover, .nav-overlay a.active { color: var(--gold); }
-
-.nav-close {
-  position: fixed;
-  top: 1.5rem;
-  right: 2rem;
-  background: transparent;
-  border: none;
-  color: var(--muted);
-  font-size: 1.5rem;
-  cursor: pointer;
-  z-index: 1002;
-}
+.live-price-display.visible { display: flex; }
+.lpd-ticker { font-family: 'Cormorant Garamond', serif; font-size: 1.6rem; font-weight: 600; color: var(--gold); }
+.lpd-price { font-family: 'IBM Plex Mono', monospace; font-size: 1.2rem; color: var(--white); }
+.lpd-change { font-family: 'IBM Plex Mono', monospace; font-size: 0.85rem; }
+.lpd-change.up { color: var(--positive); }
+.lpd-change.down { color: #c97a7a; }
+.lpd-bid-ask { font-family: 'IBM Plex Mono', monospace; font-size: 0.72rem; color: var(--muted); }
+.lpd-use-btn { background: transparent; border: 1px solid var(--gold); color: var(--gold); font-family: 'DM Sans', sans-serif; font-size: 0.62rem; letter-spacing: 0.15em; text-transform: uppercase; padding: 0.35rem 0.8rem; cursor: pointer; transition: all 0.2s; margin-left: auto; }
+.lpd-use-btn:hover { background: var(--gold); color: var(--black); }
 
 main { padding: 2.5rem; max-width: 960px; margin: 0 auto; }
-
-.page-title {
-  font-family: 'Cormorant Garamond', serif;
-  font-size: clamp(2rem, 6vw, 3.2rem);
-  font-weight: 300;
-  color: var(--white);
-  margin-bottom: 0.4rem;
-}
-
+.page-title { font-family: 'Cormorant Garamond', serif; font-size: clamp(2rem, 6vw, 3.2rem); font-weight: 300; color: var(--white); margin-bottom: 0.4rem; }
 .page-title em { color: var(--gold); font-style: normal; }
-
-.page-sub {
-  font-size: 0.85rem;
-  color: var(--muted);
-  margin-bottom: 2.5rem;
-  line-height: 1.7;
-  max-width: 560px;
-}
-
+.page-sub { font-size: 0.85rem; color: var(--muted); margin-bottom: 2.5rem; line-height: 1.7; max-width: 560px; }
 .gold-rule { width: 100%; height: 1px; background: var(--rule); margin: 2rem 0; }
+.section-label { font-size: 0.7rem; letter-spacing: 0.3em; color: var(--gold); text-transform: uppercase; margin-bottom: 1.2rem; }
 
-.section-label {
-  font-size: 0.7rem;
-  letter-spacing: 0.3em;
-  color: var(--gold);
-  text-transform: uppercase;
-  margin-bottom: 1.2rem;
-}
+.strategy-tabs, .instrument-tabs { display: flex; gap: 1px; background: var(--rule); border: 1px solid var(--rule); margin-bottom: 2rem; }
+.strategy-tab, .instrument-tab { flex: 1; background: var(--black); border: none; color: var(--muted); font-family: 'DM Sans', sans-serif; font-size: 0.68rem; letter-spacing: 0.2em; text-transform: uppercase; padding: 0.9rem; cursor: pointer; transition: all 0.2s; }
+.strategy-tab.active, .instrument-tab.active { color: var(--gold); background: rgba(201,168,76,0.04); }
 
-/* ── STRATEGY TYPE TABS ── */
-.strategy-tabs {
-  display: flex;
-  gap: 1px;
-  background: var(--rule);
-  border: 1px solid var(--rule);
-  margin-bottom: 2rem;
-}
-
-.strategy-tab {
-  flex: 1;
-  background: var(--black);
-  border: none;
-  color: var(--muted);
-  font-family: 'DM Sans', sans-serif;
-  font-size: 0.68rem;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  padding: 0.9rem;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.strategy-tab.active { color: var(--gold); background: rgba(201,168,76,0.04); }
-.strategy-tab:hover:not(.active) { color: var(--white); }
-
-/* ── INSTRUMENT TYPE ── */
-.instrument-tabs {
-  display: flex;
-  gap: 1px;
-  background: var(--rule);
-  border: 1px solid var(--rule);
-  margin-bottom: 2rem;
-}
-
-.instrument-tab {
-  flex: 1;
-  background: var(--black);
-  border: none;
-  color: var(--muted);
-  font-family: 'DM Sans', sans-serif;
-  font-size: 0.65rem;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  padding: 0.7rem;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.instrument-tab.active { color: var(--white); background: rgba(255,255,255,0.03); }
-.instrument-tab:hover:not(.active) { color: var(--white); }
-
-/* ── MODE PANEL ── */
-.mode-panel {
-  border: 1px solid var(--rule);
-  padding: 2rem;
-  margin-bottom: 2rem;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 2rem;
-  flex-wrap: wrap;
-  transition: all 0.4s;
-}
-
-.mode-panel.auto-active {
-  border-color: rgba(58,107,74,0.5);
-  background: rgba(58,107,74,0.02);
-}
-
-.mode-status {
-  font-family: 'Cormorant Garamond', serif;
-  font-size: 1.8rem;
-  font-weight: 300;
-  margin-bottom: 0.3rem;
-}
-
+.mode-panel { border: 1px solid var(--rule); padding: 2rem; margin-bottom: 2rem; display: flex; justify-content: space-between; align-items: center; gap: 2rem; flex-wrap: wrap; transition: all 0.4s; }
+.mode-panel.auto-active { border-color: rgba(58,107,74,0.5); background: rgba(58,107,74,0.02); }
+.mode-status { font-family: 'Cormorant Garamond', serif; font-size: 1.8rem; font-weight: 300; margin-bottom: 0.3rem; }
 .mode-status.auto { color: var(--positive); }
 .mode-status.manual { color: var(--muted); }
-
-.mode-desc {
-  font-size: 0.8rem;
-  color: var(--muted);
-  line-height: 1.6;
-  max-width: 380px;
-}
-
+.mode-desc { font-size: 0.8rem; color: var(--muted); line-height: 1.6; max-width: 380px; }
 .toggle-wrap { display: flex; flex-direction: column; align-items: center; gap: 0.6rem; }
-
-.toggle {
-  width: 68px;
-  height: 34px;
-  background: rgba(107,101,96,0.4);
-  border-radius: 17px;
-  position: relative;
-  cursor: pointer;
-  transition: background 0.4s;
-  border: none;
-  outline: none;
-}
-
+.toggle { width: 68px; height: 34px; background: rgba(107,101,96,0.4); border-radius: 17px; position: relative; cursor: pointer; transition: background 0.4s; border: none; outline: none; }
 .toggle.on { background: var(--positive); }
-
-.toggle-knob {
-  width: 26px;
-  height: 26px;
-  background: var(--white);
-  border-radius: 50%;
-  position: absolute;
-  top: 4px;
-  left: 4px;
-  transition: left 0.4s;
-}
-
+.toggle-knob { width: 26px; height: 26px; background: var(--white); border-radius: 50%; position: absolute; top: 4px; left: 4px; transition: left 0.4s; }
 .toggle.on .toggle-knob { left: 38px; }
-
-.toggle-label {
-  font-size: 0.65rem;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-
+.toggle-label { font-size: 0.65rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--muted); }
 .toggle-label.on { color: var(--positive); }
 
-/* ── BROKERAGE STATUS BAR ── */
-.brokerage-bar {
-  border: 1px solid var(--rule);
-  padding: 0.8rem 1.2rem;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  margin-bottom: 2rem;
-  font-size: 0.72rem;
-  font-family: 'IBM Plex Mono', monospace;
-}
-
+.brokerage-bar { border: 1px solid var(--rule); padding: 0.8rem 1.2rem; display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 2rem; font-size: 0.72rem; font-family: 'IBM Plex Mono', monospace; }
 .brokerage-bar-left { display: flex; align-items: center; gap: 0.8rem; }
-
-.conn-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--muted);
-  flex-shrink: 0;
-}
-
+.conn-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); flex-shrink: 0; }
 .conn-dot.live { background: var(--positive); box-shadow: 0 0 6px var(--positive); }
 .conn-dot.paper { background: var(--gold); box-shadow: 0 0 6px var(--gold); }
-
 .conn-label { color: var(--muted); letter-spacing: 0.1em; }
 .conn-label.connected { color: var(--white); }
-
 .buying-power { color: var(--gold); }
 
-/* ── WARNING BOX ── */
-.warning-box {
-  border: 1px solid rgba(139,58,58,0.4);
-  background: rgba(139,58,58,0.04);
-  padding: 1.2rem 1.5rem;
-  margin-bottom: 2rem;
-  font-size: 0.78rem;
-  color: var(--muted);
-  line-height: 1.7;
-  display: none;
-}
-
+.warning-box { border: 1px solid rgba(139,58,58,0.4); background: rgba(139,58,58,0.04); padding: 1.2rem 1.5rem; margin-bottom: 2rem; font-size: 0.78rem; color: var(--muted); line-height: 1.7; display: none; }
 .warning-box.visible { display: block; }
 .warning-box strong { color: var(--danger); }
 
-/* ── INSTRUCTION PANEL ── */
-.instruction-panel {
-  border: 1px solid var(--rule);
-  padding: 2rem;
-  margin-bottom: 2rem;
-}
-
-.instruction-title {
-  font-family: 'Cormorant Garamond', serif;
-  font-size: 1.4rem;
-  font-weight: 600;
-  color: var(--white);
-  margin-bottom: 0.3rem;
-}
-
-.instruction-sub {
-  font-size: 0.78rem;
-  color: var(--muted);
-  line-height: 1.6;
-  margin-bottom: 1.5rem;
-}
-
-.btn {
-  background: transparent;
-  border: 1px solid var(--gold);
-  color: var(--gold);
-  font-family: 'DM Sans', sans-serif;
-  font-size: 0.7rem;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  padding: 0.8rem 2rem;
-  cursor: pointer;
-  transition: all 0.3s;
-}
-
+.instruction-panel { border: 1px solid var(--rule); padding: 2rem; margin-bottom: 2rem; }
+.instruction-title { font-family: 'Cormorant Garamond', serif; font-size: 1.4rem; font-weight: 600; color: var(--white); margin-bottom: 0.3rem; }
+.instruction-sub { font-size: 0.78rem; color: var(--muted); line-height: 1.6; margin-bottom: 1.5rem; }
+.btn { background: transparent; border: 1px solid var(--gold); color: var(--gold); font-family: 'DM Sans', sans-serif; font-size: 0.7rem; letter-spacing: 0.2em; text-transform: uppercase; padding: 0.8rem 2rem; cursor: pointer; transition: all 0.3s; }
 .btn:hover { background: var(--gold); color: var(--black); }
 .btn:disabled { opacity: 0.3; cursor: not-allowed; }
 
-/* ── LOADING STATE ── */
-.loading-state {
-  display: none;
-  padding: 2rem;
-  text-align: center;
-  font-size: 0.68rem;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  color: var(--gold);
-  font-family: 'IBM Plex Mono', monospace;
-  animation: pulse 1.5s infinite;
-}
-
+.loading-state { display: none; padding: 2rem; text-align: center; font-size: 0.68rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--gold); font-family: 'IBM Plex Mono', monospace; animation: pulse 1.5s infinite; }
 .loading-state.visible { display: block; }
-
 @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
 
-/* ── INSTRUCTION RESULT ── */
-.instruction-result {
-  border: 1px solid var(--rule);
-  margin-top: 1.5rem;
-  display: none;
-}
-
+.instruction-result { border: 1px solid var(--rule); margin-top: 1.5rem; display: none; }
 .instruction-result.visible { display: block; }
-
-.result-header {
-  padding: 1.2rem 1.5rem;
-  display: flex;
-  align-items: center;
-  gap: 1.5rem;
-  border-bottom: 1px solid var(--rule);
-  flex-wrap: wrap;
-}
-
-.result-ticker {
-  font-family: 'Cormorant Garamond', serif;
-  font-size: 2rem;
-  font-weight: 600;
-  color: var(--gold);
-}
-
-.result-direction {
-  font-size: 0.65rem;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  padding: 0.3rem 0.8rem;
-  border: 1px solid;
-}
-
+.result-header { padding: 1.2rem 1.5rem; display: flex; align-items: center; gap: 1.5rem; border-bottom: 1px solid var(--rule); flex-wrap: wrap; }
+.result-ticker { font-family: 'Cormorant Garamond', serif; font-size: 2rem; font-weight: 600; color: var(--gold); }
+.result-direction { font-size: 0.65rem; letter-spacing: 0.2em; text-transform: uppercase; padding: 0.3rem 0.8rem; border: 1px solid; }
 .result-direction.long { border-color: rgba(58,107,74,0.5); color: var(--positive); }
 .result-direction.short { border-color: rgba(139,58,58,0.5); color: var(--danger); }
 .result-direction.buy_call { border-color: rgba(58,107,74,0.5); color: var(--positive); }
 .result-direction.buy_put { border-color: rgba(139,58,58,0.5); color: var(--danger); }
 .result-direction.sell_call, .result-direction.sell_put { border-color: rgba(201,168,76,0.4); color: var(--gold); }
-
-.result-reasoning {
-  padding: 1.2rem 1.5rem;
-  font-size: 0.85rem;
-  color: var(--muted);
-  line-height: 1.8;
-  border-bottom: 1px solid var(--rule);
-}
-
-.result-params {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 1px;
-  background: var(--rule);
-}
-
+.result-live-price { font-family: 'IBM Plex Mono', monospace; font-size: 0.85rem; color: var(--muted); }
+.result-reasoning { padding: 1.2rem 1.5rem; font-size: 0.85rem; color: var(--muted); line-height: 1.8; border-bottom: 1px solid var(--rule); }
+.result-params { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--rule); }
 .result-param { background: var(--black); padding: 1rem 1.2rem; }
+.param-label { font-size: 0.58rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--muted); margin-bottom: 0.3rem; }
+.param-value { font-family: 'IBM Plex Mono', monospace; font-size: 0.9rem; color: var(--white); }
 
-.param-label {
-  font-size: 0.58rem;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  color: var(--muted);
-  margin-bottom: 0.3rem;
-}
-
-.param-value {
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: 0.9rem;
-  color: var(--white);
-}
-
-/* ── MANUAL TRADE LIST ── */
-.manual-panel {
-  border: 1px solid var(--rule);
-  padding: 1.5rem;
-  margin-bottom: 1.5rem;
-  display: none;
-}
-
+.manual-panel { border: 1px solid var(--rule); padding: 1.5rem; margin-bottom: 1.5rem; display: none; }
 .manual-panel.visible { display: block; }
-
-.manual-panel-title {
-  font-size: 0.65rem;
-  letter-spacing: 0.25em;
-  text-transform: uppercase;
-  color: var(--gold);
-  margin-bottom: 0.4rem;
-}
-
-.manual-panel-sub {
-  font-size: 0.78rem;
-  color: var(--muted);
-  margin-bottom: 1.2rem;
-  line-height: 1.5;
-}
-
-.trade-list {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  background: var(--rule);
-  border: 1px solid var(--rule);
-  margin-bottom: 1.2rem;
-}
-
-.trade-list-row {
-  background: var(--black);
-  padding: 0.9rem 1.2rem;
-  display: grid;
-  grid-template-columns: 28px 1fr auto auto;
-  gap: 0.8rem;
-  align-items: center;
-  cursor: pointer;
-  transition: background 0.2s;
-  border-left: 3px solid transparent;
-}
-
+.manual-panel-title { font-size: 0.65rem; letter-spacing: 0.25em; text-transform: uppercase; color: var(--gold); margin-bottom: 0.4rem; }
+.manual-panel-sub { font-size: 0.78rem; color: var(--muted); margin-bottom: 1.2rem; line-height: 1.5; }
+.trade-list { display: flex; flex-direction: column; gap: 1px; background: var(--rule); border: 1px solid var(--rule); margin-bottom: 1.2rem; }
+.trade-list-row { background: var(--black); padding: 0.9rem 1.2rem; display: grid; grid-template-columns: 28px 1fr auto auto auto; gap: 0.8rem; align-items: center; cursor: pointer; transition: background 0.2s; border-left: 3px solid transparent; }
 .trade-list-row:hover { background: rgba(201,168,76,0.03); border-left-color: rgba(201,168,76,0.2); }
 .trade-list-row.selected { background: rgba(201,168,76,0.05); border-left-color: var(--gold); }
-
-.trade-rank {
-  font-family: 'Cormorant Garamond', serif;
-  font-size: 1.2rem;
-  font-weight: 600;
-  color: var(--gold);
-  opacity: 0.4;
-}
-
+.trade-rank { font-family: 'Cormorant Garamond', serif; font-size: 1.2rem; font-weight: 600; color: var(--gold); opacity: 0.4; }
 .trade-list-row.selected .trade-rank { opacity: 1; }
-
-.trade-list-info {}
 .trade-list-ticker { font-family: 'IBM Plex Mono', monospace; font-size: 0.85rem; color: var(--white); margin-bottom: 0.15rem; }
 .trade-list-brief { font-size: 0.7rem; color: var(--muted); line-height: 1.4; }
-
-.trade-list-dir {
-  font-size: 0.58rem;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  padding: 0.2rem 0.5rem;
-  border: 1px solid;
-  white-space: nowrap;
-}
-
+.trade-list-dir { font-size: 0.58rem; letter-spacing: 0.12em; text-transform: uppercase; padding: 0.2rem 0.5rem; border: 1px solid; white-space: nowrap; }
 .trade-list-dir.long, .trade-list-dir.buy_call { border-color: rgba(58,107,74,0.4); color: var(--positive); }
 .trade-list-dir.short, .trade-list-dir.buy_put { border-color: rgba(139,58,58,0.4); color: var(--danger); }
-.trade-list-dir.sell_call, .trade-list-dir.sell_put { border-color: rgba(201,168,76,0.3); color: var(--gold); }
-
 .trade-list-score { font-family: 'IBM Plex Mono', monospace; font-size: 0.78rem; color: var(--gold); }
+.trade-list-live { font-family: 'IBM Plex Mono', monospace; font-size: 0.68rem; color: var(--muted); white-space: nowrap; }
 
-/* ── AUTOFILL ORDER PANEL (shared by auto + manual) ── */
-.order-panel {
-  border: 1px solid rgba(58,107,74,0.4);
-  background: rgba(58,107,74,0.02);
-  padding: 1.5rem;
-  margin-top: 1.2rem;
-  display: none;
-}
-
+.order-panel { border: 1px solid rgba(58,107,74,0.4); background: rgba(58,107,74,0.02); padding: 1.5rem; margin-top: 1.2rem; display: none; }
 .order-panel.visible { display: block; }
 .order-panel.gold-border { border-color: rgba(201,168,76,0.4); background: rgba(201,168,76,0.02); }
-
-.order-panel-title {
-  font-size: 0.65rem;
-  letter-spacing: 0.25em;
-  text-transform: uppercase;
-  color: var(--positive);
-  margin-bottom: 1.2rem;
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-}
-
+.order-panel-title { font-size: 0.65rem; letter-spacing: 0.25em; text-transform: uppercase; color: var(--positive); margin-bottom: 1.2rem; display: flex; align-items: center; gap: 0.6rem; }
 .order-panel-title.gold { color: var(--gold); }
-
-.pulse-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: currentColor;
-  box-shadow: 0 0 6px currentColor;
-  animation: pulseDot 1.5s infinite;
-  flex-shrink: 0;
-}
-
-@keyframes pulseDot { 0%,100%{opacity:1} 50%{opacity:0.2} }
-
-.order-fields {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 1px;
-  background: var(--rule);
-  border: 1px solid var(--rule);
-  margin-bottom: 1.2rem;
-}
-
+.pulse-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; box-shadow: 0 0 6px currentColor; animation: pulseDot2 1.5s infinite; flex-shrink: 0; }
+@keyframes pulseDot2 { 0%,100%{opacity:1} 50%{opacity:0.2} }
+.order-fields { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--rule); border: 1px solid var(--rule); margin-bottom: 1.2rem; }
 .order-field { background: var(--black); padding: 0.9rem 1rem; }
-
-.order-field-label {
-  font-size: 0.56rem;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: var(--muted);
-  margin-bottom: 0.3rem;
-}
-
-.order-field-value {
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: 0.88rem;
-  color: var(--white);
-}
-
+.order-field-label { font-size: 0.56rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--muted); margin-bottom: 0.3rem; }
+.order-field-value { font-family: 'IBM Plex Mono', monospace; font-size: 0.88rem; color: var(--white); }
 .order-field-value.gold { color: var(--gold); }
 .order-field-value.danger { color: #c97a7a; }
 .order-field-value.positive { color: var(--positive); }
 
-/* ── INSTRUCTION TEXT BOX ── */
-.instruction-box {
-  border: 1px solid var(--rule);
-  padding: 1rem 1.2rem;
-  margin-bottom: 1.2rem;
-}
+.instruction-box { border: 1px solid var(--rule); padding: 1rem 1.2rem; margin-bottom: 1.2rem; }
+.instruction-box-label { font-size: 0.58rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--gold); margin-bottom: 0.5rem; }
+.instruction-box-text { font-size: 0.82rem; color: var(--white); line-height: 1.7; }
 
-.instruction-box-label {
-  font-size: 0.58rem;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: var(--gold);
-  margin-bottom: 0.5rem;
-}
-
-.instruction-box-text {
-  font-size: 0.82rem;
-  color: var(--white);
-  line-height: 1.7;
-}
-
-/* ── EXECUTE / SUBMIT BUTTONS ── */
-.execute-btn {
-  background: var(--positive);
-  border: none;
-  color: var(--white);
-  font-family: 'DM Sans', sans-serif;
-  font-size: 0.68rem;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  padding: 0.9rem 2rem;
-  cursor: pointer;
-  transition: background 0.3s;
-  width: 100%;
-  font-weight: 500;
-}
-
+.execute-btn { background: var(--positive); border: none; color: var(--white); font-family: 'DM Sans', sans-serif; font-size: 0.68rem; letter-spacing: 0.2em; text-transform: uppercase; padding: 0.9rem 2rem; cursor: pointer; transition: background 0.3s; width: 100%; font-weight: 500; }
 .execute-btn:hover { background: #4a8a5a; }
 .execute-btn:disabled { opacity: 0.3; cursor: not-allowed; }
-
-.submit-btn {
-  background: transparent;
-  border: 1px solid var(--gold);
-  color: var(--gold);
-  font-family: 'DM Sans', sans-serif;
-  font-size: 0.68rem;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  padding: 0.9rem 2rem;
-  cursor: pointer;
-  transition: all 0.3s;
-  width: 100%;
-  font-weight: 500;
-}
-
+.submit-btn { background: transparent; border: 1px solid var(--gold); color: var(--gold); font-family: 'DM Sans', sans-serif; font-size: 0.68rem; letter-spacing: 0.2em; text-transform: uppercase; padding: 0.9rem 2rem; cursor: pointer; transition: all 0.3s; width: 100%; font-weight: 500; }
 .submit-btn:hover { background: var(--gold); color: var(--black); }
 .submit-btn:disabled { opacity: 0.3; cursor: not-allowed; }
-
-.order-status {
-  font-size: 0.65rem;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  text-align: center;
-  margin-top: 0.6rem;
-  color: var(--muted);
-  font-family: 'IBM Plex Mono', monospace;
-}
-
+.order-status { font-size: 0.65rem; letter-spacing: 0.12em; text-transform: uppercase; text-align: center; margin-top: 0.6rem; color: var(--muted); font-family: 'IBM Plex Mono', monospace; }
 .order-status.firing { color: var(--gold); animation: pulse 1s infinite; }
 .order-status.done { color: var(--positive); }
 .order-status.error { color: #c97a7a; }
+.enter-hint { font-size: 0.58rem; letter-spacing: 0.15em; text-transform: uppercase; color: var(--muted); text-align: center; margin-top: 0.4rem; font-family: 'IBM Plex Mono', monospace; }
 
-.enter-hint {
-  font-size: 0.58rem;
-  letter-spacing: 0.15em;
-  text-transform: uppercase;
-  color: var(--muted);
-  text-align: center;
-  margin-top: 0.4rem;
-  font-family: 'IBM Plex Mono', monospace;
-}
-
-/* ── INSTRUCTION LOG ── */
-.log-header {
-  display: grid;
-  grid-template-columns: auto 1fr auto auto auto auto;
-  gap: 1rem;
-  padding: 0.7rem 1.2rem;
-  border: 1px solid var(--rule);
-  border-bottom: none;
-  background: rgba(201,168,76,0.02);
-}
-
-.log-col {
-  font-size: 0.58rem;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-
-.log-row {
-  display: grid;
-  grid-template-columns: auto 1fr auto auto auto auto;
-  gap: 1rem;
-  padding: 0.9rem 1.2rem;
-  border: 1px solid var(--rule);
-  border-top: none;
-  align-items: center;
-  transition: background 0.2s;
-}
-
+.log-header { display: grid; grid-template-columns: auto 1fr auto auto auto auto; gap: 1rem; padding: 0.7rem 1.2rem; border: 1px solid var(--rule); border-bottom: none; background: rgba(201,168,76,0.02); }
+.log-col { font-size: 0.58rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--muted); }
+.log-row { display: grid; grid-template-columns: auto 1fr auto auto auto auto; gap: 1rem; padding: 0.9rem 1.2rem; border: 1px solid var(--rule); border-top: none; align-items: center; transition: background 0.2s; }
 .log-row:hover { background: rgba(201,168,76,0.02); }
-
-.log-ticker {
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: 0.85rem;
-  color: var(--gold);
-  min-width: 60px;
-}
-
-.log-dir {
-  font-size: 0.6rem;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  padding: 0.18rem 0.5rem;
-  border: 1px solid;
-  width: fit-content;
-}
-
+.log-ticker { font-family: 'IBM Plex Mono', monospace; font-size: 0.85rem; color: var(--gold); min-width: 60px; }
+.log-dir { font-size: 0.6rem; letter-spacing: 0.12em; text-transform: uppercase; padding: 0.18rem 0.5rem; border: 1px solid; width: fit-content; }
 .log-dir.long, .log-dir.buy_call { border-color: rgba(58,107,74,0.4); color: var(--positive); }
 .log-dir.short, .log-dir.buy_put { border-color: rgba(139,58,58,0.4); color: #c97a7a; }
-.log-dir.sell_call, .log-dir.sell_put { border-color: rgba(201,168,76,0.3); color: var(--gold); }
-
-.status-badge {
-  font-size: 0.55rem;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  padding: 0.18rem 0.5rem;
-  border: 1px solid;
-  font-family: 'IBM Plex Mono', monospace;
-}
-
+.status-badge { font-size: 0.55rem; letter-spacing: 0.12em; text-transform: uppercase; padding: 0.18rem 0.5rem; border: 1px solid; font-family: 'IBM Plex Mono', monospace; }
 .status-badge.executed { border-color: rgba(58,107,74,0.4); color: var(--positive); }
 .status-badge.pending { border-color: rgba(201,168,76,0.3); color: var(--gold); }
 .status-badge.cancelled { border-color: rgba(139,58,58,0.3); color: #c97a7a; }
 .status-badge.logged { border-color: var(--rule); color: var(--muted); }
+.empty-state { padding: 2.5rem; text-align: center; font-size: 0.78rem; letter-spacing: 0.12em; color: var(--muted); text-transform: uppercase; border: 1px solid var(--rule); }
 
-.empty-state {
-  padding: 2.5rem;
-  text-align: center;
-  font-size: 0.78rem;
-  letter-spacing: 0.12em;
-  color: var(--muted);
-  text-transform: uppercase;
-  border: 1px solid var(--rule);
-}
-
-footer {
-  padding: 1.2rem 2.5rem;
-  border-top: 1px solid var(--rule);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
+footer { padding: 1.2rem 2.5rem; border-top: 1px solid var(--rule); display: flex; justify-content: space-between; align-items: center; }
 footer p { font-size: 0.62rem; letter-spacing: 0.12em; color: var(--muted); text-transform: uppercase; }
 .footer-au { font-family: 'Cormorant Garamond', serif; font-size: 1rem; color: var(--rule); letter-spacing: 0.3em; }
 
@@ -769,6 +216,13 @@ footer p { font-size: 0.62rem; letter-spacing: 0.12em; color: var(--muted); text
   <div class="logo">AU<span>PRIVATE INTELLIGENCE</span></div>
   <button class="hamburger" onclick="openNav()">&#9776;</button>
 </header>
+
+<!-- LIVE PRICE FEED BAR -->
+<div class="price-feed-bar" id="price-feed-bar">
+  <div class="feed-dot"></div>
+  <div class="feed-label">Live</div>
+  <div style="color:var(--muted);font-size:0.65rem;font-family:'IBM Plex Mono',monospace;" id="feed-loading">Loading prices...</div>
+</div>
 
 <div class="nav-overlay" id="nav-overlay">
   <button class="nav-close" onclick="closeNav()">&#10005;</button>
@@ -789,25 +243,30 @@ footer p { font-size: 0.62rem; letter-spacing: 0.12em; color: var(--muted); text
 </div>
 
 <main>
-
   <div class="page-title">AURUM <em>Trading.</em></div>
   <div class="page-sub">Stocks and options — long and short — swing and intraday. All trades routed through Alpaca. Paper or live based on your connected account.</div>
 
-  <!-- STRATEGY TYPE: Swing vs Day Trade -->
+  <!-- SELECTED TICKER LIVE PRICE -->
+  <div class="live-price-display" id="live-price-display">
+    <div class="lpd-ticker" id="lpd-ticker">—</div>
+    <div class="lpd-price" id="lpd-price">—</div>
+    <div class="lpd-change" id="lpd-change">—</div>
+    <div class="lpd-bid-ask" id="lpd-bid-ask"></div>
+    <button class="lpd-use-btn" onclick="useCurrentPrice()">Use as Entry Price</button>
+  </div>
+
   <div class="section-label">Strategy</div>
   <div class="strategy-tabs">
     <button class="strategy-tab active" id="strat-swing" onclick="setStrategy('swing')">Swing Trade</button>
     <button class="strategy-tab" id="strat-day" onclick="setStrategy('day')">Day Trade</button>
   </div>
 
-  <!-- INSTRUMENT: Stocks vs Options -->
   <div class="section-label">Instrument</div>
   <div class="instrument-tabs">
     <button class="instrument-tab active" id="inst-stock" onclick="setInstrument('stock')">Stocks</button>
     <button class="instrument-tab" id="inst-options" onclick="setInstrument('options')">Options</button>
   </div>
 
-  <!-- BROKERAGE STATUS BAR -->
   <div class="brokerage-bar" id="brokerage-bar">
     <div class="brokerage-bar-left">
       <div class="conn-dot" id="conn-dot"></div>
@@ -816,7 +275,6 @@ footer p { font-size: 0.62rem; letter-spacing: 0.12em; color: var(--muted); text
     <div class="buying-power" id="buying-power-display"></div>
   </div>
 
-  <!-- AUTO/MANUAL TOGGLE -->
   <div class="section-label">Execution Mode</div>
   <div class="mode-panel manual-active" id="mode-panel">
     <div class="mode-left">
@@ -831,75 +289,56 @@ footer p { font-size: 0.62rem; letter-spacing: 0.12em; color: var(--muted); text
     </div>
   </div>
 
-  <!-- AUTO WARNING -->
   <div class="warning-box" id="warning-box">
-    <strong>Auto Mode Active.</strong> AURUM will execute orders directly through Alpaca based on Claude's instruction. Safety limits always enforced: principal floor, max position size, max daily trades. Switch to Manual to pause.
+    <strong>Auto Mode Active.</strong> AURUM will execute orders directly through Alpaca. Safety limits always enforced. Switch to Manual to pause.
   </div>
 
   <div class="gold-rule"></div>
 
-  <!-- MANUAL TRADE LIST -->
   <div class="manual-panel" id="manual-panel">
     <div class="manual-panel-title">Trade Selection</div>
     <div class="manual-panel-sub" id="manual-panel-sub">Generate instructions below to load trade list.</div>
     <div class="trade-list" id="trade-list">
       <div class="empty-state" style="border:none;padding:1.5rem;">Generate instructions to load ranked trade list.</div>
     </div>
-
-    <!-- Manual autofill panel -->
     <div class="order-panel gold-border" id="manual-order-panel">
       <div class="order-panel-title gold"><span class="pulse-dot"></span>Order Fields — Autofilled</div>
-
       <div class="instruction-box">
         <div class="instruction-box-label">Claude's Instruction</div>
         <div class="instruction-box-text" id="m-instruction">—</div>
       </div>
-
-      <div class="order-fields" id="manual-order-fields">
-        <!-- populated by autofillManualPanel() -->
-      </div>
-
+      <div class="order-fields" id="manual-order-fields"></div>
       <button class="submit-btn" id="manual-submit-btn" onclick="submitManualOrder()">Submit Order</button>
       <div class="enter-hint">— or press Enter —</div>
       <div class="order-status" id="manual-status">Review all fields above, then submit.</div>
     </div>
   </div>
 
-  <!-- GENERATE INSTRUCTION -->
   <div class="section-label">Generate Trade Instruction</div>
   <div class="instruction-panel">
     <div class="instruction-title">Request Claude Analysis</div>
     <div class="instruction-sub" id="instruction-sub">Claude synthesizes all 21 algorithms and returns a trade instruction tailored to your selected strategy and instrument.</div>
     <button class="btn" id="generate-btn" onclick="generateInstruction()">Generate Trade Instruction</button>
     <div class="loading-state" id="loading-state">Synthesizing 21 algorithms through master orchestrator...</div>
-
-    <!-- Single pick result (auto mode) -->
     <div class="instruction-result" id="instruction-result">
       <div class="result-header">
         <div class="result-ticker" id="result-ticker">—</div>
         <div class="result-direction" id="result-direction">—</div>
+        <div class="result-live-price" id="result-live-price"></div>
       </div>
       <div class="result-reasoning" id="result-reasoning">—</div>
-      <div class="result-params" id="result-params">
-        <!-- populated dynamically based on instrument -->
-      </div>
-
-      <!-- Auto mode order panel -->
+      <div class="result-params" id="result-params"></div>
       <div class="order-panel" id="auto-order-panel" style="margin:1.5rem;margin-top:0;">
         <div class="order-panel-title"><span class="pulse-dot"></span>Auto-Fill Order Ready</div>
-        <div class="order-fields" id="auto-order-fields">
-          <!-- populated by autofillAutoPanel() -->
-        </div>
+        <div class="order-fields" id="auto-order-fields"></div>
         <button class="execute-btn" id="auto-execute-btn" onclick="executeAutoOrder()">Execute Order via Alpaca</button>
         <div class="order-status" id="auto-order-status">All fields auto-populated — confirm to execute.</div>
       </div>
-
     </div>
   </div>
 
   <div class="gold-rule"></div>
 
-  <!-- INSTRUCTION LOG -->
   <div class="section-label">Instruction Log</div>
   <div class="log-header">
     <span class="log-col">Ticker</span>
@@ -912,7 +351,6 @@ footer p { font-size: 0.62rem; letter-spacing: 0.12em; color: var(--muted); text
   <div id="log-container">
     <div class="empty-state">No instructions generated yet.</div>
   </div>
-
 </main>
 
 <footer>
@@ -926,7 +364,6 @@ const SUPABASE_KEY = 'sb_publishable_K80lcfk8LsQNqo5enznRRA_lrzf2U9K';
 const { createClient } = supabase;
 const db = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// ── STATE ──
 let currentMode = 'manual';
 let currentStrategy = 'swing';
 let currentInstrument = 'stock';
@@ -934,78 +371,202 @@ let currentInstruction = null;
 let manualTradeList = [];
 let selectedTrade = null;
 let settings = {};
-let alpacaConfig = null; // { apiKey, secretKey, paper: bool }
+let alpacaConfig = null;
+let priceCache = {};
+let watchlistTickers = [];
+let selectedFeedTicker = null;
+let priceRefreshInterval = null;
+
+// ── PRICE FEED ENGINE ──
+async function fetchLivePrices(tickers) {
+  if (!tickers || !tickers.length) return {};
+
+  const headers = {};
+  if (alpacaConfig?.apiKey) {
+    headers['APCA-API-KEY-ID']     = alpacaConfig.apiKey;
+    headers['APCA-API-SECRET-KEY'] = alpacaConfig.secretKey;
+  }
+
+  try {
+    const symbols = tickers.slice(0, 20).join(',');
+    const endpoint = alpacaConfig?.apiKey
+      ? 'https://data.alpaca.markets/v2/stocks/quotes/latest?symbols=' + symbols + '&feed=iex'
+      : 'https://data.alpaca.markets/v2/stocks/snapshots?symbols=' + symbols + '&feed=iex';
+
+    const res = await fetch(endpoint, { headers });
+    if (!res.ok) return {};
+    const data = await res.json();
+
+    const prices = {};
+
+    if (data.quotes) {
+      // Latest quotes endpoint
+      Object.entries(data.quotes).forEach(([ticker, q]) => {
+        const price = q.ap || q.bp || 0;
+        const prev  = priceCache[ticker]?.price || price;
+        prices[ticker] = { price, bid: q.bp || 0, ask: q.ap || 0, change: price - prev, changePct: prev > 0 ? (price - prev) / prev * 100 : 0 };
+      });
+    } else {
+      // Snapshot endpoint
+      Object.entries(data).forEach(([ticker, snap]) => {
+        const price    = snap.latestTrade?.p || snap.minuteBar?.c || 0;
+        const prevClose = snap.prevDailyBar?.c || price;
+        prices[ticker] = { price, bid: snap.latestQuote?.bp || 0, ask: snap.latestQuote?.ap || 0, change: price - prevClose, changePct: prevClose > 0 ? (price - prevClose) / prevClose * 100 : 0 };
+      });
+    }
+
+    return prices;
+  } catch(e) { return {}; }
+}
+
+async function refreshPrices() {
+  if (!watchlistTickers.length) return;
+  const prices = await fetchLivePrices(watchlistTickers);
+  if (!Object.keys(prices).length) return;
+
+  Object.assign(priceCache, prices);
+  renderFeedBar(prices);
+
+  // Update selected ticker display
+  if (selectedFeedTicker && prices[selectedFeedTicker]) {
+    updateLivePriceDisplay(selectedFeedTicker, prices[selectedFeedTicker]);
+  }
+
+  // Update trade list live prices
+  watchlistTickers.forEach(ticker => {
+    const el = document.getElementById('live-' + ticker);
+    if (el && prices[ticker]) {
+      const d = prices[ticker];
+      el.textContent = '$' + d.price.toFixed(2);
+      el.className = 'trade-list-live ' + (d.change >= 0 ? '' : 'neg');
+    }
+  });
+
+  // Update result live price if showing
+  if (currentInstruction && prices[currentInstruction.ticker]) {
+    const d = prices[currentInstruction.ticker];
+    const el = document.getElementById('result-live-price');
+    if (el) el.textContent = 'Live: $' + d.price.toFixed(2) + ' (' + (d.change >= 0 ? '+' : '') + d.changePct.toFixed(2) + '%)';
+  }
+}
+
+function renderFeedBar(prices) {
+  const bar = document.getElementById('price-feed-bar');
+  if (!bar) return;
+  const time = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+
+  const items = Object.entries(prices).map(([ticker, d]) => {
+    const dir   = d.change >= 0 ? 'up' : 'down';
+    const arrow = d.change >= 0 ? '\u25b2' : '\u25bc';
+    const isSel = ticker === selectedFeedTicker;
+    return `<div class="price-feed-item ${isSel ? 'selected' : ''}" onclick="selectFeedTicker('${ticker}')">
+      <span class="feed-ticker">${ticker}</span>
+      <span class="feed-price">$${d.price.toFixed(2)}</span>
+      <span class="feed-change ${dir}">${arrow} ${Math.abs(d.changePct).toFixed(2)}%</span>
+    </div>`;
+  }).join('');
+
+  bar.innerHTML = `<div class="feed-dot"></div><div class="feed-label">Live</div>${items}<div style="color:var(--muted);font-size:0.55rem;font-family:'IBM Plex Mono',monospace;flex-shrink:0;margin-left:auto;">${time}</div>`;
+}
+
+function selectFeedTicker(ticker) {
+  selectedFeedTicker = ticker;
+  const d = priceCache[ticker];
+  if (d) updateLivePriceDisplay(ticker, d);
+  renderFeedBar(priceCache);
+}
+
+function updateLivePriceDisplay(ticker, d) {
+  const display = document.getElementById('live-price-display');
+  document.getElementById('lpd-ticker').textContent = ticker;
+  document.getElementById('lpd-price').textContent  = '$' + d.price.toFixed(2);
+  const changeEl = document.getElementById('lpd-change');
+  changeEl.textContent = (d.change >= 0 ? '+' : '') + d.change.toFixed(2) + ' (' + (d.changePct >= 0 ? '+' : '') + d.changePct.toFixed(2) + '%)';
+  changeEl.className = 'lpd-change ' + (d.change >= 0 ? 'up' : 'down');
+  if (d.bid && d.ask) {
+    document.getElementById('lpd-bid-ask').textContent = 'Bid: $' + d.bid.toFixed(2) + ' | Ask: $' + d.ask.toFixed(2);
+  }
+  display.classList.add('visible');
+}
+
+function useCurrentPrice() {
+  if (!selectedFeedTicker || !priceCache[selectedFeedTicker]) return;
+  const price = priceCache[selectedFeedTicker].price;
+  // Set entry price in any visible form or autofill field
+  const entryEl = document.getElementById('a-entry') || document.getElementById('m-entry');
+  if (entryEl) entryEl.textContent = '$' + price.toFixed(2);
+  // Also update current instruction entry if applicable
+  if (currentInstruction && currentInstruction.ticker === selectedFeedTicker) {
+    currentInstruction.entry_price = price;
+    if (currentMode === 'auto') autofillAutoPanel(currentInstruction);
+  }
+}
 
 // ── INIT ──
 async function init() {
   await loadSettings();
   await loadAlpacaConfig();
+  await loadWatchlistTickers();
   await loadLog();
   updateModeUI('manual');
   renderManualOrderFields();
   renderAutoOrderFields();
+
+  // Start price feed
+  await refreshPrices();
+  priceRefreshInterval = setInterval(refreshPrices, 30000);
 }
 
-// ── SETTINGS ──
+async function loadWatchlistTickers() {
+  try {
+    const { data } = await db.from('stocks').select('ticker');
+    watchlistTickers = data?.map(s => s.ticker) || [];
+  } catch(e) {}
+}
+
 async function loadSettings() {
   try {
     const { data } = await db.from('trading_settings').select('*').single();
     settings = data || {};
-    const mode = settings.mode || 'manual';
-    currentMode = mode;
-    updateModeUI(mode);
+    currentMode = settings.mode || 'manual';
+    updateModeUI(currentMode);
   } catch(e) { settings = {}; }
 }
 
-// ── ALPACA CONFIG ──
 async function loadAlpacaConfig() {
   try {
-    const { data } = await db.from('brokerage_accounts')
-      .select('*')
-      .eq('brokerage', 'alpaca')
-      .eq('active', true)
-      .single();
-
+    const { data } = await db.from('brokerage_accounts').select('*').eq('brokerage', 'alpaca').eq('active', true).single();
     if (data) {
-      alpacaConfig = {
-        apiKey: data.api_key_plain || '',
-        secretKey: data.api_secret_plain || '',
-        paper: data.is_paper !== false
-      };
+      alpacaConfig = { apiKey: data.api_key_plain || '', secretKey: data.api_secret_plain || '', paper: data.is_paper !== false };
       updateBrokerageBar(true, data.is_paper !== false, data.buying_power);
     } else {
       updateBrokerageBar(false, false, null);
     }
-  } catch(e) {
-    updateBrokerageBar(false, false, null);
-  }
+  } catch(e) { updateBrokerageBar(false, false, null); }
 }
 
 function updateBrokerageBar(connected, paper, buyingPower) {
-  const dot = document.getElementById('conn-dot');
+  const dot   = document.getElementById('conn-dot');
   const label = document.getElementById('conn-label');
-  const bp = document.getElementById('buying-power-display');
-
+  const bp    = document.getElementById('buying-power-display');
   if (connected) {
-    dot.className = 'conn-dot ' + (paper ? 'paper' : 'live');
-    label.className = 'conn-label connected';
-    label.textContent = 'Alpaca ' + (paper ? 'Paper' : 'Live') + ' — Connected';
+    dot.className     = 'conn-dot ' + (paper ? 'paper' : 'live');
+    label.className   = 'conn-label connected';
+    label.textContent = 'Alpaca ' + (paper ? 'Paper' : 'Live') + ' \u2014 Connected';
     if (buyingPower) bp.textContent = '$' + Number(buyingPower).toLocaleString() + ' buying power';
   } else {
-    dot.className = 'conn-dot';
+    dot.className  = 'conn-dot';
     label.className = 'conn-label';
-    label.innerHTML = 'No brokerage connected &mdash; <a href="brokerage.html" style="color:var(--gold)">Connect Alpaca</a>';
-    bp.textContent = '';
+    label.innerHTML = 'No brokerage connected \u2014 <a href="brokerage.html" style="color:var(--gold)">Connect Alpaca</a>';
+    bp.textContent  = '';
   }
 }
 
-// ── STRATEGY / INSTRUMENT TABS ──
 function setStrategy(s) {
   currentStrategy = s;
   document.querySelectorAll('.strategy-tab').forEach(t => t.classList.remove('active'));
   document.getElementById('strat-' + s).classList.add('active');
   updateInstructionSub();
-  // Clear previous results
   document.getElementById('instruction-result').classList.remove('visible');
   document.getElementById('manual-panel').classList.remove('visible');
 }
@@ -1024,12 +585,11 @@ function setInstrument(inst) {
 function updateInstructionSub() {
   const sub = document.getElementById('instruction-sub');
   const stratLabel = currentStrategy === 'day' ? 'intraday' : 'swing';
-  const instLabel = currentInstrument === 'options' ? 'options contracts (calls and puts)' : 'stocks (long and short)';
-  sub.textContent = 'Claude synthesizes all 21 algorithms for ' + stratLabel + ' ' + instLabel + '. ' +
-    (currentMode === 'manual' ? 'Returns a ranked list — select one to autofill all fields.' : 'Returns the top pick and autofills all fields automatically.');
+  const instLabel  = currentInstrument === 'options' ? 'options contracts' : 'stocks (long and short)';
+  sub.textContent  = 'Claude synthesizes all 21 algorithms for ' + stratLabel + ' ' + instLabel + '. ' +
+    (currentMode === 'manual' ? 'Returns a ranked list \u2014 select one to autofill all fields.' : 'Returns the top pick and autofills all fields automatically.');
 }
 
-// ── MODE TOGGLE ──
 function toggleMode() {
   if (currentMode === 'manual') {
     if (!confirm('Activate Auto Mode? AURUM will execute orders through Alpaca automatically within your safety limits.')) return;
@@ -1043,33 +603,33 @@ function toggleMode() {
 
 function updateModeUI(mode) {
   const toggle = document.getElementById('mode-toggle');
-  const label = document.getElementById('toggle-label');
+  const label  = document.getElementById('toggle-label');
   const status = document.getElementById('mode-status');
-  const desc = document.getElementById('mode-desc');
-  const panel = document.getElementById('mode-panel');
+  const desc   = document.getElementById('mode-desc');
+  const panel  = document.getElementById('mode-panel');
   const warning = document.getElementById('warning-box');
   const manualPanel = document.getElementById('manual-panel');
-  const autoPanel = document.getElementById('auto-order-panel');
+  const autoPanel   = document.getElementById('auto-order-panel');
 
   if (mode === 'auto') {
     toggle.classList.add('on');
-    label.textContent = 'AUTO';
-    label.className = 'toggle-label on';
+    label.textContent  = 'AUTO';
+    label.className    = 'toggle-label on';
     status.textContent = 'Auto Mode Active';
-    status.className = 'mode-status auto';
-    desc.textContent = 'Claude selects the top trade, all fields autofill, order executes through Alpaca.';
-    panel.className = 'mode-panel auto-active';
+    status.className   = 'mode-status auto';
+    desc.textContent   = 'Claude selects the top trade, all fields autofill, order executes through Alpaca.';
+    panel.className    = 'mode-panel auto-active';
     warning.classList.add('visible');
     if (manualPanel) manualPanel.classList.remove('visible');
     if (currentInstruction) autofillAutoPanel(currentInstruction);
   } else {
     toggle.classList.remove('on');
-    label.textContent = 'MANUAL';
-    label.className = 'toggle-label';
+    label.textContent  = 'MANUAL';
+    label.className    = 'toggle-label';
     status.textContent = 'Manual Mode';
-    status.className = 'mode-status manual';
-    desc.textContent = 'Claude returns a ranked list. Select one, all fields autofill, press Enter to submit.';
-    panel.className = 'mode-panel manual-active';
+    status.className   = 'mode-status manual';
+    desc.textContent   = 'Claude returns a ranked list. Select one, all fields autofill, press Enter to submit.';
+    panel.className    = 'mode-panel manual-active';
     warning.classList.remove('visible');
     if (autoPanel) autoPanel.classList.remove('visible');
     if (manualTradeList.length) manualPanel.classList.add('visible');
@@ -1077,56 +637,47 @@ function updateModeUI(mode) {
   updateInstructionSub();
 }
 
-// ── RENDER ORDER FIELDS ──
 function getStockFields() {
   return [
-    { id: 'ticker',     label: 'Ticker',         cls: 'gold' },
-    { id: 'direction',  label: 'Direction',       cls: '' },
-    { id: 'order-type', label: 'Order Type',      cls: '' },
-    { id: 'entry',      label: 'Entry Price',     cls: '' },
-    { id: 'exit',       label: 'Exit Target',     cls: 'positive' },
-    { id: 'stop',       label: 'Stop Loss',       cls: 'danger' },
-    { id: 'size',       label: 'Position Size',   cls: '' },
-    { id: 'dollars',    label: 'Est. Amount',     cls: 'gold' },
-    { id: 'tif',        label: 'Time in Force',   cls: '' }
+    { id: 'ticker',     label: 'Ticker',       cls: 'gold' },
+    { id: 'direction',  label: 'Direction',    cls: '' },
+    { id: 'order-type', label: 'Order Type',   cls: '' },
+    { id: 'entry',      label: 'Entry Price',  cls: '' },
+    { id: 'exit',       label: 'Exit Target',  cls: 'positive' },
+    { id: 'stop',       label: 'Stop Loss',    cls: 'danger' },
+    { id: 'size',       label: 'Position Size',cls: '' },
+    { id: 'dollars',    label: 'Est. Amount',  cls: 'gold' },
+    { id: 'tif',        label: 'Time in Force',cls: '' }
   ];
 }
 
 function getOptionsFields() {
   return [
-    { id: 'ticker',      label: 'Underlying',      cls: 'gold' },
-    { id: 'direction',   label: 'Direction',        cls: '' },
-    { id: 'contract',    label: 'Contract Type',    cls: '' },
-    { id: 'strike',      label: 'Strike Price',     cls: '' },
-    { id: 'expiry',      label: 'Expiration',       cls: '' },
-    { id: 'premium',     label: 'Premium (ask)',    cls: 'gold' },
-    { id: 'contracts',   label: 'Contracts',        cls: '' },
-    { id: 'dollars',     label: 'Est. Cost',        cls: 'gold' },
-    { id: 'stop',        label: 'Stop Loss',        cls: 'danger' },
-    { id: 'exit',        label: 'Target Premium',   cls: 'positive' },
-    { id: 'delta',       label: 'Delta (est.)',     cls: '' },
-    { id: 'tif',         label: 'Time in Force',    cls: '' }
+    { id: 'ticker',   label: 'Underlying',    cls: 'gold' },
+    { id: 'direction',label: 'Direction',     cls: '' },
+    { id: 'contract', label: 'Contract Type', cls: '' },
+    { id: 'strike',   label: 'Strike Price',  cls: '' },
+    { id: 'expiry',   label: 'Expiration',    cls: '' },
+    { id: 'premium',  label: 'Premium (ask)', cls: 'gold' },
+    { id: 'contracts',label: 'Contracts',     cls: '' },
+    { id: 'dollars',  label: 'Est. Cost',     cls: 'gold' },
+    { id: 'stop',     label: 'Stop Loss',     cls: 'danger' },
+    { id: 'exit',     label: 'Target Premium',cls: 'positive' },
+    { id: 'delta',    label: 'Delta (est.)',  cls: '' },
+    { id: 'tif',      label: 'Time in Force', cls: '' }
   ];
 }
 
 function buildOrderFieldsHTML(prefix, fields) {
-  return fields.map(f => `
-    <div class="order-field">
-      <div class="order-field-label">${f.label}</div>
-      <div class="order-field-value ${f.cls}" id="${prefix}-${f.id}">—</div>
-    </div>
-  `).join('');
+  return fields.map(f => `<div class="order-field"><div class="order-field-label">${f.label}</div><div class="order-field-value ${f.cls}" id="${prefix}-${f.id}">—</div></div>`).join('');
 }
 
 function renderManualOrderFields() {
   const fields = currentInstrument === 'options' ? getOptionsFields() : getStockFields();
-  document.getElementById('manual-order-fields').innerHTML = buildOrderFieldsHTML('m', fields);
-  // Add confidence / score / signals for manual
-  document.getElementById('manual-order-fields').innerHTML += `
-    <div class="order-field"><div class="order-field-label">Confidence</div><div class="order-field-value" id="m-confidence">—</div></div>
-    <div class="order-field"><div class="order-field-label">Algo Score</div><div class="order-field-value" id="m-score">—</div></div>
-    <div class="order-field" style="grid-column:span 1"><div class="order-field-label">Algo Signals</div><div class="order-field-value" id="m-signals" style="font-size:0.68rem">—</div></div>
-  `;
+  document.getElementById('manual-order-fields').innerHTML = buildOrderFieldsHTML('m', fields) +
+    `<div class="order-field"><div class="order-field-label">Confidence</div><div class="order-field-value" id="m-confidence">—</div></div>
+     <div class="order-field"><div class="order-field-label">Algo Score</div><div class="order-field-value" id="m-score">—</div></div>
+     <div class="order-field"><div class="order-field-label">Algo Signals</div><div class="order-field-value" id="m-signals" style="font-size:0.68rem">—</div></div>`;
 }
 
 function renderAutoOrderFields() {
@@ -1134,43 +685,46 @@ function renderAutoOrderFields() {
   document.getElementById('auto-order-fields').innerHTML = buildOrderFieldsHTML('a', fields);
 }
 
-// ── AUTOFILL ──
 function autofillAutoPanel(r) {
-  const panel = document.getElementById('auto-order-panel');
-  const pf = settings.principal_floor || 5000;
+  const panel  = document.getElementById('auto-order-panel');
+  const pf     = settings.principal_floor || 5000;
   const maxPct = settings.max_position_size_pct || 10;
 
+  // Use live price if available
+  const livePrice = priceCache[r.ticker]?.price;
+  const entryPrice = livePrice || r.entry_price;
+
   if (currentInstrument === 'stock') {
-    const hasLimit = r.entry_price > 0;
-    const dollars = ((r.position_size_pct || maxPct) / 100) * pf;
-    setField('a-ticker', r.ticker, 'gold');
-    setField('a-direction', r.direction, r.direction === 'SHORT' ? 'danger' : 'positive');
+    const hasLimit = entryPrice > 0;
+    const dollars  = ((r.position_size_pct || maxPct) / 100) * pf;
+    setField('a-ticker',     r.ticker, 'gold');
+    setField('a-direction',  r.direction, r.direction === 'SHORT' ? 'danger' : 'positive');
     setField('a-order-type', hasLimit ? 'Limit' : 'Market');
-    setField('a-entry', hasLimit ? '$' + r.entry_price : 'Market Price');
-    setField('a-exit', r.exit_target ? '$' + r.exit_target : '—', 'positive');
-    setField('a-stop', r.stop_loss ? '$' + r.stop_loss : '—', 'danger');
-    setField('a-size', (r.position_size_pct || maxPct) + '%');
-    setField('a-dollars', '~$' + Math.round(dollars).toLocaleString(), 'gold');
-    setField('a-tif', currentStrategy === 'day' ? 'IOC' : 'Day');
+    setField('a-entry',      hasLimit ? '$' + entryPrice.toFixed(2) + (livePrice ? ' (live)' : '') : 'Market Price');
+    setField('a-exit',       r.exit_target ? '$' + r.exit_target : '—', 'positive');
+    setField('a-stop',       r.stop_loss   ? '$' + r.stop_loss   : '—', 'danger');
+    setField('a-size',       (r.position_size_pct || maxPct) + '%');
+    setField('a-dollars',    '~$' + Math.round(dollars).toLocaleString(), 'gold');
+    setField('a-tif',        currentStrategy === 'day' ? 'IOC' : 'Day');
   } else {
     const contracts = r.contracts || 1;
-    const premium = r.premium || 0;
-    const dollars = contracts * premium * 100;
-    setField('a-ticker', r.ticker, 'gold');
+    const premium   = r.premium   || 0;
+    const dollars   = contracts * premium * 100;
+    setField('a-ticker',    r.ticker, 'gold');
     setField('a-direction', r.direction || '—');
-    setField('a-contract', r.contract_type || '—');
-    setField('a-strike', r.strike ? '$' + r.strike : '—');
-    setField('a-expiry', r.expiration || '—');
-    setField('a-premium', premium ? '$' + premium : '—', 'gold');
+    setField('a-contract',  r.contract_type || '—');
+    setField('a-strike',    r.strike ? '$' + r.strike : '—');
+    setField('a-expiry',    r.expiration || '—');
+    setField('a-premium',   premium ? '$' + premium : '—', 'gold');
     setField('a-contracts', contracts + ' contract' + (contracts !== 1 ? 's' : ''));
-    setField('a-dollars', dollars ? '~$' + Math.round(dollars).toLocaleString() : '—', 'gold');
-    setField('a-stop', r.stop_premium ? '$' + r.stop_premium : '—', 'danger');
-    setField('a-exit', r.target_premium ? '$' + r.target_premium : '—', 'positive');
-    setField('a-delta', r.delta || '—');
-    setField('a-tif', 'Day');
+    setField('a-dollars',   dollars ? '~$' + Math.round(dollars).toLocaleString() : '—', 'gold');
+    setField('a-stop',      r.stop_premium   ? '$' + r.stop_premium   : '—', 'danger');
+    setField('a-exit',      r.target_premium ? '$' + r.target_premium : '—', 'positive');
+    setField('a-delta',     r.delta || '—');
+    setField('a-tif',       'Day');
   }
 
-  document.getElementById('auto-order-status').textContent = 'All fields auto-populated — confirm to execute.';
+  document.getElementById('auto-order-status').textContent = 'All fields auto-populated' + (livePrice ? ' with live price' : '') + ' \u2014 confirm to execute.';
   document.getElementById('auto-order-status').className = 'order-status';
   document.getElementById('auto-execute-btn').disabled = false;
   document.getElementById('auto-execute-btn').textContent = 'Execute Order via Alpaca';
@@ -1179,50 +733,52 @@ function autofillAutoPanel(r) {
 }
 
 function autofillManualPanel(trade) {
-  const pf = settings.principal_floor || 5000;
+  const pf     = settings.principal_floor || 5000;
   const maxPct = settings.max_position_size_pct || 10;
+  const livePrice = priceCache[trade.ticker]?.price;
+  const entryPrice = livePrice || trade.entry_price;
 
   document.getElementById('m-instruction').textContent = trade.reasoning || '—';
 
   if (currentInstrument === 'stock') {
-    const hasLimit = trade.entry_price > 0;
-    const dollars = ((trade.position_size_pct || maxPct) / 100) * pf;
-    setField('m-ticker', trade.ticker, 'gold');
-    setField('m-direction', trade.direction, trade.direction === 'SHORT' ? 'danger' : 'positive');
+    const hasLimit = entryPrice > 0;
+    const dollars  = ((trade.position_size_pct || maxPct) / 100) * pf;
+    setField('m-ticker',     trade.ticker, 'gold');
+    setField('m-direction',  trade.direction, trade.direction === 'SHORT' ? 'danger' : 'positive');
     setField('m-order-type', trade.order_type || (hasLimit ? 'Limit' : 'Market'));
-    setField('m-entry', hasLimit ? '$' + trade.entry_price : 'Market Price');
-    setField('m-exit', trade.exit_target ? '$' + trade.exit_target : '—', 'positive');
-    setField('m-stop', trade.stop_loss ? '$' + trade.stop_loss : '—', 'danger');
-    setField('m-size', (trade.position_size_pct || maxPct) + '%');
-    setField('m-dollars', '~$' + Math.round(dollars).toLocaleString(), 'gold');
-    setField('m-tif', currentStrategy === 'day' ? 'IOC' : 'Day');
+    setField('m-entry',      hasLimit ? '$' + entryPrice.toFixed(2) + (livePrice ? ' (live)' : '') : 'Market Price');
+    setField('m-exit',       trade.exit_target ? '$' + trade.exit_target : '—', 'positive');
+    setField('m-stop',       trade.stop_loss   ? '$' + trade.stop_loss   : '—', 'danger');
+    setField('m-size',       (trade.position_size_pct || maxPct) + '%');
+    setField('m-dollars',    '~$' + Math.round(dollars).toLocaleString(), 'gold');
+    setField('m-tif',        currentStrategy === 'day' ? 'IOC' : 'Day');
   } else {
     const contracts = trade.contracts || 1;
-    const premium = trade.premium || 0;
-    const dollars = contracts * premium * 100;
-    setField('m-ticker', trade.ticker, 'gold');
+    const premium   = trade.premium   || 0;
+    const dollars   = contracts * premium * 100;
+    setField('m-ticker',    trade.ticker, 'gold');
     setField('m-direction', trade.direction || '—');
-    setField('m-contract', trade.contract_type || '—');
-    setField('m-strike', trade.strike ? '$' + trade.strike : '—');
-    setField('m-expiry', trade.expiration || '—');
-    setField('m-premium', premium ? '$' + premium : '—', 'gold');
+    setField('m-contract',  trade.contract_type || '—');
+    setField('m-strike',    trade.strike ? '$' + trade.strike : '—');
+    setField('m-expiry',    trade.expiration || '—');
+    setField('m-premium',   premium ? '$' + premium : '—', 'gold');
     setField('m-contracts', contracts + ' contract' + (contracts !== 1 ? 's' : ''));
-    setField('m-dollars', dollars ? '~$' + Math.round(dollars).toLocaleString() : '—', 'gold');
-    setField('m-stop', trade.stop_premium ? '$' + trade.stop_premium : '—', 'danger');
-    setField('m-exit', trade.target_premium ? '$' + trade.target_premium : '—', 'positive');
-    setField('m-delta', trade.delta || '—');
-    setField('m-tif', 'Day');
+    setField('m-dollars',   dollars ? '~$' + Math.round(dollars).toLocaleString() : '—', 'gold');
+    setField('m-stop',      trade.stop_premium   ? '$' + trade.stop_premium   : '—', 'danger');
+    setField('m-exit',      trade.target_premium ? '$' + trade.target_premium : '—', 'positive');
+    setField('m-delta',     trade.delta || '—');
+    setField('m-tif',       'Day');
   }
 
   document.getElementById('m-confidence').textContent = trade.confidence || '—';
-  document.getElementById('m-score').textContent = trade.orchestrator_score || '—';
-  document.getElementById('m-signals').textContent = trade.algo_signals || '—';
+  document.getElementById('m-score').textContent      = trade.orchestrator_score || '—';
+  document.getElementById('m-signals').textContent    = trade.algo_signals || '—';
 
   const panel = document.getElementById('manual-order-panel');
-  document.getElementById('manual-submit-btn').disabled = false;
+  document.getElementById('manual-submit-btn').disabled  = false;
   document.getElementById('manual-submit-btn').textContent = 'Submit Order';
-  document.getElementById('manual-status').textContent = 'Review all fields above, then submit.';
-  document.getElementById('manual-status').className = 'order-status';
+  document.getElementById('manual-status').textContent   = 'Review all fields above, then submit.';
+  document.getElementById('manual-status').className     = 'order-status';
   panel.classList.add('visible');
   panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
@@ -1231,10 +787,9 @@ function setField(id, value, cls) {
   const el = document.getElementById(id);
   if (!el) return;
   el.textContent = value || '—';
-  el.className = 'order-field-value' + (cls ? ' ' + cls : '');
+  el.className   = 'order-field-value' + (cls ? ' ' + cls : '');
 }
 
-// ── GENERATE INSTRUCTION ──
 async function generateInstruction() {
   const btn = document.getElementById('generate-btn');
   btn.disabled = true;
@@ -1243,37 +798,31 @@ async function generateInstruction() {
   document.getElementById('manual-order-panel').classList.remove('visible');
 
   try {
-    const { data: picks } = await db.from('picks').select('ticker, score, brief').order('picked_at', { ascending: false }).limit(5);
+    const { data: picks  } = await db.from('picks').select('ticker, score, brief').order('picked_at', { ascending: false }).limit(5);
     const { data: stocks } = await db.from('stocks').select('ticker, sector');
-    const { data: news } = await db.from('news_feed').select('ticker, algorithm_alignment, source').order('published_at', { ascending: false }).limit(8);
+    const { data: news   } = await db.from('news_feed').select('ticker, algorithm_alignment, source').order('published_at', { ascending: false }).limit(8);
 
-    const watchlist = stocks?.map(s => s.ticker + '(' + s.sector + ')').join(', ') || 'None';
-    const pickSum = picks?.map(p => p.ticker + ':' + p.score + ' ' + p.brief).join(' | ') || 'None';
-    const newsSum = news?.map(n => n.ticker + ':' + (n.algorithm_alignment?.sentiment || 'neutral')).join(' | ') || 'None';
+    const watchlist  = stocks?.map(s => s.ticker + '(' + s.sector + ')').join(', ') || 'None';
+    const pickSum    = picks?.map(p => p.ticker + ':' + p.score + ' ' + p.brief).join(' | ') || 'None';
+    const newsSum    = news?.map(n => n.ticker + ':' + (n.algorithm_alignment?.sentiment || 'neutral')).join(' | ') || 'None';
+
+    // Include live prices in context
+    const livePriceContext = Object.entries(priceCache).slice(0, 10)
+      .map(([t, d]) => t + ':$' + d.price.toFixed(2)).join(', ');
 
     const stratNote = currentStrategy === 'day'
       ? 'DAY TRADE mode: favor momentum, volume, options flow, sentiment velocity, news catalysts. Use tighter stops (1-2%). Time horizon: intraday. Order TIF: IOC.'
-      : 'SWING TRADE mode: use full algorithm stack including macro, earnings, fundamentals. Time horizon: days to weeks. Order TIF: Day.';
-
-    const isPaper = !alpacaConfig || alpacaConfig.paper;
+      : 'SWING TRADE mode: use full algorithm stack. Time horizon: days to weeks. Order TIF: Day.';
 
     if (currentInstrument === 'stock') {
-      if (currentMode === 'manual') {
-        await generateManualStocks(watchlist, pickSum, newsSum, stratNote);
-      } else {
-        await generateAutoStock(watchlist, pickSum, newsSum, stratNote, isPaper);
-      }
+      if (currentMode === 'manual') await generateManualStocks(watchlist, pickSum, newsSum, stratNote, livePriceContext);
+      else                          await generateAutoStock(watchlist, pickSum, newsSum, stratNote, livePriceContext);
     } else {
-      if (currentMode === 'manual') {
-        await generateManualOptions(watchlist, pickSum, newsSum, stratNote);
-      } else {
-        await generateAutoOption(watchlist, pickSum, newsSum, stratNote, isPaper);
-      }
+      if (currentMode === 'manual') await generateManualOptions(watchlist, pickSum, newsSum, stratNote);
+      else                          await generateAutoOption(watchlist, pickSum, newsSum, stratNote);
     }
 
   } catch(e) {
-    document.getElementById('loading-state').classList.remove('visible');
-    btn.disabled = false;
     showResult({ ticker: 'ERROR', direction: '—', reasoning: 'Failed to generate instruction. Check API key.' }, {});
   }
 
@@ -1285,57 +834,46 @@ async function callClaude(prompt, maxTokens) {
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: maxTokens || 2000,
-      messages: [{ role: 'user', content: prompt }]
-    })
+    body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: maxTokens || 2000, messages: [{ role: 'user', content: prompt }] })
   });
   const data = await res.json();
   const text = data.content?.[0]?.text || '{}';
   return JSON.parse(text.replace(/```json|```/g, '').trim());
 }
 
-async function generateAutoStock(watchlist, picks, news, stratNote, isPaper) {
+async function generateAutoStock(watchlist, picks, news, stratNote, livePrices) {
   const result = await callClaude(`You are AURUM — private market intelligence system with 21 algorithms.
 ${stratNote}
 Watchlist: ${watchlist} | Picks: ${picks} | News: ${news}
+Live prices: ${livePrices}
 Principal floor: $${settings.principal_floor || 5000} | Max position: ${settings.max_position_size_pct || 10}%
-
-Return ONE highest-conviction STOCK trade. Both LONG and SHORT valid.
-JSON only, no extra text:
-{"ticker":"NVDA","direction":"LONG","entry_price":875.50,"exit_target":920.00,"stop_loss":850.00,"position_size_pct":8,"orchestrator_score":87,"confidence":"High","reasoning":"2-3 sentence AURUM-tone instruction","algo_signals":"Which algorithms drove this"}`, 1000);
-
+Use live prices for entry_price where available.
+JSON only: {"ticker":"NVDA","direction":"LONG","entry_price":875.50,"exit_target":920.00,"stop_loss":850.00,"position_size_pct":8,"orchestrator_score":87,"confidence":"High","reasoning":"2-3 sentence AURUM-tone instruction","algo_signals":"Which algorithms drove this"}`, 1000);
   currentInstruction = result;
   showResult(result, {});
   if (currentMode === 'auto') autofillAutoPanel(result);
+  if (result.ticker) { selectFeedTicker(result.ticker); }
 }
 
-async function generateManualStocks(watchlist, picks, news, stratNote) {
+async function generateManualStocks(watchlist, picks, news, stratNote, livePrices) {
   const result = await callClaude(`You are AURUM — private market intelligence system with 21 algorithms.
 ${stratNote}
 Watchlist: ${watchlist} | Picks: ${picks} | News: ${news}
-Principal floor: $${settings.principal_floor || 5000} | Max position: ${settings.max_position_size_pct || 10}%
-
-Return 5 ranked STOCK trades. Both LONG and SHORT valid.
-JSON only, no extra text:
-{"trades":[{"rank":1,"ticker":"NVDA","direction":"LONG","entry_price":875.50,"exit_target":920.00,"stop_loss":850.00,"position_size_pct":8,"orchestrator_score":87,"confidence":"High","reasoning":"2-3 sentence AURUM-tone instruction","algo_signals":"Which algorithms drove this","order_type":"Limit"}]}`, 2000);
-
+Live prices: ${livePrices}
+Use live prices for entry_price. Return 5 ranked STOCK trades.
+JSON only: {"trades":[{"rank":1,"ticker":"NVDA","direction":"LONG","entry_price":875.50,"exit_target":920.00,"stop_loss":850.00,"position_size_pct":8,"orchestrator_score":87,"confidence":"High","reasoning":"2-3 sentence instruction","algo_signals":"Algo summary","order_type":"Limit"}]}`, 2000);
   manualTradeList = result.trades || [];
   renderTradeList(manualTradeList);
   document.getElementById('manual-panel').classList.add('visible');
-  document.getElementById('manual-panel-sub').textContent = manualTradeList.length + ' trades ranked by conviction. Select one — all fields autofill. Press Enter to submit.';
+  document.getElementById('manual-panel-sub').textContent = manualTradeList.length + ' trades ranked by conviction. Select one \u2014 all fields autofill with live prices. Press Enter to submit.';
 }
 
-async function generateAutoOption(watchlist, picks, news, stratNote, isPaper) {
+async function generateAutoOption(watchlist, picks, news, stratNote) {
   const result = await callClaude(`You are AURUM — private market intelligence system with 21 algorithms.
 ${stratNote}
 Watchlist: ${watchlist} | Picks: ${picks} | News: ${news}
-
 Return ONE highest-conviction OPTIONS trade. Can be BUY_CALL, BUY_PUT, SELL_CALL, or SELL_PUT.
-JSON only, no extra text:
-{"ticker":"NVDA","direction":"BUY_CALL","contract_type":"Call","strike":880,"expiration":"2026-06-20","premium":12.50,"contracts":2,"target_premium":22.00,"stop_premium":6.00,"delta":0.55,"orchestrator_score":84,"confidence":"High","reasoning":"2-3 sentence AURUM-tone instruction","algo_signals":"Which algorithms drove this"}`, 1000);
-
+JSON only: {"ticker":"NVDA","direction":"BUY_CALL","contract_type":"Call","strike":880,"expiration":"2026-06-20","premium":12.50,"contracts":2,"target_premium":22.00,"stop_premium":6.00,"delta":0.55,"orchestrator_score":84,"confidence":"High","reasoning":"2-3 sentence instruction","algo_signals":"Algo summary"}`, 1000);
   currentInstruction = result;
   showResult(result, {});
   if (currentMode === 'auto') autofillAutoPanel(result);
@@ -1345,40 +883,42 @@ async function generateManualOptions(watchlist, picks, news, stratNote) {
   const result = await callClaude(`You are AURUM — private market intelligence system with 21 algorithms.
 ${stratNote}
 Watchlist: ${watchlist} | Picks: ${picks} | News: ${news}
-
 Return 5 ranked OPTIONS trades. Mix of BUY_CALL, BUY_PUT, SELL_CALL, SELL_PUT.
-JSON only, no extra text:
-{"trades":[{"rank":1,"ticker":"NVDA","direction":"BUY_CALL","contract_type":"Call","strike":880,"expiration":"2026-06-20","premium":12.50,"contracts":2,"target_premium":22.00,"stop_premium":6.00,"delta":0.55,"orchestrator_score":84,"confidence":"High","reasoning":"2-3 sentence AURUM-tone instruction","algo_signals":"Which algorithms drove this"}]}`, 2500);
-
+JSON only: {"trades":[{"rank":1,"ticker":"NVDA","direction":"BUY_CALL","contract_type":"Call","strike":880,"expiration":"2026-06-20","premium":12.50,"contracts":2,"target_premium":22.00,"stop_premium":6.00,"delta":0.55,"orchestrator_score":84,"confidence":"High","reasoning":"2-3 sentence instruction","algo_signals":"Algo summary"}]}`, 2500);
   manualTradeList = result.trades || [];
   renderTradeList(manualTradeList);
   document.getElementById('manual-panel').classList.add('visible');
-  document.getElementById('manual-panel-sub').textContent = manualTradeList.length + ' options trades ranked by conviction. Select one to autofill all fields.';
+  document.getElementById('manual-panel-sub').textContent = manualTradeList.length + ' options trades ranked. Select one to autofill.';
 }
 
 function showResult(r, params) {
-  document.getElementById('result-ticker').textContent = r.ticker || '—';
+  document.getElementById('result-ticker').textContent   = r.ticker || '—';
   const dirEl = document.getElementById('result-direction');
   dirEl.textContent = (r.direction || '—').replace('_', ' ');
-  dirEl.className = 'result-direction ' + (r.direction || '').toLowerCase().replace('_', '_');
-
+  dirEl.className   = 'result-direction ' + (r.direction || '').toLowerCase();
   document.getElementById('result-reasoning').textContent = r.reasoning || '—';
 
-  // params grid
+  // Show live price in result header
+  if (r.ticker && priceCache[r.ticker]) {
+    const d  = priceCache[r.ticker];
+    const el = document.getElementById('result-live-price');
+    if (el) el.textContent = 'Live: $' + d.price.toFixed(2) + ' (' + (d.change >= 0 ? '+' : '') + d.changePct.toFixed(2) + '%)';
+  }
+
   const fields = currentInstrument === 'stock' ? [
-    { label: 'Entry', value: r.entry_price ? '$' + r.entry_price : 'Market' },
-    { label: 'Exit Target', value: r.exit_target ? '$' + r.exit_target : '—' },
-    { label: 'Stop Loss', value: r.stop_loss ? '$' + r.stop_loss : '—' },
+    { label: 'Entry',         value: r.entry_price ? '$' + r.entry_price : 'Market' },
+    { label: 'Exit Target',   value: r.exit_target ? '$' + r.exit_target : '—' },
+    { label: 'Stop Loss',     value: r.stop_loss   ? '$' + r.stop_loss   : '—' },
     { label: 'Position Size', value: r.position_size_pct ? r.position_size_pct + '%' : '—' },
-    { label: 'Confidence', value: r.confidence || '—' },
-    { label: 'Score', value: r.orchestrator_score || '—' }
+    { label: 'Confidence',    value: r.confidence || '—' },
+    { label: 'Score',         value: r.orchestrator_score || '—' }
   ] : [
-    { label: 'Contract', value: r.contract_type || '—' },
-    { label: 'Strike', value: r.strike ? '$' + r.strike : '—' },
-    { label: 'Expiration', value: r.expiration || '—' },
-    { label: 'Premium', value: r.premium ? '$' + r.premium : '—' },
-    { label: 'Contracts', value: r.contracts || '—' },
-    { label: 'Score', value: r.orchestrator_score || '—' }
+    { label: 'Contract',    value: r.contract_type || '—' },
+    { label: 'Strike',      value: r.strike ? '$' + r.strike : '—' },
+    { label: 'Expiration',  value: r.expiration || '—' },
+    { label: 'Premium',     value: r.premium ? '$' + r.premium : '—' },
+    { label: 'Contracts',   value: r.contracts || '—' },
+    { label: 'Score',       value: r.orchestrator_score || '—' }
   ];
 
   document.getElementById('result-params').innerHTML = fields.map(f =>
@@ -1386,21 +926,16 @@ function showResult(r, params) {
   ).join('');
 
   document.getElementById('instruction-result').classList.add('visible');
-  if (currentMode !== 'auto') {
-    document.getElementById('auto-order-panel').classList.remove('visible');
-  }
+  if (currentMode !== 'auto') document.getElementById('auto-order-panel').classList.remove('visible');
 }
 
-// ── TRADE LIST ──
 function renderTradeList(trades) {
   const container = document.getElementById('trade-list');
-  if (!trades || !trades.length) {
-    container.innerHTML = '<div class="empty-state" style="border:none;">No trades returned.</div>';
-    return;
-  }
+  if (!trades || !trades.length) { container.innerHTML = '<div class="empty-state" style="border:none;">No trades returned.</div>'; return; }
   container.innerHTML = trades.map((t, i) => {
-    const dir = (t.direction || '').toLowerCase().replace('_', '_');
+    const dir   = (t.direction || '').toLowerCase();
     const label = (t.direction || '').replace('_', ' ');
+    const livePrice = priceCache[t.ticker];
     return `
       <div class="trade-list-row" id="tr-${i}" onclick="selectTrade(${i})">
         <div class="trade-rank">${t.rank || i + 1}</div>
@@ -1410,8 +945,8 @@ function renderTradeList(trades) {
         </div>
         <div class="trade-list-dir ${dir}">${label}</div>
         <div class="trade-list-score">${t.orchestrator_score || '—'}</div>
-      </div>
-    `;
+        <div class="trade-list-live" id="live-${t.ticker}">${livePrice ? '$' + livePrice.price.toFixed(2) : '—'}</div>
+      </div>`;
   }).join('');
 }
 
@@ -1419,216 +954,155 @@ function selectTrade(i) {
   document.querySelectorAll('.trade-list-row').forEach(r => r.classList.remove('selected'));
   const row = document.getElementById('tr-' + i);
   if (row) row.classList.add('selected');
-  selectedTrade = manualTradeList[i];
+  selectedTrade      = manualTradeList[i];
   currentInstruction = selectedTrade;
   autofillManualPanel(selectedTrade);
+  if (selectedTrade?.ticker) selectFeedTicker(selectedTrade.ticker);
 }
 
-// ── ALPACA ORDER EXECUTION ──
 async function sendAlpacaOrder(order) {
-  if (!alpacaConfig || !alpacaConfig.apiKey) {
-    return { ok: false, error: 'No Alpaca credentials. Connect Alpaca in Brokerage page.' };
-  }
-
-  const baseUrl = alpacaConfig.paper
-    ? 'https://paper-api.alpaca.markets'
-    : 'https://api.alpaca.markets';
-
+  if (!alpacaConfig?.apiKey) return { ok: false, error: 'No Alpaca credentials. Connect Alpaca in Brokerage page.' };
+  const baseUrl = alpacaConfig.paper ? 'https://paper-api.alpaca.markets' : 'https://api.alpaca.markets';
   try {
     const res = await fetch(baseUrl + '/v2/orders', {
       method: 'POST',
-      headers: {
-        'APCA-API-KEY-ID': alpacaConfig.apiKey,
-        'APCA-API-SECRET-KEY': alpacaConfig.secretKey,
-        'Content-Type': 'application/json'
-      },
+      headers: { 'APCA-API-KEY-ID': alpacaConfig.apiKey, 'APCA-API-SECRET-KEY': alpacaConfig.secretKey, 'Content-Type': 'application/json' },
       body: JSON.stringify(order)
     });
-
     const data = await res.json();
     if (res.ok) return { ok: true, orderId: data.id, status: data.status };
     return { ok: false, error: data.message || 'Order rejected by Alpaca' };
-  } catch(e) {
-    return { ok: false, error: 'Network error — check connection' };
-  }
+  } catch(e) { return { ok: false, error: 'Network error' }; }
 }
 
 function buildAlpacaOrder(instruction) {
+  const livePrice = priceCache[instruction.ticker]?.price;
+  const entryPrice = livePrice || instruction.entry_price;
   const qty = instruction.position_size_pct
-    ? Math.max(1, Math.floor(((instruction.position_size_pct / 100) * (settings.principal_floor || 5000)) / (instruction.entry_price || 100)))
+    ? Math.max(1, Math.floor(((instruction.position_size_pct / 100) * (settings.principal_floor || 5000)) / (entryPrice || 100)))
     : 1;
 
   if (currentInstrument === 'stock') {
-    const side = instruction.direction === 'SHORT' ? 'sell_short' : 'buy';
-    const hasLimit = instruction.entry_price > 0;
-    const order = {
-      symbol: instruction.ticker,
-      qty: qty,
-      side: side,
-      type: hasLimit ? 'limit' : 'market',
-      time_in_force: currentStrategy === 'day' ? 'ioc' : 'day'
-    };
-    if (hasLimit) order.limit_price = instruction.entry_price;
+    const side  = instruction.direction === 'SHORT' ? 'sell_short' : 'buy';
+    const hasLimit = entryPrice > 0;
+    const order = { symbol: instruction.ticker, qty, side, type: hasLimit ? 'limit' : 'market', time_in_force: currentStrategy === 'day' ? 'ioc' : 'day' };
+    if (hasLimit) order.limit_price = parseFloat(entryPrice.toFixed(2));
     return order;
   } else {
-    // Options order via Alpaca options endpoint
     const contractAction = (instruction.direction || '').toLowerCase();
     const side = contractAction.startsWith('buy') ? 'buy' : 'sell';
-    return {
-      symbol: instruction.ticker + instruction.expiration?.replace(/-/g, '') + (instruction.contract_type === 'Call' ? 'C' : 'P') + String(Math.round((instruction.strike || 0) * 1000)).padStart(8, '0'),
-      qty: instruction.contracts || 1,
-      side: side,
-      type: 'limit',
-      time_in_force: 'day',
-      limit_price: instruction.premium
-    };
+    return { symbol: instruction.ticker + (instruction.expiration || '').replace(/-/g, '') + (instruction.contract_type === 'Call' ? 'C' : 'P') + String(Math.round((instruction.strike || 0) * 1000)).padStart(8, '0'), qty: instruction.contracts || 1, side, type: 'limit', time_in_force: 'day', limit_price: instruction.premium };
   }
 }
 
-// ── EXECUTE AUTO ORDER ──
 async function executeAutoOrder() {
   if (!currentInstruction) return;
-  const btn = document.getElementById('auto-execute-btn');
+  const btn    = document.getElementById('auto-execute-btn');
   const status = document.getElementById('auto-order-status');
-
   btn.disabled = true;
-  btn.textContent = 'Executing...';
+  btn.textContent  = 'Executing...';
   status.textContent = 'Sending order to Alpaca...';
-  status.className = 'order-status firing';
+  status.className   = 'order-status firing';
 
   const alpacaOrder = buildAlpacaOrder(currentInstruction);
-  const result = await sendAlpacaOrder(alpacaOrder);
-
-  const logStatus = result.ok ? 'executed' : 'execution_failed';
+  const result      = await sendAlpacaOrder(alpacaOrder);
+  const livePrice   = priceCache[currentInstruction.ticker]?.price;
 
   await db.from('auto_trade_log').insert({
-    ticker: currentInstruction.ticker,
-    direction: currentInstruction.direction,
-    instruction: JSON.stringify(currentInstruction),
-    claude_reasoning: currentInstruction.reasoning,
-    orchestrator_score: currentInstruction.orchestrator_score,
-    orchestrator_confidence: currentInstruction.confidence,
-    position_size: currentInstruction.position_size_pct,
-    entry_price: currentInstruction.entry_price,
+    ticker: currentInstruction.ticker, direction: currentInstruction.direction,
+    instruction: JSON.stringify(currentInstruction), claude_reasoning: currentInstruction.reasoning,
+    orchestrator_score: currentInstruction.orchestrator_score, orchestrator_confidence: currentInstruction.confidence,
+    position_size: currentInstruction.position_size_pct, entry_price: livePrice || currentInstruction.entry_price,
     exit_target: currentInstruction.exit_target || currentInstruction.target_premium,
     stop_loss: currentInstruction.stop_loss || currentInstruction.stop_premium,
-    status: logStatus,
-    strategy: currentStrategy,
-    instrument: currentInstrument,
-    alpaca_order_id: result.orderId || null,
-    brokerage: 'alpaca',
-    executed_at: new Date().toISOString()
+    status: result.ok ? 'executed' : 'execution_failed', strategy: currentStrategy, instrument: currentInstrument,
+    alpaca_order_id: result.orderId || null, brokerage: 'alpaca', executed_at: new Date().toISOString()
   });
 
   await loadLog();
 
   if (result.ok) {
-    btn.textContent = 'Order Sent \u2713';
-    status.textContent = currentInstruction.ticker + ' order sent to Alpaca. ID: ' + result.orderId;
-    status.className = 'order-status done';
+    btn.textContent    = 'Order Sent \u2713';
+    status.textContent = currentInstruction.ticker + ' order sent. ID: ' + result.orderId;
+    status.className   = 'order-status done';
   } else {
-    btn.textContent = 'Execution Failed';
+    btn.textContent    = 'Execution Failed';
     status.textContent = result.error;
-    status.className = 'order-status error';
+    status.className   = 'order-status error';
     btn.disabled = false;
   }
 }
 
-// ── SUBMIT MANUAL ORDER ──
 async function submitManualOrder() {
   if (!selectedTrade) return;
-  const btn = document.getElementById('manual-submit-btn');
+  const btn    = document.getElementById('manual-submit-btn');
   const status = document.getElementById('manual-status');
-
   btn.disabled = true;
-  btn.textContent = 'Submitting...';
+  btn.textContent  = 'Submitting...';
   status.textContent = 'Sending order to Alpaca...';
-  status.className = 'order-status firing';
+  status.className   = 'order-status firing';
 
   const alpacaOrder = buildAlpacaOrder(selectedTrade);
-  const result = await sendAlpacaOrder(alpacaOrder);
-
-  const logStatus = result.ok ? 'executed' : 'logged_manual';
+  const result      = await sendAlpacaOrder(alpacaOrder);
+  const livePrice   = priceCache[selectedTrade.ticker]?.price;
 
   await db.from('auto_trade_log').insert({
-    ticker: selectedTrade.ticker,
-    direction: selectedTrade.direction,
-    instruction: JSON.stringify(selectedTrade),
-    claude_reasoning: selectedTrade.reasoning,
-    orchestrator_score: selectedTrade.orchestrator_score,
-    orchestrator_confidence: selectedTrade.confidence,
-    position_size: selectedTrade.position_size_pct,
-    entry_price: selectedTrade.entry_price,
+    ticker: selectedTrade.ticker, direction: selectedTrade.direction,
+    instruction: JSON.stringify(selectedTrade), claude_reasoning: selectedTrade.reasoning,
+    orchestrator_score: selectedTrade.orchestrator_score, orchestrator_confidence: selectedTrade.confidence,
+    position_size: selectedTrade.position_size_pct, entry_price: livePrice || selectedTrade.entry_price,
     exit_target: selectedTrade.exit_target || selectedTrade.target_premium,
     stop_loss: selectedTrade.stop_loss || selectedTrade.stop_premium,
-    status: logStatus,
-    strategy: currentStrategy,
-    instrument: currentInstrument,
-    alpaca_order_id: result.orderId || null,
-    brokerage: result.ok ? 'alpaca' : 'manual_submitted',
+    status: result.ok ? 'executed' : 'logged_manual', strategy: currentStrategy, instrument: currentInstrument,
+    alpaca_order_id: result.orderId || null, brokerage: result.ok ? 'alpaca' : 'manual_submitted',
     executed_at: new Date().toISOString()
   });
 
   await loadLog();
 
   if (result.ok) {
-    btn.textContent = 'Order Sent \u2713';
-    status.textContent = selectedTrade.ticker + ' order sent to Alpaca. ID: ' + result.orderId;
-    status.className = 'order-status done';
+    btn.textContent    = 'Order Sent \u2713';
+    status.textContent = selectedTrade.ticker + ' order sent. ID: ' + result.orderId;
+    status.className   = 'order-status done';
   } else {
-    btn.textContent = 'Logged';
-    status.textContent = result.error ? result.error + ' — logged only.' : 'Logged. Connect Alpaca to execute live.';
-    status.className = result.error ? 'order-status error' : 'order-status done';
+    btn.textContent    = 'Logged';
+    status.textContent = result.error ? result.error + ' \u2014 logged only.' : 'Logged. Connect Alpaca to execute live.';
+    status.className   = result.error ? 'order-status error' : 'order-status done';
   }
 }
 
-// Enter key
 document.addEventListener('keydown', function(e) {
   if (e.key === 'Enter' && currentMode === 'manual' && selectedTrade) {
     const panel = document.getElementById('manual-order-panel');
-    if (panel && panel.classList.contains('visible')) {
-      submitManualOrder();
-    }
+    if (panel && panel.classList.contains('visible')) submitManualOrder();
   }
 });
 
-// ── LOG ──
 async function loadLog() {
   const { data } = await db.from('auto_trade_log').select('*').order('created_at', { ascending: false }).limit(20);
   const container = document.getElementById('log-container');
-
-  if (!data || !data.length) {
-    container.innerHTML = '<div class="empty-state">No instructions generated yet.</div>';
-    return;
-  }
-
+  if (!data || !data.length) { container.innerHTML = '<div class="empty-state">No instructions generated yet.</div>'; return; }
   container.innerHTML = data.map(t => {
-    const date = new Date(t.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-    const dir = (t.direction || '').toLowerCase().replace('_', '_');
-    const dirLabel = (t.direction || '—').replace('_', ' ');
+    const dir         = (t.direction || '').toLowerCase();
+    const dirLabel    = (t.direction || '—').replace('_', ' ');
     const statusClass = t.status === 'executed' ? 'executed' : t.status === 'pending_execution' ? 'pending' : t.status === 'execution_failed' ? 'cancelled' : 'logged';
-    return `
-      <div class="log-row">
-        <div class="log-ticker">${t.ticker || '—'}</div>
-        <div><div class="log-dir ${dir}">${dirLabel}</div></div>
-        <div style="font-family:'IBM Plex Mono',monospace;font-size:0.78rem;color:var(--gold)">${t.orchestrator_score || '—'}</div>
-        <div style="font-size:0.78rem;color:var(--muted)">${t.orchestrator_confidence || '—'}</div>
-        <div style="font-size:0.7rem;color:var(--muted)">${t.strategy || 'swing'}</div>
-        <div><span class="status-badge ${statusClass}">${(t.status || '—').replace(/_/g, ' ')}</span></div>
-      </div>
-    `;
+    return `<div class="log-row">
+      <div class="log-ticker">${t.ticker || '—'}</div>
+      <div><div class="log-dir ${dir}">${dirLabel}</div></div>
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:0.78rem;color:var(--gold)">${t.orchestrator_score || '—'}</div>
+      <div style="font-size:0.78rem;color:var(--muted)">${t.orchestrator_confidence || '—'}</div>
+      <div style="font-size:0.7rem;color:var(--muted)">${t.strategy || 'swing'}</div>
+      <div><span class="status-badge ${statusClass}">${(t.status || '—').replace(/_/g, ' ')}</span></div>
+    </div>`;
   }).join('');
 }
 
 function openNav() { document.getElementById('nav-overlay').classList.add('open'); }
 function closeNav() { document.getElementById('nav-overlay').classList.remove('open'); }
 
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/aurum-app/sw.js').catch(() => {});
-}
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('/aurum-app/sw.js').catch(() => {});
 
 init();
 </script>
-
 </body>
 </html>
