@@ -566,7 +566,63 @@
   .confidence-value.high { border-color: rgba(58,107,74,0.4); color: var(--positive); }
   .confidence-value.medium { border-color: rgba(201,168,76,0.4); color: var(--gold); }
   .confidence-value.low { border-color: var(--rule); color: var(--muted); }
-  .confidence-value.conflicted { border-color: rgba(139,58,58,0.4); color: var(--danger); }
+  .watchlist-price {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.78rem;
+    color: var(--gold);
+    text-align: right;
+    white-space: nowrap;
+  }
+
+  .watchlist-price.up   { color: var(--positive); }
+  .watchlist-price.down { color: var(--danger); }
+
+  .price-feed-bar {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    padding: 0.6rem 1.5rem;
+    border-bottom: 1px solid var(--rule);
+    overflow-x: auto;
+    background: rgba(201,168,76,0.01);
+    scrollbar-width: none;
+  }
+
+  .price-feed-bar::-webkit-scrollbar { display: none; }
+
+  .price-feed-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-shrink: 0;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.7rem;
+    white-space: nowrap;
+  }
+
+  .feed-ticker { color: var(--muted); letter-spacing: 0.1em; }
+  .feed-price  { color: var(--white); }
+  .feed-change { }
+  .feed-change.up   { color: var(--positive); }
+  .feed-change.down { color: var(--danger); }
+
+  .feed-dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--positive);
+    box-shadow: 0 0 5px var(--positive);
+    animation: pulse 2s infinite;
+    flex-shrink: 0;
+  }
+
+  .feed-label {
+    font-size: 0.55rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--muted);
+    flex-shrink: 0;
+  }
 </style>
 </head>
 <body>
@@ -578,6 +634,13 @@
   </div>
 <button class="hamburger" onclick="openNav()">☰</button>
 </header>
+
+<!-- LIVE PRICE FEED BAR -->
+<div class="price-feed-bar" id="price-feed-bar">
+  <div class="feed-dot"></div>
+  <div class="feed-label">Live</div>
+  <div style="color:var(--muted);font-size:0.65rem;font-family:'IBM Plex Mono',monospace;" id="feed-status">Loading prices...</div>
+</div>
 
 <div class="nav-overlay" id="nav-overlay">
   <button class="nav-close" onclick="closeNav()">✕</button>
@@ -640,7 +703,8 @@
     <div class="watchlist-header">
       <span>Ticker</span>
       <span>Company</span>
-      <span style="text-align:right">Sector</span>
+      <span>Sector</span>
+      <span style="text-align:right">Price</span>
     </div>
     <div id="watchlist-container">
       <div class="empty-state">Loading...</div>
@@ -675,25 +739,171 @@
   const { createClient } = supabase;
   const db = createClient(SUPABASE_URL, SUPABASE_KEY);
 
+  // ── PRICE FEED ENGINE ──
+  let alpacaCredentials = null;
+  let priceCache = {};
+  let priceFeedInterval = null;
+  let watchlistTickers = [];
+
+  async function loadAlpacaCredentials() {
+    try {
+      const { data } = await db.from('brokerage_accounts')
+        .select('api_key_plain, api_secret_plain, is_paper')
+        .eq('brokerage', 'alpaca')
+        .eq('active', true)
+        .single();
+      if (data && data.api_key_plain) {
+        alpacaCredentials = {
+          key:    data.api_key_plain,
+          secret: data.api_secret_plain,
+          paper:  data.is_paper !== false
+        };
+      }
+    } catch(e) {}
+  }
+
+  async function fetchLivePrices(tickers) {
+    if (!tickers || !tickers.length) return {};
+    if (!alpacaCredentials) return fetchFallbackPrices(tickers);
+
+    try {
+      const symbols = tickers.join(',');
+      const res = await fetch(
+        'https://data.alpaca.markets/v2/stocks/quotes/latest?symbols=' + symbols + '&feed=iex',
+        {
+          headers: {
+            'APCA-API-KEY-ID':     alpacaCredentials.key,
+            'APCA-API-SECRET-KEY': alpacaCredentials.secret
+          }
+        }
+      );
+
+      if (!res.ok) return fetchFallbackPrices(tickers);
+
+      const data = await res.json();
+      const prices = {};
+
+      if (data.quotes) {
+        Object.entries(data.quotes).forEach(([ticker, quote]) => {
+          const price = quote.ap || quote.bp || 0; // ask price or bid price
+          const prevClose = priceCache[ticker]?.price || price;
+          prices[ticker] = {
+            price,
+            change:    price - prevClose,
+            changePct: prevClose > 0 ? (price - prevClose) / prevClose * 100 : 0,
+            source:    'alpaca_live'
+          };
+        });
+      }
+
+      return prices;
+    } catch(e) {
+      return fetchFallbackPrices(tickers);
+    }
+  }
+
+  async function fetchFallbackPrices(tickers) {
+    // No credentials — try Alpaca public snapshot endpoint
+    try {
+      const symbols = tickers.slice(0, 10).join(',');
+      const res = await fetch(
+        'https://data.alpaca.markets/v2/stocks/snapshots?symbols=' + symbols + '&feed=iex'
+      );
+      if (!res.ok) return {};
+      const data = await res.json();
+      const prices = {};
+      Object.entries(data).forEach(([ticker, snap]) => {
+        const price    = snap.latestTrade?.p || snap.minuteBar?.c || 0;
+        const prevClose = snap.prevDailyBar?.c || price;
+        prices[ticker] = {
+          price,
+          change:    price - prevClose,
+          changePct: prevClose > 0 ? (price - prevClose) / prevClose * 100 : 0,
+          source:    'alpaca_snapshot'
+        };
+      });
+      return prices;
+    } catch(e) {
+      return {};
+    }
+  }
+
+  async function refreshPrices() {
+    if (!watchlistTickers.length) return;
+    const prices = await fetchLivePrices(watchlistTickers);
+    if (Object.keys(prices).length === 0) return;
+
+    Object.assign(priceCache, prices);
+    updatePriceFeedBar(prices);
+    updateWatchlistPrices(prices);
+    updatePickPrices(prices);
+  }
+
+  function updatePriceFeedBar(prices) {
+    const bar = document.getElementById('price-feed-bar');
+    const feedStatus = document.getElementById('feed-status');
+    if (!bar) return;
+
+    const items = Object.entries(prices).map(([ticker, data]) => {
+      const dir = data.change >= 0 ? 'up' : 'down';
+      const arrow = data.change >= 0 ? '▲' : '▼';
+      return `
+        <div class="price-feed-item">
+          <span class="feed-ticker">${ticker}</span>
+          <span class="feed-price">$${data.price.toFixed(2)}</span>
+          <span class="feed-change ${dir}">${arrow} ${Math.abs(data.changePct).toFixed(2)}%</span>
+        </div>
+      `;
+    }).join('');
+
+    // Replace feed content keeping dot and label
+    bar.innerHTML = `
+      <div class="feed-dot"></div>
+      <div class="feed-label">Live</div>
+      ${items}
+      <div style="color:var(--muted);font-size:0.55rem;font-family:'IBM Plex Mono',monospace;flex-shrink:0;">Updated ${new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'})}</div>
+    `;
+  }
+
+  function updateWatchlistPrices(prices) {
+    watchlistTickers.forEach(ticker => {
+      const el = document.getElementById('wl-price-' + ticker);
+      if (!el || !prices[ticker]) return;
+      const d = prices[ticker];
+      const dir = d.change >= 0 ? 'up' : 'down';
+      el.textContent = '$' + d.price.toFixed(2) + ' (' + (d.change >= 0 ? '+' : '') + d.changePct.toFixed(2) + '%)';
+      el.className = 'watchlist-price ' + dir;
+    });
+  }
+
+  function updatePickPrices(prices) {
+    watchlistTickers.forEach(ticker => {
+      const el = document.getElementById('pick-price-' + ticker);
+      if (!el || !prices[ticker]) return;
+      el.textContent = '$' + prices[ticker].price.toFixed(2);
+    });
+  }
+
+  // ── DATA LOADERS ──
   async function loadPicks() {
     const { data } = await db.from('picks').select('*').order('picked_at', { ascending: false }).limit(5);
     const container = document.getElementById('picks-container');
     if (!data || !data.length) return;
-   container.innerHTML = data.map(p => {
+    container.innerHTML = data.map(p => {
       const signals = p.signals || {};
-      const spread = signals.spread || null;
+      const spread  = signals.spread || null;
       return `
       <div class="pick-card">
         <div class="pick-score ${p.score >= 75 ? 'high' : 'mid'}">${p.score}</div>
         <div class="pick-info">
-          <div class="pick-ticker">${p.ticker}</div>
+          <div class="pick-ticker">${p.ticker} <span id="pick-price-${p.ticker}" style="font-size:0.7rem;color:var(--muted);font-family:'IBM Plex Mono',monospace;"></span></div>
           <div class="pick-brief">${p.brief || '—'}</div>
           ${signals.momentum || signals.sentiment ? `
           <div class="signal-breakdown">
-            ${signals.momentum ? `<div class="signal-bar"><span class="signal-name">Momentum</span><div class="signal-track"><div class="signal-fill" style="width:${signals.momentum}%"></div></div><span class="signal-val">${signals.momentum}</span></div>` : ''}
+            ${signals.momentum  ? `<div class="signal-bar"><span class="signal-name">Momentum</span><div class="signal-track"><div class="signal-fill" style="width:${signals.momentum}%"></div></div><span class="signal-val">${signals.momentum}</span></div>` : ''}
             ${signals.sentiment ? `<div class="signal-bar"><span class="signal-name">Sentiment</span><div class="signal-track"><div class="signal-fill" style="width:${signals.sentiment}%"></div></div><span class="signal-val">${signals.sentiment}</span></div>` : ''}
             ${signals.political ? `<div class="signal-bar"><span class="signal-name">Political</span><div class="signal-track"><div class="signal-fill" style="width:${signals.political}%"></div></div><span class="signal-val">${signals.political}</span></div>` : ''}
-            ${signals.macro ? `<div class="signal-bar"><span class="signal-name">Macro</span><div class="signal-track"><div class="signal-fill" style="width:${signals.macro}%"></div></div><span class="signal-val">${signals.macro}</span></div>` : ''}
+            ${signals.macro     ? `<div class="signal-bar"><span class="signal-name">Macro</span><div class="signal-track"><div class="signal-fill" style="width:${signals.macro}%"></div></div><span class="signal-val">${signals.macro}</span></div>` : ''}
           </div>` : ''}
           ${spread ? `
           <div class="spread-display">
@@ -736,14 +946,21 @@
   async function loadWatchlist() {
     const { data } = await db.from('stocks').select('*').order('added_at', { ascending: false });
     const container = document.getElementById('watchlist-container');
-    if (!data || !data.length) return;
+    if (!data || !data.length) { container.innerHTML = '<div class="empty-state">No stocks in watchlist.</div>'; return; }
+
+    watchlistTickers = data.map(s => s.ticker);
+
     container.innerHTML = data.map(s => `
-      <div class="watchlist-row">
+      <div class="watchlist-row" style="grid-template-columns:1fr 1fr 1fr auto;">
         <div class="watchlist-ticker">${s.ticker}</div>
         <div class="watchlist-company">${s.company_name || '—'}</div>
         <div class="watchlist-sector">${s.sector || '—'}</div>
+        <div class="watchlist-price" id="wl-price-${s.ticker}">—</div>
       </div>
     `).join('');
+
+    // Fetch prices immediately after loading watchlist
+    refreshPrices();
   }
 
   async function loadRatings() {
@@ -760,12 +977,21 @@
     `).join('');
   }
 
-  loadPicks();
-  loadAccuracy();
-  loadWatchlist();
-  loadRatings();
-function openNav() { document.getElementById('nav-overlay').classList.add('open'); }
+  async function init() {
+    await loadAlpacaCredentials();
+    await loadPicks();
+    await loadAccuracy();
+    await loadWatchlist();
+    await loadRatings();
+
+    // Auto-refresh prices every 30 seconds
+    priceFeedInterval = setInterval(refreshPrices, 30000);
+  }
+
+  function openNav() { document.getElementById('nav-overlay').classList.add('open'); }
   function closeNav() { document.getElementById('nav-overlay').classList.remove('open'); }
+
+  init();
 </script>
 
 </body>
