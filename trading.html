@@ -317,9 +317,9 @@ footer p { font-size: 0.62rem; letter-spacing: 0.12em; color: var(--muted); text
   <div class="section-label">Generate Trade Instruction</div>
   <div class="instruction-panel">
     <div class="instruction-title">Request Claude Analysis</div>
-    <div class="instruction-sub" id="instruction-sub">Claude synthesizes all 21 algorithms and returns a trade instruction tailored to your selected strategy and instrument.</div>
+    <div class="instruction-sub" id="instruction-sub">Claude synthesizes all 25 algorithms and returns a trade instruction tailored to your selected strategy and instrument.</div>
     <button class="btn" id="generate-btn" onclick="generateInstruction()">Generate Trade Instruction</button>
-    <div class="loading-state" id="loading-state">Synthesizing 21 algorithms through master orchestrator...</div>
+    <div class="loading-state" id="loading-state">Running Governor across 25 algorithms — synthesizing outputs...</div>
     <div class="instruction-result" id="instruction-result">
       <div class="result-header">
         <div class="result-ticker" id="result-ticker">—</div>
@@ -586,7 +586,7 @@ function updateInstructionSub() {
   const sub = document.getElementById('instruction-sub');
   const stratLabel = currentStrategy === 'day' ? 'intraday' : 'swing';
   const instLabel  = currentInstrument === 'options' ? 'options contracts' : 'stocks (long and short)';
-  sub.textContent  = 'Claude synthesizes all 21 algorithms for ' + stratLabel + ' ' + instLabel + '. ' +
+  sub.textContent  = 'Claude synthesizes all 25 algorithms for ' + stratLabel + ' ' + instLabel + '. ' +
     (currentMode === 'manual' ? 'Returns a ranked list \u2014 select one to autofill all fields.' : 'Returns the top pick and autofills all fields automatically.');
 }
 
@@ -790,6 +790,65 @@ function setField(id, value, cls) {
   el.className   = 'order-field-value' + (cls ? ' ' + cls : '');
 }
 
+// ── GOVERNOR — reads all 25 algorithms from Supabase in phase order ──
+// Phase order matches the orchestrator's weight priority sequence
+const ALGO_PHASE_ORDER = [
+  // Phase 1 — Core signals (market foundation)
+  'momentum_detector','sentiment_detector','political_signal_detector',
+  'macro_detector','options_flow_detector','insider_transaction_tracker',
+  // Phase 2 — Advanced analysis
+  'correlation_filter','earnings_cycle_detector','macro_regime_detector',
+  'sentiment_velocity','probability_spread_model','hybrid_sentiment_pipeline',
+  'ipo_early_detection',
+  // Phase 3 — Evolutionary ML
+  'market_regime_adaptive_ga','mcts_formula_tester','autonomous_strategy_evolution',
+  'genetic_algorithm_optimizer','evolutionary_data_labeling','hybrid_ga_learning_to_rank',
+  // Phase 4 — Deep AI
+  'agentic_llm_workflow','deep_reinforcement_learning','attention_augmented_gru',
+  'fuzzy_lspi','autoencoder_selection','state_space_mamba',
+  // Phase 5 — Governor (runs last, synthesizes all above)
+  'algorithm_orchestrator'
+];
+
+async function runGovernor() {
+  try {
+    const { data: algos } = await db.from('algorithms').select('name, description, code, active').order('created_at');
+    if (!algos || !algos.length) return { algoContext: 'No algorithms found in database.', algoCount: 0 };
+
+    // Sort algorithms into phase order; any not in the list go at end
+    const sorted = [...ALGO_PHASE_ORDER]
+      .map(key => algos.find(a => a.name === key))
+      .filter(Boolean);
+
+    // Add any DB algorithms not in our phase list (future-proofing)
+    algos.forEach(a => {
+      if (!ALGO_PHASE_ORDER.includes(a.name)) sorted.push(a);
+    });
+
+    const activeAlgos  = sorted.filter(a => a.active);
+    const inactiveAlgos = sorted.filter(a => !a.active);
+
+    // Build the Governor context block — this is what Claude reads
+    const governorContext = activeAlgos.map((a, i) => {
+      const phase = i < 6 ? 'P1-CoreSignal' : i < 13 ? 'P2-Advanced' : i < 19 ? 'P3-EvoML' : i < 25 ? 'P4-DeepAI' : 'P5-Governor';
+      return `[${phase}] ${a.name}: ${a.description}`;
+    }).join('\n');
+
+    const inactiveNote = inactiveAlgos.length
+      ? `\nINACTIVE (${inactiveAlgos.length}): ${inactiveAlgos.map(a => a.name).join(', ')}`
+      : '';
+
+    return {
+      algoContext: governorContext + inactiveNote,
+      algoCount: activeAlgos.length,
+      totalCount: sorted.length,
+      activeAlgos,
+    };
+  } catch(e) {
+    return { algoContext: 'Governor error: could not read algorithms table.', algoCount: 0 };
+  }
+}
+
 async function generateInstruction() {
   const btn = document.getElementById('generate-btn');
   btn.disabled = true;
@@ -798,15 +857,21 @@ async function generateInstruction() {
   document.getElementById('manual-order-panel').classList.remove('visible');
 
   try {
-    const { data: picks  } = await db.from('picks').select('ticker, score, brief').order('picked_at', { ascending: false }).limit(5);
-    const { data: stocks } = await db.from('stocks').select('ticker, sector');
-    const { data: news   } = await db.from('news_feed').select('ticker, algorithm_alignment, source').order('published_at', { ascending: false }).limit(8);
+    // Governor runs first — reads all algorithms in phase order
+    const governorOutput = await runGovernor();
 
-    const watchlist  = stocks?.map(s => s.ticker + '(' + s.sector + ')').join(', ') || 'None';
-    const pickSum    = picks?.map(p => p.ticker + ':' + p.score + ' ' + p.brief).join(' | ') || 'None';
-    const newsSum    = news?.map(n => n.ticker + ':' + (n.algorithm_alignment?.sentiment || 'neutral')).join(' | ') || 'None';
+    // Then load market context in parallel
+    const [picksRes, stocksRes, newsRes] = await Promise.all([
+      db.from('picks').select('ticker, score, brief').order('picked_at', { ascending: false }).limit(5),
+      db.from('stocks').select('ticker, sector'),
+      db.from('news_feed').select('ticker, algorithm_alignment, source').order('published_at', { ascending: false }).limit(8),
+    ]);
 
-    // Include live prices in context
+    const watchlist = stocksRes.data?.map(s => s.ticker + '(' + s.sector + ')').join(', ') || 'None';
+    const pickSum   = picksRes.data?.map(p => p.ticker + ':' + p.score + ' ' + p.brief).join(' | ') || 'None';
+    const newsSum   = newsRes.data?.map(n => n.ticker + ':' + (n.algorithm_alignment?.sentiment || 'neutral')).join(' | ') || 'None';
+
+    // Live prices from price cache
     const livePriceContext = Object.entries(priceCache).slice(0, 10)
       .map(([t, d]) => t + ':$' + d.price.toFixed(2)).join(', ');
 
@@ -815,11 +880,11 @@ async function generateInstruction() {
       : 'SWING TRADE mode: use full algorithm stack. Time horizon: days to weeks. Order TIF: Day.';
 
     if (currentInstrument === 'stock') {
-      if (currentMode === 'manual') await generateManualStocks(watchlist, pickSum, newsSum, stratNote, livePriceContext);
-      else                          await generateAutoStock(watchlist, pickSum, newsSum, stratNote, livePriceContext);
+      if (currentMode === 'manual') await generateManualStocks(watchlist, pickSum, newsSum, stratNote, livePriceContext, governorOutput);
+      else                          await generateAutoStock(watchlist, pickSum, newsSum, stratNote, livePriceContext, governorOutput);
     } else {
-      if (currentMode === 'manual') await generateManualOptions(watchlist, pickSum, newsSum, stratNote);
-      else                          await generateAutoOption(watchlist, pickSum, newsSum, stratNote);
+      if (currentMode === 'manual') await generateManualOptions(watchlist, pickSum, newsSum, stratNote, governorOutput);
+      else                          await generateAutoOption(watchlist, pickSum, newsSum, stratNote, governorOutput);
     }
 
   } catch(e) {
@@ -841,54 +906,62 @@ async function callClaude(prompt, maxTokens) {
   return JSON.parse(text.replace(/```json|```/g, '').trim());
 }
 
-async function generateAutoStock(watchlist, picks, news, stratNote, livePrices) {
-  const result = await callClaude(`You are AURUM — private market intelligence system with 21 algorithms.
-${stratNote}
+function buildGovernorHeader(gov, stratNote) {
+  return `You are AURUM — private market intelligence system.
+The Governor has sequenced ${gov.algoCount} active algorithms in phase order and passed their definitions to you.
+Your decision MUST be grounded in what these algorithms collectively signal.
+
+=== GOVERNOR OUTPUT — ${gov.algoCount} ALGORITHMS IN PHASE ORDER ===
+${gov.algoContext}
+=== END GOVERNOR OUTPUT ===
+
+${stratNote}`;
+}
+
+async function generateAutoStock(watchlist, picks, news, stratNote, livePrices, gov) {
+  const result = await callClaude(`${buildGovernorHeader(gov, stratNote)}
 Watchlist: ${watchlist} | Picks: ${picks} | News: ${news}
 Live prices: ${livePrices}
 Principal floor: $${settings.principal_floor || 5000} | Max position: ${settings.max_position_size_pct || 10}%
 Use live prices for entry_price where available.
-JSON only: {"ticker":"NVDA","direction":"LONG","entry_price":875.50,"exit_target":920.00,"stop_loss":850.00,"position_size_pct":8,"orchestrator_score":87,"confidence":"High","reasoning":"2-3 sentence AURUM-tone instruction","algo_signals":"Which algorithms drove this"}`, 1000);
+JSON only: {"ticker":"NVDA","direction":"LONG","entry_price":875.50,"exit_target":920.00,"stop_loss":850.00,"position_size_pct":8,"orchestrator_score":87,"confidence":"High","reasoning":"2-3 sentence AURUM-tone instruction citing which algorithms drove this","algo_signals":"Specific algorithm names that generated the signal"}`, 1200);
   currentInstruction = result;
   showResult(result, {});
   if (currentMode === 'auto') autofillAutoPanel(result);
   if (result.ticker) { selectFeedTicker(result.ticker); }
 }
 
-async function generateManualStocks(watchlist, picks, news, stratNote, livePrices) {
-  const result = await callClaude(`You are AURUM — private market intelligence system with 21 algorithms.
-${stratNote}
+async function generateManualStocks(watchlist, picks, news, stratNote, livePrices, gov) {
+  const result = await callClaude(`${buildGovernorHeader(gov, stratNote)}
 Watchlist: ${watchlist} | Picks: ${picks} | News: ${news}
 Live prices: ${livePrices}
-Use live prices for entry_price. Return 5 ranked STOCK trades.
-JSON only: {"trades":[{"rank":1,"ticker":"NVDA","direction":"LONG","entry_price":875.50,"exit_target":920.00,"stop_loss":850.00,"position_size_pct":8,"orchestrator_score":87,"confidence":"High","reasoning":"2-3 sentence instruction","algo_signals":"Algo summary","order_type":"Limit"}]}`, 2000);
+Use live prices for entry_price. Return 5 ranked STOCK trades. Rank by Governor composite conviction across all ${gov.algoCount} algorithms.
+JSON only: {"trades":[{"rank":1,"ticker":"NVDA","direction":"LONG","entry_price":875.50,"exit_target":920.00,"stop_loss":850.00,"position_size_pct":8,"orchestrator_score":87,"confidence":"High","reasoning":"2-3 sentence instruction citing algorithm signals","algo_signals":"Algorithm names that drove this","order_type":"Limit"}]}`, 2500);
   manualTradeList = result.trades || [];
   renderTradeList(manualTradeList);
   document.getElementById('manual-panel').classList.add('visible');
-  document.getElementById('manual-panel-sub').textContent = manualTradeList.length + ' trades ranked by conviction. Select one \u2014 all fields autofill with live prices. Press Enter to submit.';
+  document.getElementById('manual-panel-sub').textContent = manualTradeList.length + ' trades ranked by Governor conviction across ' + gov.algoCount + ' algorithms. Select one \u2014 all fields autofill with live prices. Press Enter to submit.';
 }
 
-async function generateAutoOption(watchlist, picks, news, stratNote) {
-  const result = await callClaude(`You are AURUM — private market intelligence system with 21 algorithms.
-${stratNote}
+async function generateAutoOption(watchlist, picks, news, stratNote, gov) {
+  const result = await callClaude(`${buildGovernorHeader(gov, stratNote)}
 Watchlist: ${watchlist} | Picks: ${picks} | News: ${news}
-Return ONE highest-conviction OPTIONS trade. Can be BUY_CALL, BUY_PUT, SELL_CALL, or SELL_PUT.
-JSON only: {"ticker":"NVDA","direction":"BUY_CALL","contract_type":"Call","strike":880,"expiration":"2026-06-20","premium":12.50,"contracts":2,"target_premium":22.00,"stop_premium":6.00,"delta":0.55,"orchestrator_score":84,"confidence":"High","reasoning":"2-3 sentence instruction","algo_signals":"Algo summary"}`, 1000);
+Return ONE highest-conviction OPTIONS trade based on Governor algorithm output. Can be BUY_CALL, BUY_PUT, SELL_CALL, or SELL_PUT.
+JSON only: {"ticker":"NVDA","direction":"BUY_CALL","contract_type":"Call","strike":880,"expiration":"2026-06-20","premium":12.50,"contracts":2,"target_premium":22.00,"stop_premium":6.00,"delta":0.55,"orchestrator_score":84,"confidence":"High","reasoning":"2-3 sentence instruction citing algorithm signals","algo_signals":"Algorithm names that drove this"}`, 1200);
   currentInstruction = result;
   showResult(result, {});
   if (currentMode === 'auto') autofillAutoPanel(result);
 }
 
-async function generateManualOptions(watchlist, picks, news, stratNote) {
-  const result = await callClaude(`You are AURUM — private market intelligence system with 21 algorithms.
-${stratNote}
+async function generateManualOptions(watchlist, picks, news, stratNote, gov) {
+  const result = await callClaude(`${buildGovernorHeader(gov, stratNote)}
 Watchlist: ${watchlist} | Picks: ${picks} | News: ${news}
-Return 5 ranked OPTIONS trades. Mix of BUY_CALL, BUY_PUT, SELL_CALL, SELL_PUT.
-JSON only: {"trades":[{"rank":1,"ticker":"NVDA","direction":"BUY_CALL","contract_type":"Call","strike":880,"expiration":"2026-06-20","premium":12.50,"contracts":2,"target_premium":22.00,"stop_premium":6.00,"delta":0.55,"orchestrator_score":84,"confidence":"High","reasoning":"2-3 sentence instruction","algo_signals":"Algo summary"}]}`, 2500);
+Return 5 ranked OPTIONS trades based on Governor algorithm output. Mix of BUY_CALL, BUY_PUT, SELL_CALL, SELL_PUT.
+JSON only: {"trades":[{"rank":1,"ticker":"NVDA","direction":"BUY_CALL","contract_type":"Call","strike":880,"expiration":"2026-06-20","premium":12.50,"contracts":2,"target_premium":22.00,"stop_premium":6.00,"delta":0.55,"orchestrator_score":84,"confidence":"High","reasoning":"2-3 sentence instruction citing algorithm signals","algo_signals":"Algorithm names that drove this"}]}`, 3000);
   manualTradeList = result.trades || [];
   renderTradeList(manualTradeList);
   document.getElementById('manual-panel').classList.add('visible');
-  document.getElementById('manual-panel-sub').textContent = manualTradeList.length + ' options trades ranked. Select one to autofill.';
+  document.getElementById('manual-panel-sub').textContent = manualTradeList.length + ' options trades ranked by Governor. Select one to autofill.';
 }
 
 function showResult(r, params) {
