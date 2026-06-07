@@ -790,62 +790,108 @@ function setField(id, value, cls) {
   el.className   = 'order-field-value' + (cls ? ' ' + cls : '');
 }
 
-// ── GOVERNOR — reads all 25 algorithms from Supabase in phase order ──
-// Phase order matches the orchestrator's weight priority sequence
-const ALGO_PHASE_ORDER = [
-  // Phase 1 — Core signals (market foundation)
-  'momentum_detector','sentiment_detector','political_signal_detector',
-  'macro_detector','options_flow_detector','insider_transaction_tracker',
-  // Phase 2 — Advanced analysis
-  'correlation_filter','earnings_cycle_detector','macro_regime_detector',
-  'sentiment_velocity','probability_spread_model','hybrid_sentiment_pipeline',
-  'ipo_early_detection',
-  // Phase 3 — Evolutionary ML
-  'market_regime_adaptive_ga','mcts_formula_tester','autonomous_strategy_evolution',
-  'genetic_algorithm_optimizer','evolutionary_data_labeling','hybrid_ga_learning_to_rank',
-  // Phase 4 — Deep AI
-  'agentic_llm_workflow','deep_reinforcement_learning','attention_augmented_gru',
-  'fuzzy_lspi','autoencoder_selection','state_space_mamba',
-  // Phase 5 — Governor (runs last, synthesizes all above)
-  'algorithm_orchestrator'
-];
+// ── GOVERNOR — calls Supabase Edge Function to execute all 25 algorithms ──
+// Edge function fetches real market data, executes each algorithm in phase order,
+// runs the orchestrator, and returns a structured brief for Claude.
+// If the edge function is unavailable, falls back to lightweight mode (descriptions only).
+
+const GOVERNOR_EDGE_URL = 'https://zpcbbwynvvyldavxzjng.supabase.co/functions/v1/aurum-governor';
+const GOVERNOR_ANON_KEY = 'sb_publishable_K80lcfk8LsQNqo5enznRRA_lrzf2U9K';
 
 async function runGovernor() {
+  // Show execution status in loading state
+  const loadingEl = document.getElementById('loading-state');
+  if (loadingEl) loadingEl.textContent = 'Governor executing 25 algorithms with live market data...';
+
   try {
-    const { data: algos } = await db.from('algorithms').select('name, description, code, active').order('created_at');
-    if (!algos || !algos.length) return { algoContext: 'No algorithms found in database.', algoCount: 0 };
+    // Pass Alpaca credentials so the edge function can fetch price data
+    const payload = {
+      ticker:        selectedFeedTicker || watchlistTickers[0] || 'SPY',
+      strategy:      currentStrategy,
+      instrument:    currentInstrument,
+      alpaca_key:    alpacaConfig?.apiKey    || '',
+      alpaca_secret: alpacaConfig?.secretKey || '',
+      alpaca_paper:  alpacaConfig?.paper     !== false,
+    };
 
-    // Sort algorithms into phase order; any not in the list go at end
-    const sorted = [...ALGO_PHASE_ORDER]
-      .map(key => algos.find(a => a.name === key))
-      .filter(Boolean);
-
-    // Add any DB algorithms not in our phase list (future-proofing)
-    algos.forEach(a => {
-      if (!ALGO_PHASE_ORDER.includes(a.name)) sorted.push(a);
+    const res = await fetch(GOVERNOR_EDGE_URL, {
+      method:  'POST',
+      headers: {
+        'Content-Type':  'application/json',
+        'Authorization': 'Bearer ' + GOVERNOR_ANON_KEY,
+      },
+      body: JSON.stringify(payload),
     });
 
-    const activeAlgos  = sorted.filter(a => a.active);
-    const inactiveAlgos = sorted.filter(a => !a.active);
+    if (!res.ok) throw new Error('Edge function returned ' + res.status);
+    const gov = await res.json();
 
-    // Build the Governor context block — this is what Claude reads
-    const governorContext = activeAlgos.map((a, i) => {
-      const phase = i < 6 ? 'P1-CoreSignal' : i < 13 ? 'P2-Advanced' : i < 19 ? 'P3-EvoML' : i < 25 ? 'P4-DeepAI' : 'P5-Governor';
-      return `[${phase}] ${a.name}: ${a.description}`;
-    }).join('\n');
+    if (gov.error && !gov.claude_brief) throw new Error(gov.error);
 
-    const inactiveNote = inactiveAlgos.length
-      ? `\nINACTIVE (${inactiveAlgos.length}): ${inactiveAlgos.map(a => a.name).join(', ')}`
-      : '';
+    // Update loading message with real results
+    if (loadingEl) {
+      loadingEl.textContent =
+        'Governor complete — ' + (gov.algorithms_succeeded || '?') + '/25 algorithms ran. ' +
+        'Signal quality: ' + (gov.signal_quality || '?') + '/100. Sending to Claude...';
+    }
 
+    // Return in the format buildGovernorHeader expects
     return {
-      algoContext: governorContext + inactiveNote,
-      algoCount: activeAlgos.length,
-      totalCount: sorted.length,
-      activeAlgos,
+      algoContext:      gov.claude_brief || 'Governor ran but returned no brief.',
+      algoCount:        gov.algorithms_succeeded || 0,
+      totalCount:       25,
+      signalQuality:    gov.signal_quality || 0,
+      signalLabel:      gov.signal_quality_label || 'unknown',
+      compositeScore:   gov.composite_score || null,
+      verdict:          gov.verdict || null,
+      direction:        gov.direction || null,
+      confidence:       gov.confidence || null,
+      coveragePct:      gov.coverage_pct || 0,
+      failedAlgos:      gov.failed_algo_names || [],
+      skippedAlgos:     gov.skipped_algo_names || [],
+      dataSourcesUsed:  gov.data_sources_used || [],
+      orchestratorOutput: gov.orchestrator_output || null,
+      fromEdgeFunction: true,
     };
+
   } catch(e) {
-    return { algoContext: 'Governor error: could not read algorithms table.', algoCount: 0 };
+    // ── Fallback: lightweight mode — read descriptions from Supabase ──
+    // This runs when the edge function is not yet deployed or unavailable
+    if (loadingEl) loadingEl.textContent = 'Edge function unavailable — running in description mode...';
+
+    try {
+      const { data: algos } = await db.from('algorithms').select('name, description, active').order('created_at');
+      if (!algos || !algos.length) return {
+        algoContext: 'No algorithms found. Deploy the aurum-governor edge function for full execution.',
+        algoCount: 0, totalCount: 25, fromEdgeFunction: false, fallbackReason: e.message,
+      };
+
+      const active = algos.filter(a => a.active);
+      const context = active.map((a, i) => {
+        const phase = i < 6 ? 'P1' : i < 13 ? 'P2' : i < 19 ? 'P3' : i < 25 ? 'P4' : 'P5';
+        return `[${phase}] ${a.name}: ${a.description}`;
+      }).join('\n');
+
+      return {
+        algoContext:      context + '\n\nNOTE: Running in description-only mode. Edge function unavailable (' + e.message + '). Claude is reasoning from algorithm definitions, not live execution scores.',
+        algoCount:        active.length,
+        totalCount:       25,
+        signalQuality:    40,
+        signalLabel:      'low',
+        fromEdgeFunction: false,
+        fallbackReason:   e.message,
+      };
+    } catch(e2) {
+      return {
+        algoContext:      'Governor completely unavailable. Error: ' + e2.message + '. Claude proceeding without algorithm data.',
+        algoCount:        0,
+        totalCount:       25,
+        signalQuality:    0,
+        signalLabel:      'unreliable',
+        fromEdgeFunction: false,
+        fallbackReason:   e2.message,
+      };
+    }
   }
 }
 
@@ -907,13 +953,40 @@ async function callClaude(prompt, maxTokens) {
 }
 
 function buildGovernorHeader(gov, stratNote) {
-  return `You are AURUM — private market intelligence system.
-The Governor has sequenced ${gov.algoCount} active algorithms in phase order and passed their definitions to you.
-Your decision MUST be grounded in what these algorithms collectively signal.
+  const executionMode = gov.fromEdgeFunction
+    ? `LIVE EXECUTION — ${gov.algoCount}/${gov.totalCount || 25} algorithms ran with real market data.`
+    : `DESCRIPTION MODE — Edge function unavailable. Reasoning from algorithm definitions only.`;
 
-=== GOVERNOR OUTPUT — ${gov.algoCount} ALGORITHMS IN PHASE ORDER ===
+  const qualityLine = gov.signalQuality !== undefined
+    ? `Signal quality: ${gov.signalQuality}/100 (${gov.signalLabel || 'unknown'}).`
+    : '';
+
+  const orchestratorLine = gov.compositeScore !== null && gov.compositeScore !== undefined
+    ? `Orchestrator composite: ${gov.compositeScore} | Verdict: ${gov.verdict} | Direction: ${gov.direction} | Confidence: ${gov.confidence}.`
+    : '';
+
+  const degradationLine = (gov.failedAlgos?.length || gov.skippedAlgos?.length)
+    ? `DEGRADATION: ${gov.failedAlgos?.length || 0} failed, ${gov.skippedAlgos?.length || 0} skipped — these contributed neutral scores. Your decision is based on ${gov.algoCount} of ${gov.totalCount || 25} algorithms.`
+    : '';
+
+  const dataLine = gov.dataSourcesUsed?.length
+    ? `Data sources: ${gov.dataSourcesUsed.join(', ')}.`
+    : '';
+
+  return `You are AURUM — private market intelligence system.
+${executionMode}
+${qualityLine}
+${orchestratorLine}
+${degradationLine}
+${dataLine}
+
+Your trade decision MUST reflect the Governor's composite signal above.
+If signal quality is below 60, be conservative — reduce conviction and widen stops.
+If algorithms failed or were skipped, explicitly acknowledge this uncertainty in your reasoning.
+
+=== GOVERNOR BRIEF ===
 ${gov.algoContext}
-=== END GOVERNOR OUTPUT ===
+=== END GOVERNOR BRIEF ===
 
 ${stratNote}`;
 }
