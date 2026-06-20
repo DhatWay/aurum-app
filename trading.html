@@ -942,8 +942,7 @@ async function generateInstruction() {
 }
 
 async function callClaude(prompt, maxTokens) {
-  https://zpcbbwynvvyldavxzjng.supabase.co/functions/v1/smooth-service
-  const res = await fetch(CLAUDE_PROXY_URL, {
+  const res = await fetch('https://zpcbbwynvvyldavxzjng.supabase.co/functions/v1/smooth-service', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + GOVERNOR_ANON_KEY },
     body: JSON.stringify({ prompt, max_tokens: maxTokens || 2000 })
