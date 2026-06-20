@@ -1266,11 +1266,15 @@ function drawEquityCurve(trades) {
 }
 
 // ── CLAUDE SUGGESTION ──
+const GOVERNOR_EDGE_URL = 'https://zpcbbwynvvyldavxzjng.supabase.co/functions/v1/aurum-governor';
+const GOVERNOR_ANON_KEY = 'sb_publishable_K80lcfk8LsQNqo5enznRRA_lrzf2U9K';
+
 async function getClaudeSuggestion() {
   const btn = document.getElementById('claude-btn');
   const thinking = document.getElementById('claude-thinking');
   btn.disabled = true;
   thinking.classList.add('visible');
+  thinking.textContent = 'Governor executing 25 algorithms with live market data...';
   document.getElementById('suggestion-panel').classList.remove('visible');
 
   try {
@@ -1282,20 +1286,53 @@ async function getClaudeSuggestion() {
     const stratLabel = currentStrategy === 'day' ? 'DAY TRADE (intraday, tighter stops, IOC orders)' : 'SWING TRADE (days to weeks, standard stops)';
     const instLabel  = currentInstrument === 'options' ? 'OPTIONS (calls or puts)' : 'STOCKS (long or short)';
 
-    const prompt = `You are AURUM — private market intelligence system with 21 algorithms.
+    // Pick a ticker to run the Governor against — prefer top pick, fallback to first watchlist ticker
+    const targetTicker = picks?.[0]?.ticker || stocks?.[0]?.ticker || 'SPY';
+
+    // ── Call the Governor edge function — runs all 25 algorithms with real data ──
+    let governorBrief = 'Governor unavailable — proceeding without algorithm execution.';
+    let governorMeta = { algoCount: 0, signalQuality: 0, coveragePct: 0 };
+
+    try {
+      const govRes = await fetch(GOVERNOR_EDGE_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + GOVERNOR_ANON_KEY },
+        body: JSON.stringify({ ticker: targetTicker, strategy: currentStrategy, instrument: currentInstrument })
+      });
+      if (govRes.ok) {
+        const gov = await govRes.json();
+        governorBrief = gov.claude_brief || governorBrief;
+        governorMeta = {
+          algoCount: gov.algorithms_succeeded || 0,
+          signalQuality: gov.signal_quality || 0,
+          coveragePct: gov.coverage_pct || 0,
+        };
+        thinking.textContent = 'Governor complete — ' + governorMeta.algoCount + '/25 algorithms ran. Asking Claude...';
+      }
+    } catch(govErr) {
+      governorBrief = 'Governor edge function failed: ' + govErr.message + '. Proceeding without algorithm execution.';
+    }
+
+    const prompt = `You are AURUM — private market intelligence system.
+
+=== GOVERNOR BRIEF (${governorMeta.algoCount}/25 algorithms, signal quality ${governorMeta.signalQuality}/100) ===
+${governorBrief}
+=== END GOVERNOR BRIEF ===
 
 Strategy: ${stratLabel}
 Instrument: ${instLabel}
 Watchlist: ${watchlist}
 Recent picks: ${pickSum}
+Target ticker analyzed by Governor: ${targetTicker}
 
-Suggest ONE specific paper trade for the simulator. Be precise — give exact prices. This is for simulation so give realistic current-market prices.
+Suggest ONE specific paper trade for the simulator, grounded in the Governor's output above. Be precise — give exact prices. This is for simulation so give realistic current-market prices.
+If signal quality is below 60, lower your confidence and say so in the reasoning.
 
 Respond ONLY in JSON, no extra text:
 {
   "ticker": "NVDA",
   "direction": "long",
-  "reasoning": "2-3 sentence AURUM-tone rationale",
+  "reasoning": "2-3 sentence AURUM-tone rationale citing the Governor's signal and specific algorithms",
   "entry_price": 875.50,
   "stop_loss": 850.00,
   "target_price": 920.00,
@@ -1323,6 +1360,7 @@ Respond ONLY in JSON, no extra text:
     const data = await res.json();
     const text = data.content?.[0]?.text || '{}';
     claudeSuggestion = JSON.parse(text.replace(/```json|```/g, '').trim());
+    claudeSuggestion._governorMeta = governorMeta;
 
     renderSuggestion(claudeSuggestion);
     document.getElementById('suggestion-panel').classList.add('visible');
