@@ -800,18 +800,15 @@ Respond ONLY in this exact JSON format, no extra text:
   "overall_status": "critical|warning|ok"
 }`;
 
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
+      const response = await fetch('https://zpcbbwynvvyldavxzjng.supabase.co/functions/v1/aurum-claude', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 2000,
-          messages: [{ role: 'user', content: prompt }]
-        })
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + SUPABASE_KEY },
+        body: JSON.stringify({ prompt, max_tokens: 2000 })
       });
 
       const data = await response.json();
-      const text = data.content?.[0]?.text || '{}';
+      if (data.error) throw new Error(data.error);
+      const text = data.text || '{}';
       const parsed = JSON.parse(text.replace(/```json|```/g, '').trim());
 
       const items = parsed.items || [];
@@ -918,15 +915,7 @@ Respond ONLY in this exact JSON format, no extra text:
     document.getElementById('response-panel').classList.remove('visible');
 
     try {
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 1000,
-          messages: [{
-            role: 'user',
-            content: `You are improving a financial algorithm for a private stock intelligence system called AURUM.
+      const prompt = `You are improving a financial algorithm for a private stock intelligence system called AURUM.
 
 Current algorithm name: ${currentAlgo.name}
 Current description: ${currentAlgo.description}
@@ -940,14 +929,18 @@ Respond in this exact JSON format with no extra text:
 {
   "improved_code": "the full improved function code here",
   "explanation": "plain english explanation of what changed and why"
-}`
-          }]
-        })
+}`;
+
+      const response = await fetch('https://zpcbbwynvvyldavxzjng.supabase.co/functions/v1/aurum-claude', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + SUPABASE_KEY },
+        body: JSON.stringify({ prompt, max_tokens: 1500 })
       });
 
       const data = await response.json();
-      const text = data.content[0].text;
-      const parsed = JSON.parse(text);
+      if (data.error) throw new Error(data.error);
+      const text = data.text || '{}';
+      const parsed = JSON.parse(text.replace(/```json|```/g, '').trim());
 
       improvedCode = parsed.improved_code;
       document.getElementById('response-code').textContent = parsed.improved_code;
