@@ -942,13 +942,15 @@ async function generateInstruction() {
 }
 
 async function callClaude(prompt, maxTokens) {
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
+  const CLAUDE_PROXY_URL = 'https://zpcbbwynvvyldavxzjng.supabase.co/functions/v1/aurum-claude';
+  const res = await fetch(CLAUDE_PROXY_URL, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: maxTokens || 2000, messages: [{ role: 'user', content: prompt }] })
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + GOVERNOR_ANON_KEY },
+    body: JSON.stringify({ prompt, max_tokens: maxTokens || 2000 })
   });
   const data = await res.json();
-  const text = data.content?.[0]?.text || '{}';
+  if (data.error) throw new Error(data.error);
+  const text = data.text || '{}';
   return JSON.parse(text.replace(/```json|```/g, '').trim());
 }
 
