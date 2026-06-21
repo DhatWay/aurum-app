@@ -377,43 +377,33 @@ let watchlistTickers = [];
 let selectedFeedTicker = null;
 let priceRefreshInterval = null;
 
-// ── PRICE FEED ENGINE ──
+// ── PRICE FEED ENGINE — Twelve Data ──
+const TWELVE_KEY = '1fbbfd6ec92c489ca009d00e7127fbe3';
+
 async function fetchLivePrices(tickers) {
   if (!tickers || !tickers.length) return {};
 
-  const headers = {};
-  if (alpacaConfig?.apiKey) {
-    headers['APCA-API-KEY-ID']     = alpacaConfig.apiKey;
-    headers['APCA-API-SECRET-KEY'] = alpacaConfig.secretKey;
-  }
-
   try {
-    const symbols = tickers.slice(0, 20).join(',');
-    const endpoint = alpacaConfig?.apiKey
-      ? 'https://data.alpaca.markets/v2/stocks/quotes/latest?symbols=' + symbols + '&feed=iex'
-      : 'https://data.alpaca.markets/v2/stocks/snapshots?symbols=' + symbols + '&feed=iex';
-
-    const res = await fetch(endpoint, { headers });
+    const symbols = tickers.slice(0, 8).join(',');
+    const res = await fetch('https://api.twelvedata.com/quote?symbol=' + symbols + '&apikey=' + TWELVE_KEY);
     if (!res.ok) return {};
     const data = await res.json();
 
     const prices = {};
+    const quotes = tickers.length === 1 ? { [tickers[0]]: data } : data;
 
-    if (data.quotes) {
-      // Latest quotes endpoint
-      Object.entries(data.quotes).forEach(([ticker, q]) => {
-        const price = q.ap || q.bp || 0;
-        const prev  = priceCache[ticker]?.price || price;
-        prices[ticker] = { price, bid: q.bp || 0, ask: q.ap || 0, change: price - prev, changePct: prev > 0 ? (price - prev) / prev * 100 : 0 };
-      });
-    } else {
-      // Snapshot endpoint
-      Object.entries(data).forEach(([ticker, snap]) => {
-        const price    = snap.latestTrade?.p || snap.minuteBar?.c || 0;
-        const prevClose = snap.prevDailyBar?.c || price;
-        prices[ticker] = { price, bid: snap.latestQuote?.bp || 0, ask: snap.latestQuote?.ap || 0, change: price - prevClose, changePct: prevClose > 0 ? (price - prevClose) / prevClose * 100 : 0 };
-      });
-    }
+    Object.entries(quotes).forEach(([ticker, q]) => {
+      if (!q || q.code || !q.close) return;
+      const price = parseFloat(q.close);
+      const prevClose = parseFloat(q.previous_close || q.close);
+      prices[ticker] = {
+        price,
+        bid: parseFloat(q.close), // Twelve Data quote endpoint has no separate bid/ask
+        ask: parseFloat(q.close),
+        change: price - prevClose,
+        changePct: prevClose > 0 ? (price - prevClose) / prevClose * 100 : 0
+      };
+    });
 
     return prices;
   } catch(e) { return {}; }
@@ -795,7 +785,7 @@ function setField(id, value, cls) {
 // runs the orchestrator, and returns a structured brief for Claude.
 // If the edge function is unavailable, falls back to lightweight mode (descriptions only).
 
-const GOVERNOR_EDGE_URL = 'https://zpcbbwynvvyldavxzjng.supabase.co/functions/v1/aurum-governor';
+const GOVERNOR_EDGE_URL = 'https://zpcbbwynvvyldavxzjng.supabase.co/functions/v1/clever-responder';
 const GOVERNOR_ANON_KEY = 'sb_publishable_K80lcfk8LsQNqo5enznRRA_lrzf2U9K';
 
 async function runGovernor() {
