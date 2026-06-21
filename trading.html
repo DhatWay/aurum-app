@@ -260,6 +260,7 @@ footer p { font-size: 0.62rem; letter-spacing: 0.12em; color: var(--muted); text
     <button class="strategy-tab active" id="strat-swing" onclick="setStrategy('swing')">Swing Trade</button>
     <button class="strategy-tab" id="strat-day" onclick="setStrategy('day')">Day Trade</button>
   </div>
+  <div id="auto-switch-note" style="display:none; font-size:0.62rem; color:#C9A84C; letter-spacing:0.1em; margin:-1.4rem 0 1.4rem; font-family:'IBM Plex Mono',monospace;"></div>
 
   <div class="section-label">Instrument</div>
   <div class="instrument-tabs">
@@ -520,6 +521,20 @@ async function loadSettings() {
     settings = data || {};
     currentMode = settings.mode || 'manual';
     updateModeUI(currentMode);
+
+    // Apply auto-switched strategy from the hourly Governor strategy monitor
+    if (settings.active_strategy && settings.active_strategy !== currentStrategy) {
+      currentStrategy = settings.active_strategy;
+      document.querySelectorAll('.strategy-tab').forEach(t => t.classList.remove('active'));
+      const tab = document.getElementById('strat-' + currentStrategy);
+      if (tab) tab.classList.add('active');
+      updateInstructionSub();
+    }
+    if (settings.active_strategy) {
+      const note = document.getElementById('auto-switch-note');
+      note.textContent = '\u26A1 Strategy auto-set by performance monitor \u2014 view history on Report page';
+      note.style.display = 'block';
+    }
   } catch(e) { settings = {}; }
 }
 
