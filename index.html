@@ -739,89 +739,41 @@
   const { createClient } = supabase;
   const db = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-  // ── PRICE FEED ENGINE ──
-  let alpacaCredentials = null;
+  // ── PRICE FEED ENGINE — Twelve Data ──
+  const TWELVE_KEY = '1fbbfd6ec92c489ca009d00e7127fbe3';
   let priceCache = {};
   let priceFeedInterval = null;
   let watchlistTickers = [];
 
-  async function loadAlpacaCredentials() {
-    try {
-      const { data } = await db.from('brokerage_accounts')
-        .select('api_key_plain, api_secret_plain, is_paper')
-        .eq('brokerage', 'alpaca')
-        .eq('active', true)
-        .single();
-      if (data && data.api_key_plain) {
-        alpacaCredentials = {
-          key:    data.api_key_plain,
-          secret: data.api_secret_plain,
-          paper:  data.is_paper !== false
-        };
-      }
-    } catch(e) {}
-  }
-
   async function fetchLivePrices(tickers) {
     if (!tickers || !tickers.length) return {};
-    if (!alpacaCredentials) return fetchFallbackPrices(tickers);
 
     try {
-      const symbols = tickers.join(',');
+      // Twelve Data batch quote — comma-separated symbols in one call
+      const symbols = tickers.slice(0, 8).join(',');
       const res = await fetch(
-        'https://data.alpaca.markets/v2/stocks/quotes/latest?symbols=' + symbols + '&feed=iex',
-        {
-          headers: {
-            'APCA-API-KEY-ID':     alpacaCredentials.key,
-            'APCA-API-SECRET-KEY': alpacaCredentials.secret
-          }
-        }
-      );
-
-      if (!res.ok) return fetchFallbackPrices(tickers);
-
-      const data = await res.json();
-      const prices = {};
-
-      if (data.quotes) {
-        Object.entries(data.quotes).forEach(([ticker, quote]) => {
-          const price = quote.ap || quote.bp || 0; // ask price or bid price
-          const prevClose = priceCache[ticker]?.price || price;
-          prices[ticker] = {
-            price,
-            change:    price - prevClose,
-            changePct: prevClose > 0 ? (price - prevClose) / prevClose * 100 : 0,
-            source:    'alpaca_live'
-          };
-        });
-      }
-
-      return prices;
-    } catch(e) {
-      return fetchFallbackPrices(tickers);
-    }
-  }
-
-  async function fetchFallbackPrices(tickers) {
-    // No credentials — try Alpaca public snapshot endpoint
-    try {
-      const symbols = tickers.slice(0, 10).join(',');
-      const res = await fetch(
-        'https://data.alpaca.markets/v2/stocks/snapshots?symbols=' + symbols + '&feed=iex'
+        'https://api.twelvedata.com/quote?symbol=' + symbols + '&apikey=' + TWELVE_KEY
       );
       if (!res.ok) return {};
+
       const data = await res.json();
       const prices = {};
-      Object.entries(data).forEach(([ticker, snap]) => {
-        const price    = snap.latestTrade?.p || snap.minuteBar?.c || 0;
-        const prevClose = snap.prevDailyBar?.c || price;
+
+      // Twelve Data returns a single object for 1 symbol, or {symbol: {...}} for multiple
+      const quotes = tickers.length === 1 ? { [tickers[0]]: data } : data;
+
+      Object.entries(quotes).forEach(([ticker, q]) => {
+        if (!q || q.code || !q.close) return; // skip error entries
+        const price = parseFloat(q.close);
+        const prevClose = parseFloat(q.previous_close || q.close);
         prices[ticker] = {
           price,
           change:    price - prevClose,
           changePct: prevClose > 0 ? (price - prevClose) / prevClose * 100 : 0,
-          source:    'alpaca_snapshot'
+          source:    'twelve_data'
         };
       });
+
       return prices;
     } catch(e) {
       return {};
@@ -978,7 +930,6 @@
   }
 
   async function init() {
-    await loadAlpacaCredentials();
     await loadPicks();
     await loadAccuracy();
     await loadWatchlist();
