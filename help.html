@@ -428,6 +428,20 @@
         </div>
         <div class="quick-link-arrow">→</div>
       </a>
+      <a href="trading.html" class="quick-link">
+        <div>
+          <div class="quick-link-name">Trading</div>
+          <div class="quick-link-desc">Live Governor instructions</div>
+        </div>
+        <div class="quick-link-arrow">→</div>
+      </a>
+      <a href="options.html" class="quick-link">
+        <div>
+          <div class="quick-link-name">Options</div>
+          <div class="quick-link-desc">Position assessment</div>
+        </div>
+        <div class="quick-link-arrow">→</div>
+      </a>
       <a href="admin.html" class="quick-link">
         <div>
           <div class="quick-link-name">Admin</div>
@@ -463,47 +477,55 @@
         <div class="faq-question-text">What exactly is AURUM?</div>
         <div class="faq-icon">+</div>
       </div>
-      <div class="faq-answer">AURUM is a <strong>private market intelligence system</strong>. It aggregates news, economic data, political signals, and sentiment — runs it through 11 custom algorithms — and produces a formal intelligence brief on stocks you're watching. It doesn't trade. It thinks, scores, and grades itself over time.</div>
+      <div class="faq-answer">AURUM is a <strong>private market intelligence system</strong>. It runs <strong>25 algorithms</strong> — momentum, sentiment, options flow, insider activity, macro regime, and more — through a master <strong>Governor</strong> that synthesizes every signal into a single composite score. Claude then turns that into a plain-language trade instruction. You can test everything in the <strong>Simulator</strong> with paper money, or generate trade instructions on the <strong>Trading</strong> page in Manual or Auto mode.</div>
     </div>
 
-    <div class="faq-item" data-keywords="picks generated when how often weekly monday">
+    <div class="faq-item" data-keywords="picks generated when how often governor">
       <div class="faq-question" onclick="toggleFaq(this)">
         <div class="faq-question-text">When does AURUM generate picks?</div>
         <div class="faq-icon">+</div>
       </div>
-      <div class="faq-answer">Picks are generated every <strong>Monday at 9am</strong> automatically. The weekly analysis runs all 11 algorithms against your watchlist and produces scored picks with formal briefs. You don't need to do anything — it happens without you.</div>
+      <div class="faq-answer">On demand. There is currently <strong>no automatic schedule</strong> — picks and trade instructions are generated whenever you tap <strong>Get Claude Trade Suggestion</strong> on the Simulator page, or <strong>Generate Instruction</strong> on the Trading page. Each time, the Governor runs all 25 algorithms fresh against live market data before Claude responds.</div>
     </div>
 
-    <div class="faq-item" data-keywords="email brief when monday receive">
+    <div class="faq-item" data-keywords="email brief weekly notification">
       <div class="faq-question" onclick="toggleFaq(this)">
-        <div class="faq-question-text">When do I receive the weekly brief email?</div>
+        <div class="faq-question-text">Do I get a weekly email brief?</div>
         <div class="faq-icon">+</div>
       </div>
-      <div class="faq-answer">Every <strong>Monday at 10am</strong> AURUM emails a full intelligence brief to your registered email. It includes current picks, system accuracy, watchlist, and top news headlines — formatted in AURUM's luxury aesthetic.</div>
+      <div class="faq-answer">Not currently. AURUM does not send emails. All intelligence lives inside the app — check the <strong>Brief</strong> page for your current picks, watchlist, and accuracy stats anytime.</div>
     </div>
 
-    <div class="faq-item" data-keywords="score what mean 87 numbers rating">
+    <div class="faq-item" data-keywords="score what mean 87 numbers rating composite">
       <div class="faq-question" onclick="toggleFaq(this)">
-        <div class="faq-question-text">What does the pick score mean?</div>
+        <div class="faq-question-text">What does the composite score mean?</div>
         <div class="faq-icon">+</div>
       </div>
-      <div class="faq-answer">The score (0-100) represents <strong>AURUM's composite confidence</strong> in a stock based on all active signal inputs. A score of <span class="mono">80+</span> means strong alignment across multiple signals. <span class="mono">60-79</span> means moderate alignment. Below <span class="mono">60</span> means AURUM is watching but not high conviction. The score alone is not a buy signal — read the brief and probability spread too.</div>
+      <div class="faq-answer">The score (0-100) is the <strong>Governor's composite signal</strong> after weighting all 25 algorithms by reliability and current market regime. A score of <span class="mono">72+</span> signals STRONG_BUY conviction. <span class="mono">62-71</span> is BUY. <span class="mono">55-61</span> is WATCH_LONG. Below that, signals weaken toward HOLD, WATCH_SHORT, SELL, or STRONG_SELL. Each result also carries a <strong>signal quality score</strong> — if algorithms disagree sharply or key data sources are missing, quality drops and Claude is instructed to lower its confidence.</div>
     </div>
 
-    <div class="faq-item" data-keywords="accuracy self rating grade how measured">
+    <div class="faq-item" data-keywords="accuracy self rating grade how measured 30 day">
       <div class="faq-question" onclick="toggleFaq(this)">
         <div class="faq-question-text">How does AURUM grade its own accuracy?</div>
         <div class="faq-icon">+</div>
       </div>
-      <div class="faq-answer">Every pick is logged at the moment it's made with the entry price and timestamp. At <strong>30, 60, and 90 days</strong> AURUM compares the pick's performance against the S&P 500. If the pick outperformed the market it's marked as a win. The accuracy percentage on the Brief page reflects this verified track record — not projections.</div>
+      <div class="faq-answer">Every pick is logged at the moment it's made. <strong>30 days later</strong>, AURUM automatically compares the pick's actual return against the S&P 500 (SPY) over the same window — this runs quietly in the background whenever you open the <strong>Admin</strong> page. If the pick beat SPY, it's marked a win. The accuracy percentage on the <strong>Report</strong> page reflects this verified track record.</div>
     </div>
 
-    <div class="faq-item" data-keywords="cost money api credits how much">
+    <div class="faq-item" data-keywords="cost money api credits how much twelve data finnhub claude">
       <div class="faq-question" onclick="toggleFaq(this)">
         <div class="faq-question-text">What does AURUM cost to run?</div>
         <div class="faq-icon">+</div>
       </div>
-      <div class="faq-answer">At current scale AURUM runs for approximately <strong>$15/month</strong> — almost entirely Claude API usage for the weekly analysis. News fetching uses free APIs. Hosting is free via GitHub Pages. Supabase database is free tier. Email is free via Resend. The cost scales up only when you add paid data sources like Benzinga or Bloomberg.</div>
+      <div class="faq-answer">Market data runs on <strong>Twelve Data</strong> and <strong>Finnhub</strong> free tiers. Hosting is free via GitHub Pages. The database runs on Supabase's free tier. The only real cost is <strong>Claude API usage</strong>, billed pay-as-you-go through Anthropic — typically a few dollars depending on how often you generate trade instructions.</div>
+    </div>
+
+    <div class="faq-item" data-keywords="broker alpaca trading real money execute">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">Do I need a broker account to use AURUM?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">No. The <strong>Simulator</strong> works entirely with paper money tracked in your own database — no broker, no ID verification, no signup required. A live broker connection (currently Alpaca, on the <strong>Brokerage</strong> page) is only needed if you eventually want AURUM to place real trades automatically. Until then, you can manually execute any Claude-suggested trade through whatever brokerage app you already use.</div>
     </div>
 
   </div>
@@ -514,12 +536,20 @@
   <div class="help-section" id="section-algorithms">
     <div class="help-section-title">The <em>Algorithms</em></div>
 
+    <div class="faq-item" data-keywords="how many algorithms governor orchestrator">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">How many algorithms does AURUM run, and what's the Governor?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">AURUM runs <strong>25 algorithms</strong> across four phases — Core Signals, Advanced Analysis, Evolutionary ML, and Deep AI — plus a 26th: the <strong>Governor</strong> (algorithm_orchestrator). The Governor runs last, weighting every algorithm's output by historical accuracy and current market regime, resolving conflicts, and producing one composite score before Claude ever sees the data.</div>
+    </div>
+
     <div class="faq-item" data-keywords="momentum detector price velocity volume">
       <div class="faq-question" onclick="toggleFaq(this)">
         <div class="faq-question-text">What does the Momentum Detector do?</div>
         <div class="faq-icon">+</div>
       </div>
-      <div class="faq-answer">Measures <strong>price velocity</strong> over the last 14 days combined with volume trends. A stock moving up fast with increasing volume scores higher than one drifting up on thin volume. Flags strong directional movement candidates for AURUM's analysis cycle.</div>
+      <div class="faq-answer">Measures <strong>price velocity</strong> using RSI, MACD, and rate-of-change across multiple timeframes, confirmed by volume trends. A stock moving up fast with rising volume scores higher than one drifting up on thin volume.</div>
     </div>
 
     <div class="faq-item" data-keywords="sentiment detector news social score bullish bearish">
@@ -527,15 +557,15 @@
         <div class="faq-question-text">What does the Sentiment Detector do?</div>
         <div class="faq-icon">+</div>
       </div>
-      <div class="faq-answer">Combines <strong>news sentiment (60% weight)</strong> and <strong>social sentiment (40% weight)</strong> into a single score. Returns bullish, bearish, or neutral signal. News is weighted more heavily because it reflects institutional awareness while social reflects retail momentum.</div>
+      <div class="faq-answer">Analyzes recent news headlines from <strong>Finnhub</strong> for positive and negative language, combined with analyst recommendation data, to produce a bullish, bearish, or neutral sentiment score.</div>
     </div>
 
-    <div class="faq-item" data-keywords="political signal congressional trades policy">
+    <div class="faq-item" data-keywords="political signal congressional trades policy quiver">
       <div class="faq-question" onclick="toggleFaq(this)">
         <div class="faq-question-text">What does the Political Signal Detector do?</div>
         <div class="faq-icon">+</div>
       </div>
-      <div class="faq-answer">Tracks <strong>congressional trading activity</strong> and policy event signals. When members of Congress are buying a stock that's a meaningful signal — they often have advance knowledge of favorable legislation. Adjusts score up when congressional buying exceeds selling, down when the reverse is true.</div>
+      <div class="faq-answer">Tracks <strong>congressional trading activity</strong> when connected to a data source. Members of Congress buying a stock is treated as a meaningful bullish signal. This algorithm runs at neutral until a congressional trading data key is added.</div>
     </div>
 
     <div class="faq-item" data-keywords="options flow unusual smart money calls puts">
@@ -543,15 +573,15 @@
         <div class="faq-question-text">What does the Options Flow Detector do?</div>
         <div class="faq-icon">+</div>
       </div>
-      <div class="faq-answer">Detects <strong>unusual options activity</strong> — when call or put volume significantly exceeds historical averages. This is often smart money positioning before a major price move. Weighted 2x in the probability spread model because it's one of the most reliable leading indicators available.</div>
+      <div class="faq-answer">Detects <strong>unusual options activity</strong> — sweeps, dark pool flow, and call/put volume imbalances. This is AURUM's highest-weighted algorithm in the Governor (2.2x) because options flow is one of the most reliable early signals of institutional positioning. Runs at neutral until an options flow data source is connected.</div>
     </div>
 
-    <div class="faq-item" data-keywords="insider transaction ceo cfo buying personal">
+    <div class="faq-item" data-keywords="insider transaction ceo cfo buying personal finnhub">
       <div class="faq-question" onclick="toggleFaq(this)">
         <div class="faq-question-text">What does the Insider Transaction Tracker do?</div>
         <div class="faq-icon">+</div>
       </div>
-      <div class="faq-answer">Tracks <strong>SEC Form 4 filings</strong> — when executives buy or sell their own company stock with personal funds. CEO and CFO purchases are weighted heavily because insiders rarely buy their own stock unless they believe it's undervalued. Weighted 2x in the probability spread model alongside options flow.</div>
+      <div class="faq-answer">Tracks insider buying and selling via <strong>Finnhub</strong>. Executives purchasing their own company's stock with personal funds is weighted heavily (2.0x in the Governor) — insiders rarely buy unless they believe the stock is undervalued.</div>
     </div>
 
     <div class="faq-item" data-keywords="macro regime sector stagflation recession growth">
@@ -559,15 +589,15 @@
         <div class="faq-question-text">What does the Macro Regime Detector do?</div>
         <div class="faq-icon">+</div>
       </div>
-      <div class="faq-answer">Identifies the current <strong>macroeconomic regime</strong> — high rate growth, low rate growth, stagflation risk, recession, or yield curve inversion — and applies sector-specific adjustments. In a high rate environment finance scores higher and tech scores lower. In recession healthcare and utilities outperform. AURUM adjusts automatically.</div>
+      <div class="faq-answer">Identifies the current macroeconomic regime — goldilocks, low-rate expansion, high-rate expansion, recession, stagflation, risk-off, and more — and tells the Governor which algorithms to trust most in that environment. In a recession, macro and correlation signals get amplified; momentum gets dampened.</div>
     </div>
 
     <div class="faq-item" data-keywords="probability spread bull bear base case confidence">
       <div class="faq-question" onclick="toggleFaq(this)">
-        <div class="faq-question-text">What is the Probability Spread Model?</div>
+        <div class="faq-question-text">What is the Governor's signal quality score?</div>
         <div class="faq-icon">+</div>
       </div>
-      <div class="faq-answer">AURUM's <strong>master intelligence layer</strong>. It synthesizes all 10 signal outputs — applying smart money weighting, macro regime adjustments, earnings cycle penalties, and sentiment velocity — into a full probability distribution. Produces bull case, base case, and bear case return estimates with probability percentages and a confidence rating. Think of it like a point spread for stocks.</div>
+      <div class="faq-answer">A 0-100 meta-score reflecting how much to trust a given run. It factors in how many of the 25 algorithms actually had real data to work with, how much they agreed with each other, and whether high-impact overrides (like an earnings date warning) were triggered. Claude is instructed to lower its confidence whenever signal quality drops below 60.</div>
     </div>
 
     <div class="faq-item" data-keywords="improve algorithm change plain english admin">
@@ -591,7 +621,7 @@
         <div class="faq-question-text">How do I add stocks to the watchlist?</div>
         <div class="faq-icon">+</div>
       </div>
-      <div class="faq-answer">Go to <strong>Admin → Manage Watchlist</strong>. Enter the ticker, company name, and sector. Only add stocks when advised — either by AURUM's analysis or by Claude directly. Every stock added gets analyzed weekly by all 11 algorithms. Quality over quantity — a focused watchlist produces sharper intelligence.</div>
+      <div class="faq-answer">Go to <strong>Admin → Manage Watchlist</strong>. Enter the ticker, company name, and sector. Watchlist tickers feed the price bar on the Brief and Trading pages, and are available as targets when generating a Governor-backed trade instruction. Quality over quantity — a focused watchlist produces sharper intelligence.</div>
     </div>
 
     <div class="faq-item" data-keywords="simulator paper trading fake money how use">
@@ -599,7 +629,7 @@
         <div class="faq-question-text">How does the Paper Trading Simulator work?</div>
         <div class="faq-icon">+</div>
       </div>
-      <div class="faq-answer">The Simulator gives you <strong>$10,000 in simulated capital</strong>. Open positions by selecting a watchlist stock, entering your entry price and number of shares. Update the current price anytime to see real gain or loss calculations. Close positions when done. The portfolio tracks your total return over time — letting you validate AURUM's picks before committing real money.</div>
+      <div class="faq-answer">The Simulator gives you <strong>$10,000 in simulated capital</strong>. Tap <strong>Get Claude Trade Suggestion</strong> to have the Governor run all 25 algorithms and have Claude propose a complete trade — ticker, entry, stop loss, target, and reasoning. Hit <strong>Apply to Trade Form</strong> to autofill every field, or enter a trade manually. Update prices and close positions to track real gain/loss. No broker account is required — this is the recommended place to validate AURUM's signals before trading real money.</div>
     </div>
 
     <div class="faq-item" data-keywords="news feed fetch sources how often update">
@@ -607,7 +637,7 @@
         <div class="faq-question-text">How does the News Feed work?</div>
         <div class="faq-icon">+</div>
       </div>
-      <div class="faq-answer">AURUM automatically fetches news every morning at <strong>8am</strong> from Yahoo Finance, Google News, Reddit, SEC EDGAR, and Alpha Vantage. Each headline is scored for sentiment and cross-referenced with your watchlist. You can also tap <strong>Fetch Now</strong> on the News page for an immediate refresh. Paid sources (Bloomberg, Reuters, Benzinga) activate when API keys are added.</div>
+      <div class="faq-answer">The News page displays headlines stored in AURUM's database, scored for sentiment and cross-referenced with your watchlist. Sentiment scoring for individual tickers is generated live by the <strong>Sentiment Detector</strong> algorithm whenever the Governor runs, using real-time headlines pulled from Finnhub.</div>
     </div>
 
     <div class="faq-item" data-keywords="price alert set threshold notify">
@@ -624,6 +654,22 @@
         <div class="faq-icon">+</div>
       </div>
       <div class="faq-answer">The Sectors page groups your watchlist stocks by sector — Technology, Finance, Energy, etc. — and shows the <strong>average AURUM score per sector</strong>. This helps you see where AURUM's collective intelligence is most bullish and whether your watchlist is too concentrated in one sector. The score bar shows relative strength visually.</div>
+    </div>
+
+    <div class="faq-item" data-keywords="trading page manual auto governor execute instruction">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">How does the Trading page work?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">Choose <strong>Stock or Options</strong>, <strong>Day or Swing</strong> strategy, and <strong>Manual or Auto</strong> mode. Tap <strong>Generate Instruction</strong> — the Governor runs all 25 algorithms with live data, then Claude returns a complete trade instruction. <strong>Manual mode</strong> shows five ranked trades to choose from. <strong>Auto mode</strong> autofills a single highest-conviction trade, ready to execute through your connected broker.</div>
+    </div>
+
+    <div class="faq-item" data-keywords="options assessment take profit hold flip exit">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">What does the Options page do?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">Tracks open options positions and gives Claude-powered assessments — <strong>TAKE PROFIT, HOLD, FLIP, or EXIT</strong> — based on current price, days to expiration, and AURUM's latest signal alignment for that ticker.</div>
     </div>
 
     <div class="faq-item" data-keywords="history archive picks past all time filter">
@@ -644,23 +690,23 @@
     <div class="glossary-grid">
       <div class="glossary-item">
         <div class="glossary-term">Composite Score</div>
-        <div class="glossary-def">AURUM's 0-100 rating for a stock. Synthesizes all active signal inputs into a single number representing overall conviction.</div>
+        <div class="glossary-def">The Governor's 0-100 rating for a stock after weighting all 25 algorithms by reliability and market regime. Drives the verdict (STRONG_BUY through STRONG_SELL) and recommended position size.</div>
       </div>
       <div class="glossary-item">
-        <div class="glossary-term">Probability Spread</div>
-        <div class="glossary-def">Bull case, base case, and bear case return estimates with probability percentages. Modeled after how professional traders think about position risk.</div>
+        <div class="glossary-term">Signal Quality</div>
+        <div class="glossary-def">A 0-100 meta-score reflecting how trustworthy a given Governor run is — based on how many algorithms had real data, how much they agreed, and whether any high-impact overrides fired. Below 60, Claude is instructed to lower confidence.</div>
       </div>
       <div class="glossary-item">
         <div class="glossary-term">Signal Conflict</div>
-        <div class="glossary-def">When AURUM's algorithms disagree significantly — spread of 35+ points between highest and lowest signal. Reduces confidence rating to Conflicted.</div>
+        <div class="glossary-def">When AURUM's algorithms disagree significantly — a wide spread between bullish and bearish scores, or high standard deviation across results. Flagged as moderate or severe conflict, reducing the Governor's confidence rating.</div>
       </div>
       <div class="glossary-item">
         <div class="glossary-term">Smart Money</div>
-        <div class="glossary-def">Institutional investors, hedge funds, and corporate insiders whose positioning often predicts price movement. Options flow and insider transactions are AURUM's smart money signals.</div>
+        <div class="glossary-def">Institutional investors, hedge funds, and corporate insiders whose positioning often predicts price movement. Options flow and insider transactions are AURUM's two highest-weighted smart money signals in the Governor.</div>
       </div>
       <div class="glossary-item">
         <div class="glossary-term">Macro Regime</div>
-        <div class="glossary-def">The current macroeconomic environment — high rate growth, low rate growth, stagflation risk, recession, or yield curve inversion. Different regimes favor different sectors.</div>
+        <div class="glossary-def">The current macroeconomic environment — goldilocks, low-rate expansion, high-rate expansion, recession, stagflation, risk-off, deflation risk, or high-volatility bear. The Governor re-weights which algorithms it trusts most based on the detected regime.</div>
       </div>
       <div class="glossary-item">
         <div class="glossary-term">Sentiment Velocity</div>
@@ -668,11 +714,11 @@
       </div>
       <div class="glossary-item">
         <div class="glossary-term">Self-Rating</div>
-        <div class="glossary-def">AURUM's system for grading its own accuracy. Picks are logged at entry price and compared against actual performance at 30, 60, and 90 days.</div>
+        <div class="glossary-def">AURUM's system for grading its own accuracy. Picks are logged at entry and automatically compared against the S&P 500's return 30 days later. Runs quietly in the background each time the Admin page loads.</div>
       </div>
       <div class="glossary-item">
         <div class="glossary-term">Beat Market</div>
-        <div class="glossary-def">A pick that outperformed the S&P 500 return over the same period. The primary benchmark for AURUM's self-rating system.</div>
+        <div class="glossary-def">A pick that outperformed the S&P 500 (SPY) return over the same 30-day period. The benchmark used by AURUM's self-rating system and shown on the Report page.</div>
       </div>
       <div class="glossary-item">
         <div class="glossary-term">Correlation Risk</div>
@@ -680,27 +726,27 @@
       </div>
       <div class="glossary-item">
         <div class="glossary-term">Earnings Cycle</div>
-        <div class="glossary-def">The period around a company's quarterly earnings report. AURUM applies a volatility penalty to picks within 7-14 days of earnings due to elevated uncertainty.</div>
+        <div class="glossary-def">The period around a company's quarterly earnings report. The Governor applies a confidence penalty to signals within the earnings window due to elevated binary-event risk.</div>
       </div>
       <div class="glossary-item">
         <div class="glossary-term">Options Flow</div>
-        <div class="glossary-def">The volume and direction of options contracts being traded. Unusual call volume suggests bullish smart money positioning. Unusual put volume suggests bearish positioning.</div>
+        <div class="glossary-def">The volume and direction of options contracts being traded, including sweeps and dark pool activity. Unusual call volume suggests bullish smart money positioning; unusual put volume suggests bearish positioning. AURUM's highest-weighted algorithm (2.2x).</div>
       </div>
       <div class="glossary-item">
-        <div class="glossary-term">Form 4</div>
-        <div class="glossary-def">SEC filing required when corporate insiders buy or sell their own company stock. AURUM monitors these filings via EDGAR as part of the insider transaction tracker.</div>
+        <div class="glossary-term">Governor</div>
+        <div class="glossary-def">The 26th algorithm — the master orchestrator. Runs after all 25 others, weighting and synthesizing their outputs into one composite score, verdict, and signal quality rating before Claude ever sees the data.</div>
       </div>
       <div class="glossary-item">
         <div class="glossary-term">Paper Trading</div>
-        <div class="glossary-def">Simulated trading with virtual money. Used to test AURUM's picks without risking real capital. AURUM's simulator starts with $10,000 in simulated funds.</div>
+        <div class="glossary-def">Simulated trading with virtual money, tracked entirely in AURUM's own database — no broker or ID required. AURUM's simulator starts with $10,000 in simulated funds.</div>
       </div>
       <div class="glossary-item">
-        <div class="glossary-term">Tier 1 Source</div>
-        <div class="glossary-def">Highest quality news sources — Yahoo Finance, Alpha Vantage, SEC EDGAR, Bloomberg, Reuters. Weighted more heavily in sentiment analysis.</div>
+        <div class="glossary-term">Degradation Notice</div>
+        <div class="glossary-def">A message included in the Governor's output whenever an algorithm fails, is skipped due to missing data, or a key data source (like options flow) isn't connected. Claude is told exactly what didn't run so it can account for the gap.</div>
       </div>
       <div class="glossary-item">
         <div class="glossary-term">Plug and Play</div>
-        <div class="glossary-def">AURUM's architecture for paid data sources. The endpoint is already built — adding an API key activates the source immediately without any additional coding.</div>
+        <div class="glossary-def">AURUM's architecture for data sources. The integration code is already built for each algorithm — adding an API key (Twelve Data, Finnhub, Unusual Whales, Quiver) activates real data immediately without any additional coding.</div>
       </div>
     </div>
   </div>
