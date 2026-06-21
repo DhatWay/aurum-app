@@ -1150,14 +1150,13 @@ TONE: Cold, precise, confident. Like a private analyst briefing a sophisticated 
 FORMAT: 2-4 short paragraphs. Use line breaks. No bullet points.`;
 
   try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
+    const res = await fetch('https://zpcbbwynvvyldavxzjng.supabase.co/functions/v1/smooth-service', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + SUPABASE_KEY },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 1000,
         system: systemPrompt,
-        messages: conversationHistory
+        messages: conversationHistory,
+        max_tokens: 1000
       })
     });
 
@@ -1169,7 +1168,8 @@ FORMAT: 2-4 short paragraphs. Use line breaks. No bullet points.`;
       document.getElementById('api-notice').textContent = 'API key not configured.';
     } else {
       const data = await res.json();
-      const reply = data.content?.[0]?.text || 'No response received.';
+      if (data.error) throw new Error(data.error);
+      const reply = data.text || 'No response received.';
       conversationHistory.push({ role: 'assistant', content: reply });
       addMessage('assistant', reply);
       document.getElementById('api-notice').textContent = '';
@@ -1329,18 +1329,15 @@ Respond ONLY with valid JSON, no markdown, no extra text:
 }`;
 
   try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
+    const res = await fetch('https://zpcbbwynvvyldavxzjng.supabase.co/functions/v1/smooth-service', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 4000,
-        messages: [{ role: 'user', content: prompt }]
-      })
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + SUPABASE_KEY },
+      body: JSON.stringify({ prompt, max_tokens: 4000 })
     });
 
     const data = await res.json();
-    const text = data.content?.[0]?.text || '{}';
+    if (data.error) throw new Error(data.error);
+    const text = data.text || '{}';
     const parsed = JSON.parse(text.replace(/```json|```/g, '').trim());
 
     pendingChanges = parsed.changes || [];
