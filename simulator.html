@@ -690,6 +690,7 @@ footer p { font-size: 0.6rem; letter-spacing: 0.12em; color: var(--muted); text-
     <button class="mode-tab active" id="strat-swing" onclick="setStrategy('swing')">Swing Trade</button>
     <button class="mode-tab" id="strat-day" onclick="setStrategy('day')">Day Trade</button>
   </div>
+  <div id="auto-switch-note" style="display:none; font-size:0.62rem; color:#C9A84C; letter-spacing:0.1em; margin-bottom:1rem; font-family:'IBM Plex Mono',monospace;"></div>
 
   <div class="section-label">Instrument</div>
   <div class="mode-tabs">
@@ -1603,6 +1604,25 @@ async function resetPortfolio() {
   loadHistory();
 }
 
+async function loadActiveStrategy() {
+  try {
+    const { data } = await db.from('trading_settings').select('*').single();
+    if (data?.active_strategy && data.active_strategy !== currentStrategy) {
+      currentStrategy = data.active_strategy;
+      document.querySelectorAll('.mode-tab').forEach(t => t.classList.remove('active'));
+      const tab = document.getElementById('strat-' + currentStrategy);
+      if (tab) tab.classList.add('active');
+    }
+    if (data?.active_strategy) {
+      const badge = document.getElementById('auto-switch-note');
+      if (badge) {
+        badge.textContent = '\u26A1 Strategy auto-set by performance monitor \u2014 view history on Report page';
+        badge.style.display = 'block';
+      }
+    }
+  } catch(e) {}
+}
+
 function openNav() { document.getElementById('nav-overlay').classList.add('open'); }
 function closeNav() { document.getElementById('nav-overlay').classList.remove('open'); }
 
@@ -1610,6 +1630,7 @@ if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('/aurum-app/sw.js').catch(() => {});
 }
 
+loadActiveStrategy();
 loadPortfolio();
 loadTrades();
 loadHistory();
