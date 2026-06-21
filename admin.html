@@ -1024,6 +1024,101 @@ const parsed = JSON.parse(text.replace(/```json|```/g, '').trim());
     if (!error) loadAlerts();
   }
 
+  /* ── AUTO-RATE PICKS — populates self_ratings for picks 30+ days old ── */
+  const TWELVE_KEY_RATING = '1fbbfd6ec92c489ca009d00e7127fbe3';
+
+  async function getPriceOnDate(ticker, dateStr) {
+    try {
+      const res = await fetch(
+        'https://api.twelvedata.com/time_series?symbol=' + ticker +
+        '&interval=1day&start_date=' + dateStr + '&end_date=' + dateStr +
+        '&outputsize=1&apikey=' + TWELVE_KEY_RATING
+      );
+      if (!res.ok) return null;
+      const data = await res.json();
+      const bar = data?.values?.[0];
+      return bar ? parseFloat(bar.close) : null;
+    } catch(e) { return null; }
+  }
+
+  async function getPriceNear(ticker, targetDate) {
+    // Try the exact date, then walk forward up to 5 days (covers weekends/holidays)
+    for (let i = 0; i < 5; i++) {
+      const d = new Date(targetDate);
+      d.setDate(d.getDate() + i);
+      const dateStr = d.toISOString().split('T')[0];
+      const price = await getPriceOnDate(ticker, dateStr);
+      if (price) return price;
+    }
+    return null;
+  }
+
+  async function autoRatePicks() {
+    try {
+      const cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - 30);
+      const cutoffStr = cutoff.toISOString();
+
+      // Picks older than 30 days
+      const { data: eligiblePicks } = await db.from('picks')
+        .select('ticker, score, picked_at')
+        .lt('picked_at', cutoffStr)
+        .order('picked_at', { ascending: false })
+        .limit(50);
+
+      if (!eligiblePicks || !eligiblePicks.length) return;
+
+      // Already-rated tickers+dates — skip duplicates
+      const { data: existingRatings } = await db.from('self_ratings').select('ticker, rated_at');
+      const ratedSet = new Set((existingRatings || []).map(r => r.ticker + '|' + r.rated_at?.slice(0, 10)));
+
+      const toRate = eligiblePicks.filter(p => {
+        const pickDateKey = p.ticker + '|' + p.picked_at?.slice(0, 10);
+        return !ratedSet.has(pickDateKey);
+      });
+
+      if (!toRate.length) return;
+
+      // Rate up to 5 per load to stay within API rate limits (Twelve Data free tier: 8 req/min)
+      const batch = toRate.slice(0, 5);
+
+      for (const pick of batch) {
+        const pickDate = new Date(pick.picked_at);
+        const targetDate = new Date(pickDate);
+        targetDate.setDate(targetDate.getDate() + 30);
+
+        // Skip if target date is in the future (shouldn't happen given cutoff filter, but safe)
+        if (targetDate > new Date()) continue;
+
+        const pickDateStr = pickDate.toISOString().split('T')[0];
+
+        const [entryPrice, exitPrice, spyEntry, spyExit] = await Promise.all([
+          getPriceNear(pick.ticker, pickDate),
+          getPriceNear(pick.ticker, targetDate),
+          getPriceNear('SPY', pickDate),
+          getPriceNear('SPY', targetDate),
+        ]);
+
+        if (!entryPrice || !exitPrice || !spyEntry || !spyExit) continue;
+
+        const return30d = ((exitPrice - entryPrice) / entryPrice) * 100;
+        const spyReturn30d = ((spyExit - spyEntry) / spyEntry) * 100;
+        const beatMarket = return30d > spyReturn30d;
+
+        await db.from('self_ratings').insert({
+          ticker: pick.ticker,
+          rated_at: pick.picked_at,
+          return_30d: Math.round(return30d * 100) / 100,
+          spy_return_30d: Math.round(spyReturn30d * 100) / 100,
+          beat_market: beatMarket,
+          original_score: pick.score,
+        });
+      }
+    } catch(e) {
+      // Silent — auto-rating is a background enhancement, never blocks page load
+    }
+  }
+
   /* ── Init ── */
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/aurum-app/sw.js');
@@ -1032,6 +1127,7 @@ const parsed = JSON.parse(text.replace(/```json|```/g, '').trim());
   loadAlgorithms();
   loadAlerts();
   runHealthScan();
+  autoRatePicks();
 </script>
 
 <script src="tickers.js"></script>
