@@ -752,10 +752,8 @@
 
   async function quickAssess(id) {
     document.getElementById('assess-position').value = id;
-    const currentPrice = prompt('Enter current price ($):');
-    if (!currentPrice) return;
-    document.getElementById('assess-current').value = currentPrice;
-    assessPosition();
+    document.getElementById('assess-current').focus();
+    document.getElementById('assess-current').scrollIntoView({ behavior: 'smooth', block: 'center' });
   }
 
   async function assessPosition() {
@@ -856,7 +854,7 @@ Respond in this exact JSON format only, no extra text:
 
     } catch(e) {
       document.getElementById('loading-assessment').classList.remove('visible');
-      document.getElementById('result-reasoning').textContent = 'Claude API key required to activate assessments. Add CLAUDE_API_KEY to Supabase secrets.';
+      document.getElementById('result-reasoning').textContent = 'Assessment unavailable — Claude API credit required. Fund your Anthropic account at console.anthropic.com to activate.';
       document.getElementById('assessment-panel').classList.add('visible');
     }
 
@@ -866,17 +864,19 @@ Respond in this exact JSON format only, no extra text:
   function openNav() { document.getElementById('nav-overlay').classList.add('open'); }
   function closeNav() { document.getElementById('nav-overlay').classList.remove('open'); }
 
-if ('serviceWorker' in navigator) {
+  if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/aurum-app/sw.js');
   }
- function openNav() { document.getElementById('nav-overlay').classList.add('open'); }
-  function closeNav() { document.getElementById('nav-overlay').classList.remove('open'); }
+
+  loadStocks();
+  loadPositions();
 </script>
 
 <script src="tickers.js"></script>
 <script>
-  initTickerAutocomplete('trade-ticker');
+  if (typeof initTickerAutocomplete === 'function') {
+    initTickerAutocomplete('opt-ticker');
+  }
 </script>
 </body>
-</html>
 </html>
