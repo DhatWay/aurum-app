@@ -472,12 +472,12 @@
 
   <!-- Step 1 -->
   <div class="step-card active" id="step-1">
-    <div class="step-number">Step 01 of 08</div>
+    <div class="step-number">Step 01 of 09</div>
     <div class="step-title">What is <em>AURUM?</em></div>
     <div class="step-body">
-      AURUM is a <strong>private stock intelligence system</strong> — not a trading app, not a screener. It thinks, watches, scores, and grades itself over time.<br><br>
-      Most stock apps give you charts and price alerts. AURUM gives you <strong>synthesized intelligence</strong> — pulling from news, political signals, economic data, insider activity, and options flow — then running it through 11 custom algorithms to produce a formal briefing on each stock you're watching.<br><br>
-      The self-rating system is what makes AURUM unique. Every pick is logged with its entry price. Over 30, 60, and 90 days AURUM grades its own accuracy. That track record is the product.
+      AURUM is a <strong>private market intelligence system</strong> — not a screener, not a generic trading bot. It runs <strong>25 algorithms</strong> across price action, sentiment, options flow, insider activity, and macro conditions, then synthesizes them through a master <strong>Governor</strong> before Claude turns the result into a plain-language trade instruction.<br><br>
+      Every signal you see — composite score, verdict, signal quality — traces back to real algorithm output, not a black box. You can test everything risk-free in the Simulator, or generate live trade instructions on the Trading page.<br><br>
+      The self-rating system is what makes AURUM accountable. Every pick is logged with its entry price and automatically graded against the S&P 500, 30 days later. That track record is the product.
     </div>
     <div class="highlight-box">
       <div class="highlight-label">The Core Principle</div>
@@ -485,62 +485,54 @@
     </div>
     <div class="step-nav">
       <button class="btn-nav" disabled>← Previous</button>
-      <span class="step-counter">1 / 8</span>
+      <span class="step-counter">1 / 9</span>
       <button class="btn-nav primary" onclick="nextStep()">Next →</button>
     </div>
   </div>
 
   <!-- Step 2 -->
   <div class="step-card" id="step-2">
-    <div class="step-number">Step 02 of 08</div>
+    <div class="step-number">Step 02 of 09</div>
     <div class="step-title">The <em>Brief</em> Page</div>
     <div class="step-body">
-      The Brief is AURUM's main dashboard. Every week it updates with fresh AI-generated picks, signal breakdowns, and probability spreads. Think of it as your private intelligence report delivered every Monday.
+      The Brief is AURUM's main dashboard — your watchlist, current picks, and accuracy stats in one place. It updates whenever new picks are generated or ratings come in; there's no fixed schedule to wait on.
     </div>
     <div class="feature-list">
       <div class="feature-item">
         <div class="feature-icon">PICKS</div>
-        <div class="feature-text"><strong>Current Picks</strong> — AI scored stocks with reasoning. Each pick shows a score from 0-100, a formal brief, and signal breakdown bars.</div>
-      </div>
-      <div class="feature-item">
-        <div class="feature-icon">SPREAD</div>
-        <div class="feature-text"><strong>Probability Spread</strong> — Bull case, base case, bear case with probabilities. Like a point spread for stocks. Confidence rated High, Medium, Low, or Conflicted.</div>
+        <div class="feature-text"><strong>Current Picks</strong> — AI-scored stocks with reasoning. Each pick shows a score from 0-100 and a formal brief.</div>
       </div>
       <div class="feature-item">
         <div class="feature-icon">ACCURACY</div>
-        <div class="feature-text"><strong>System Accuracy</strong> — Total picks made, how many beat the market, average accuracy score. This grows more meaningful every week.</div>
+        <div class="feature-text"><strong>System Accuracy</strong> — Total picks made, how many beat the S&P 500, average score. Builds automatically as the self-rating system runs.</div>
       </div>
       <div class="feature-item">
         <div class="feature-icon">WATCHLIST</div>
-        <div class="feature-text"><strong>Watchlist</strong> — Every stock AURUM is actively monitoring. Added through the Admin panel on your instruction.</div>
+        <div class="feature-text"><strong>Watchlist</strong> — Every stock AURUM is actively monitoring, with live prices from Twelve Data. Added through the Admin panel.</div>
       </div>
     </div>
     <div class="step-nav">
       <button class="btn-nav" onclick="prevStep()">← Previous</button>
-      <span class="step-counter">2 / 8</span>
+      <span class="step-counter">2 / 9</span>
       <button class="btn-nav primary" onclick="nextStep()">Next →</button>
     </div>
   </div>
 
   <!-- Step 3 -->
   <div class="step-card" id="step-3">
-    <div class="step-number">Step 03 of 08</div>
+    <div class="step-number">Step 03 of 09</div>
     <div class="step-title">The <em>Intelligence</em> Feed</div>
     <div class="step-body">
-      The News page aggregates real time headlines from multiple sources — scored against AURUM's algorithms and filtered by sentiment. Every article is tagged bullish, bearish, or neutral based on signal alignment.
+      The News page shows headlines relevant to your watchlist, scored for sentiment. Sentiment scoring is generated live by the Sentiment Detector algorithm — powered by real-time Finnhub data — whenever the Governor runs.
     </div>
     <div class="feature-list">
       <div class="feature-item">
-        <div class="feature-icon">SOURCES</div>
-        <div class="feature-text"><strong>Multi-Source Intelligence</strong> — Yahoo Finance, Google News, Reddit, SEC EDGAR, Alpha Vantage. Paid tiers (Bloomberg, Reuters, Benzinga) activate when API keys are added.</div>
+        <div class="feature-icon">SOURCE</div>
+        <div class="feature-text"><strong>Finnhub-Powered</strong> — Company news pulled in real time, scanned for bullish and bearish language patterns.</div>
       </div>
       <div class="feature-item">
         <div class="feature-icon">SCORE</div>
-        <div class="feature-text"><strong>Sentiment Scoring</strong> — Every headline is algorithmically scored for bullish or bearish language and cross-referenced with your watchlist stocks.</div>
-      </div>
-      <div class="feature-item">
-        <div class="feature-icon">AUTO</div>
-        <div class="feature-text"><strong>Automatic Daily Fetch</strong> — News refreshes every morning at 8am automatically. No action needed from you.</div>
+        <div class="feature-text"><strong>Sentiment Scoring</strong> — Headlines are scored for bullish or bearish language and cross-referenced with your watchlist stocks.</div>
       </div>
       <div class="feature-item">
         <div class="feature-icon">FILTER</div>
@@ -549,174 +541,217 @@
     </div>
     <div class="step-nav">
       <button class="btn-nav" onclick="prevStep()">← Previous</button>
-      <span class="step-counter">3 / 8</span>
+      <span class="step-counter">3 / 9</span>
       <button class="btn-nav primary" onclick="nextStep()">Next →</button>
     </div>
   </div>
 
   <!-- Step 4 -->
   <div class="step-card" id="step-4">
-    <div class="step-number">Step 04 of 08</div>
-    <div class="step-title">The <em>11 Algorithms</em></div>
+    <div class="step-number">Step 04 of 09</div>
+    <div class="step-title">The <em>25 Algorithms</em></div>
     <div class="step-body">
-      AURUM runs on 11 custom algorithms — each one measuring a different signal. They feed into each other and culminate in the Probability Spread Model, AURUM's master intelligence layer.
+      AURUM runs 25 algorithms across four phases — Core Signals, Advanced Analysis, Evolutionary ML, and Deep AI — plus a 26th: the <strong>Governor</strong>. The Governor runs last, weighting every algorithm by reliability and current market regime, resolving conflicts, and producing one composite score before Claude sees anything. Here are some of the key ones:
     </div>
     <div class="algo-list">
       <div class="algo-item">
         <div>
           <div class="algo-item-name">momentum_detector</div>
-          <div class="algo-item-desc">Price velocity and volume trend scoring</div>
+          <div class="algo-item-desc">RSI, MACD, and multi-timeframe price velocity scoring</div>
         </div>
-        <div class="algo-layer">Core</div>
+        <div class="algo-layer">Phase 1</div>
       </div>
       <div class="algo-item">
         <div>
           <div class="algo-item-name">sentiment_detector</div>
-          <div class="algo-item-desc">News and social sentiment weighted scoring</div>
+          <div class="algo-item-desc">Live news sentiment scoring via Finnhub</div>
         </div>
-        <div class="algo-layer">Core</div>
+        <div class="algo-layer">Phase 1</div>
       </div>
       <div class="algo-item">
         <div>
           <div class="algo-item-name">political_signal_detector</div>
           <div class="algo-item-desc">Congressional trades and policy signals</div>
         </div>
-        <div class="algo-layer">Core</div>
+        <div class="algo-layer">Phase 1</div>
       </div>
       <div class="algo-item">
         <div>
           <div class="algo-item-name">macro_detector</div>
           <div class="algo-item-desc">Interest rates, inflation, GDP alignment</div>
         </div>
-        <div class="algo-layer">Core</div>
+        <div class="algo-layer">Phase 1</div>
       </div>
       <div class="algo-item">
         <div>
           <div class="algo-item-name">options_flow_detector</div>
-          <div class="algo-item-desc">Unusual options activity — smart money signals</div>
+          <div class="algo-item-desc">Sweeps, dark pool, and unusual options activity — highest-weighted algorithm (2.2x)</div>
         </div>
-        <div class="algo-layer">Enhanced</div>
+        <div class="algo-layer">Phase 1</div>
       </div>
       <div class="algo-item">
         <div>
           <div class="algo-item-name">insider_transaction_tracker</div>
           <div class="algo-item-desc">CEO/CFO personal stock purchases weighted 2x</div>
         </div>
-        <div class="algo-layer">Enhanced</div>
+        <div class="algo-layer">Phase 1</div>
       </div>
       <div class="algo-item">
         <div>
           <div class="algo-item-name">macro_regime_detector</div>
-          <div class="algo-item-desc">Identifies economic regime and adjusts sector scoring</div>
+          <div class="algo-item-desc">Identifies economic regime and tells the Governor which algorithms to trust most</div>
         </div>
-        <div class="algo-layer">Enhanced</div>
+        <div class="algo-layer">Phase 2</div>
       </div>
       <div class="algo-item">
         <div>
           <div class="algo-item-name">sentiment_velocity</div>
           <div class="algo-item-desc">Rate of sentiment change — acceleration vs peak</div>
         </div>
-        <div class="algo-layer">Enhanced</div>
+        <div class="algo-layer">Phase 2</div>
       </div>
       <div class="algo-item">
         <div>
           <div class="algo-item-name">earnings_cycle_detector</div>
-          <div class="algo-item-desc">Flags earnings proximity and applies volatility penalty</div>
+          <div class="algo-item-desc">Flags earnings proximity and triggers a confidence penalty</div>
         </div>
-        <div class="algo-layer">Enhanced</div>
+        <div class="algo-layer">Phase 2</div>
       </div>
       <div class="algo-item">
         <div>
           <div class="algo-item-name">correlation_filter</div>
           <div class="algo-item-desc">Detects over-concentration in correlated positions</div>
         </div>
-        <div class="algo-layer">Enhanced</div>
+        <div class="algo-layer">Phase 2</div>
       </div>
       <div class="algo-item">
         <div>
-          <div class="algo-item-name">probability_spread_model</div>
-          <div class="algo-item-desc">Master synthesis — bull/base/bear cases with confidence</div>
+          <div class="algo-item-name">deep_reinforcement_learning</div>
+          <div class="algo-item-desc">RL agent trained on price/volume history for directional conviction</div>
         </div>
-        <div class="algo-layer master">Master</div>
+        <div class="algo-layer">Phase 4</div>
+      </div>
+      <div class="algo-item">
+        <div>
+          <div class="algo-item-name">algorithm_orchestrator</div>
+          <div class="algo-item-desc">The Governor — synthesizes all 25 outputs into one composite score, verdict, and signal quality rating</div>
+        </div>
+        <div class="algo-layer master">Governor</div>
       </div>
     </div>
     <div class="step-nav">
       <button class="btn-nav" onclick="prevStep()">← Previous</button>
-      <span class="step-counter">4 / 8</span>
+      <span class="step-counter">4 / 9</span>
       <button class="btn-nav primary" onclick="nextStep()">Next →</button>
     </div>
   </div>
 
   <!-- Step 5 -->
   <div class="step-card" id="step-5">
-    <div class="step-number">Step 05 of 08</div>
+    <div class="step-number">Step 05 of 09</div>
     <div class="step-title">The <em>Simulator</em></div>
     <div class="step-body">
-      The Paper Trading Simulator lets you test AURUM's picks with simulated money before committing real capital. Every position tracks real gain and loss based on prices you enter. The portfolio grades itself over time.
+      The Paper Trading Simulator lets you test AURUM's intelligence with $10,000 in simulated capital — no broker, no ID, no real money. This is the recommended starting point for validating the system.
     </div>
     <div class="feature-list">
       <div class="feature-item">
-        <div class="feature-icon">OPEN</div>
-        <div class="feature-text"><strong>Open a Position</strong> — Select a watchlist stock, enter your entry price and number of shares. AURUM tracks it from that moment forward.</div>
+        <div class="feature-icon">ASK</div>
+        <div class="feature-text"><strong>Get Claude Trade Suggestion</strong> — The Governor runs all 25 algorithms on a real ticker with live data, then Claude proposes a complete trade with exact prices and reasoning.</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">APPLY</div>
+        <div class="feature-text"><strong>Apply to Trade Form</strong> — One tap fills every field — ticker, entry, stop, target — from Claude's suggestion. Or enter a trade manually.</div>
       </div>
       <div class="feature-item">
         <div class="feature-icon">TRACK</div>
-        <div class="feature-text"><strong>Live G/L Tracking</strong> — Update the current price anytime to see real gain or loss in dollars and percentage. Portfolio totals update automatically.</div>
+        <div class="feature-text"><strong>Live G/L Tracking</strong> — Update the current price anytime to see real gain or loss in dollars and percentage.</div>
       </div>
       <div class="feature-item">
         <div class="feature-icon">CLOSE</div>
-        <div class="feature-text"><strong>Close Positions</strong> — When you close a position the result is locked in. Your portfolio history builds over time.</div>
-      </div>
-      <div class="feature-item">
-        <div class="feature-icon">RESET</div>
-        <div class="feature-text"><strong>Reset Anytime</strong> — Start fresh with $10,000 whenever you want. Previous simulation data is cleared cleanly.</div>
+        <div class="feature-text"><strong>Close Positions</strong> — When you close a position the result is locked in and feeds your Report page performance history.</div>
       </div>
     </div>
     <div class="step-nav">
       <button class="btn-nav" onclick="prevStep()">← Previous</button>
-      <span class="step-counter">5 / 8</span>
+      <span class="step-counter">5 / 9</span>
       <button class="btn-nav primary" onclick="nextStep()">Next →</button>
     </div>
   </div>
 
   <!-- Step 6 -->
   <div class="step-card" id="step-6">
-    <div class="step-number">Step 06 of 08</div>
-    <div class="step-title">The <em>Admin</em> Panel</div>
+    <div class="step-number">Step 06 of 09</div>
+    <div class="step-title">The <em>Trading</em> & <em>Options</em> Pages</div>
     <div class="step-body">
-      The Admin panel is AURUM's control center. You manage your watchlist, improve algorithms in plain English, and set price alerts — all from one place.
+      When you're ready to act on real signals, the Trading page generates live Governor-backed instructions, and the Options page assesses your open options positions.
     </div>
     <div class="feature-list">
       <div class="feature-item">
-        <div class="feature-icon">WATCH</div>
-        <div class="feature-text"><strong>Manage Watchlist</strong> — Add stocks to AURUM's monitoring universe. Only add stocks when advised — every ticker on the list gets analyzed weekly.</div>
+        <div class="feature-icon">MODE</div>
+        <div class="feature-text"><strong>Manual or Auto</strong> — Manual shows five ranked trades to pick from. Auto autofills a single highest-conviction trade, ready to execute through a connected broker.</div>
       </div>
       <div class="feature-item">
-        <div class="feature-icon">ALGO</div>
-        <div class="feature-text"><strong>Algorithm Improvement</strong> — Describe a change in plain English. AURUM rewrites the algorithm and presents it for your approval before anything deploys.</div>
+        <div class="feature-icon">TYPE</div>
+        <div class="feature-text"><strong>Stock or Options, Day or Swing</strong> — Choose your instrument and time horizon before generating an instruction.</div>
       </div>
       <div class="feature-item">
-        <div class="feature-icon">ALERT</div>
-        <div class="feature-text"><strong>Price Alerts</strong> — Set alerts for when a stock moves up or down beyond your threshold. AURUM flags it automatically.</div>
+        <div class="feature-icon">ASSESS</div>
+        <div class="feature-text"><strong>Options Position Assessment</strong> — For open options positions, Claude returns TAKE PROFIT, HOLD, FLIP, or EXIT based on current signal alignment and days to expiration.</div>
       </div>
     </div>
     <div class="highlight-box">
-      <div class="highlight-label">Important</div>
-      <div class="highlight-text">Never add stocks to the watchlist arbitrarily. Every stock added gets analyzed by all 11 algorithms weekly — quality over quantity.</div>
+      <div class="highlight-label">No Broker Required</div>
+      <div class="highlight-text">You don't need a connected broker to get value here. Take any Claude-suggested trade and execute it manually through whatever brokerage app you already use.</div>
     </div>
     <div class="step-nav">
       <button class="btn-nav" onclick="prevStep()">← Previous</button>
-      <span class="step-counter">6 / 8</span>
+      <span class="step-counter">6 / 9</span>
       <button class="btn-nav primary" onclick="nextStep()">Next →</button>
     </div>
   </div>
 
   <!-- Step 7 -->
   <div class="step-card" id="step-7">
-    <div class="step-number">Step 07 of 08</div>
+    <div class="step-number">Step 07 of 09</div>
+    <div class="step-title">The <em>Admin</em> Panel</div>
+    <div class="step-body">
+      The Admin panel is AURUM's control center. You manage your watchlist, improve algorithms in plain English, set price alerts, and run a system health scan — all from one place.
+    </div>
+    <div class="feature-list">
+      <div class="feature-item">
+        <div class="feature-icon">WATCH</div>
+        <div class="feature-text"><strong>Manage Watchlist</strong> — Add stocks to AURUM's monitoring universe. These tickers power the Brief, Trading, and Sectors pages.</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">ALGO</div>
+        <div class="feature-text"><strong>Algorithm Improvement</strong> — Describe a change in plain English. Claude rewrites the algorithm code and presents it for your approval before anything deploys.</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">ALERT</div>
+        <div class="feature-text"><strong>Price Alerts</strong> — Set alerts for when a stock moves up or down beyond your threshold.</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">SCAN</div>
+        <div class="feature-text"><strong>Health Scan</strong> — Runs automatically every time you open Admin. Claude reviews your algorithms, settings, and trade history, flagging issues as Critical, Warning, Info, or OK.</div>
+      </div>
+    </div>
+    <div class="highlight-box">
+      <div class="highlight-label">Important</div>
+      <div class="highlight-text">Add stocks deliberately, not arbitrarily. A focused watchlist produces sharper, more useful intelligence than a sprawling one.</div>
+    </div>
+    <div class="step-nav">
+      <button class="btn-nav" onclick="prevStep()">← Previous</button>
+      <span class="step-counter">7 / 9</span>
+      <button class="btn-nav primary" onclick="nextStep()">Next →</button>
+    </div>
+  </div>
+
+  <!-- Step 8 -->
+  <div class="step-card" id="step-8">
+    <div class="step-number">Step 08 of 09</div>
     <div class="step-title">The <em>Self-Rating</em> System</div>
     <div class="step-body">
-      This is what separates AURUM from every other stock tool. The self-rating system logs every pick at the moment it's made — then grades AURUM's accuracy 30, 60, and 90 days later against actual market performance.
+      This is what separates AURUM from a generic stock tool. The self-rating system logs every pick at the moment it's made — then grades AURUM's accuracy automatically 30 days later against real market performance.
     </div>
     <div class="feature-list">
       <div class="feature-item">
@@ -725,56 +760,56 @@
       </div>
       <div class="feature-item">
         <div class="feature-icon">GRADE</div>
-        <div class="feature-text"><strong>Automatic grading</strong> — At 30, 60, and 90 days AURUM compares pick performance against the S&P 500. Did it beat the market or not?</div>
+        <div class="feature-text"><strong>Automatic grading</strong> — 30 days after each pick, AURUM compares its return against the S&P 500 (SPY) over the same window. This runs quietly in the background whenever you open the Admin page.</div>
       </div>
       <div class="feature-item">
-        <div class="feature-icon">LEARN</div>
-        <div class="feature-text"><strong>System improves</strong> — After 6-12 months of data the self-rating reveals which signals predicted correctly. Algorithms get refined based on real evidence.</div>
+        <div class="feature-icon">REPORT</div>
+        <div class="feature-text"><strong>Monthly Report</strong> — The Report page shows pick accuracy, simulator P&L, and lets you download a full PDF summary for any month.</div>
       </div>
       <div class="feature-item">
         <div class="feature-icon">TRUST</div>
-        <div class="feature-text"><strong>Verified track record</strong> — The accuracy percentage on the Brief page is real — earned over time, not projected. That's what makes it trustworthy.</div>
+        <div class="feature-text"><strong>Verified track record</strong> — The accuracy percentage shown is real — earned over time, not projected. That's what makes it trustworthy.</div>
       </div>
     </div>
     <div class="step-nav">
       <button class="btn-nav" onclick="prevStep()">← Previous</button>
-      <span class="step-counter">7 / 8</span>
+      <span class="step-counter">8 / 9</span>
       <button class="btn-nav primary" onclick="nextStep()">Next →</button>
     </div>
   </div>
 
-  <!-- Step 8 -->
-  <div class="step-card" id="step-8">
-    <div class="step-number">Step 08 of 08</div>
-    <div class="step-title">The <em>Weekly Rhythm</em></div>
+  <!-- Step 9 -->
+  <div class="step-card" id="step-9">
+    <div class="step-number">Step 09 of 09</div>
+    <div class="step-title">How You <em>Use It</em></div>
     <div class="step-body">
-      AURUM runs on a precise automated schedule. You don't need to do anything — the system wakes up, works, and delivers. Here's exactly what happens every week without you touching anything.
+      AURUM runs on demand, not a fixed schedule. There's no cron job working in the background — every analysis happens fresh, the moment you ask for it. Here's the typical flow.
     </div>
     <div class="feature-list">
       <div class="feature-item">
-        <div class="feature-icon">8AM</div>
-        <div class="feature-text"><strong>Daily — News Fetch</strong> — AURUM pulls fresh headlines from all active sources, scores them, and stores them in the intelligence feed.</div>
+        <div class="feature-icon">START</div>
+        <div class="feature-text"><strong>Test in the Simulator</strong> — Get a Claude trade suggestion, apply it, track it with paper money. No broker, no ID, zero risk.</div>
       </div>
       <div class="feature-item">
-        <div class="feature-icon">MON 9AM</div>
-        <div class="feature-text"><strong>Monday — Weekly Analysis</strong> — All 11 algorithms run against your watchlist. Picks are generated, scored, and stored. Probability spreads calculated.</div>
+        <div class="feature-icon">REVIEW</div>
+        <div class="feature-text"><strong>Check the Brief and Report pages</strong> — Watch your accuracy build as the self-rating system grades closed picks 30 days out.</div>
       </div>
       <div class="feature-item">
-        <div class="feature-icon">MON 10AM</div>
-        <div class="feature-text"><strong>Monday — Brief Email</strong> — A formal intelligence brief lands in your inbox. Picks, accuracy, watchlist, top news — all formatted in AURUM's luxury aesthetic.</div>
+        <div class="feature-icon">ACT</div>
+        <div class="feature-text"><strong>Move to Trading when ready</strong> — Generate a live Governor instruction and either execute through a connected broker or manually place the trade yourself.</div>
       </div>
       <div class="feature-item">
-        <div class="feature-icon">ONGOING</div>
-        <div class="feature-text"><strong>Self-Rating — Continuous</strong> — At 30, 60, 90 day marks AURUM automatically grades its own picks against real market performance.</div>
+        <div class="feature-icon">REFINE</div>
+        <div class="feature-text"><strong>Improve algorithms over time</strong> — Use the Admin panel's Algorithm Improvement tool to refine signals in plain English as you learn what works.</div>
       </div>
     </div>
     <div class="highlight-box">
       <div class="highlight-label">Your Role</div>
-      <div class="highlight-text">Review the Monday brief. Monitor the watchlist. Use the simulator to test picks before acting. Trust the track record as it builds. That's it.</div>
+      <div class="highlight-text">Run the simulator. Watch the track record build. Trust the data — not the hype — before moving real capital. That's it.</div>
     </div>
     <div class="step-nav">
       <button class="btn-nav" onclick="prevStep()">← Previous</button>
-      <span class="step-counter">8 / 8</span>
+      <span class="step-counter">9 / 9</span>
       <button class="btn-nav primary" onclick="completeTutorial()">Complete →</button>
     </div>
   </div>
@@ -783,7 +818,7 @@
   <div class="completion" id="completion">
     <div class="completion-au">AU</div>
     <div class="completion-title">You're ready.</div>
-    <div class="completion-sub">AURUM is running. The system is live. Your first weekly brief arrives Monday morning.<br>Intelligence. Refined.</div>
+    <div class="completion-sub">Start in the Simulator. Build a track record. Move to live trading when the data convinces you.<br>Intelligence. Refined.</div>
     <a href="index.html" class="btn-start">Enter AURUM</a>
   </div>
 
@@ -796,7 +831,7 @@
 
 <script>
   let currentStep = 1;
-  const totalSteps = 8;
+  const totalSteps = 9;
 
   function buildProgress() {
     const bar = document.getElementById('progress-bar');
