@@ -623,6 +623,24 @@
     <div class="success-msg" id="stock-success">Stock added successfully.</div>
   </div>
 
+  <!-- Current Watchlist -->
+  <div class="improve-sub" style="margin-top:1.5rem; letter-spacing:0.2em; font-size:0.7rem; color:var(--gold); text-transform:uppercase;">Current Watchlist</div>
+  <div id="admin-watchlist-container" style="margin-top:0.8rem; border:1px solid var(--rule);">
+    <div style="padding:1rem; font-size:0.8rem; color:var(--muted);">Loading...</div>
+  </div>
+
+  <!-- Confirmation Dialog -->
+  <div id="remove-dialog" style="display:none; position:fixed; inset:0; background:rgba(8,8,8,0.92); z-index:2000; display:none; justify-content:center; align-items:center;">
+    <div style="border:1px solid var(--rule); background:#0d0d0d; padding:2rem; max-width:340px; width:90%; text-align:center;">
+      <div style="font-family:'Cormorant Garamond',serif; font-size:1.4rem; color:var(--white); margin-bottom:0.8rem;">Remove <span id="remove-ticker-label" style="color:var(--gold);"></span>?</div>
+      <div style="font-size:0.8rem; color:var(--muted); line-height:1.7; margin-bottom:1.5rem;">This will remove the stock from your watchlist. It will no longer appear on the Brief, Trading, or Simulator pages.</div>
+      <div style="display:flex; gap:1rem; justify-content:center;">
+        <button onclick="cancelRemove()" style="background:transparent; border:1px solid var(--rule); color:var(--muted); padding:0.7rem 1.5rem; cursor:pointer; font-family:'DM Sans',sans-serif; font-size:0.8rem; letter-spacing:0.1em;">Cancel</button>
+        <button onclick="confirmRemove()" style="background:transparent; border:1px solid var(--danger); color:var(--danger); padding:0.7rem 1.5rem; cursor:pointer; font-family:'DM Sans',sans-serif; font-size:0.8rem; letter-spacing:0.1em;">Remove</button>
+      </div>
+    </div>
+  </div>
+
   <div class="gold-rule"></div>
 
   <!-- Algorithms -->
@@ -885,19 +903,68 @@ const parsed = JSON.parse(text.replace(/```json|```/g, '').trim());
   }
 
   /* ── Add Stock ── */
+  async function loadAdminWatchlist() {
+    const container = document.getElementById('admin-watchlist-container');
+    try {
+      const { data } = await db.from('stocks').select('*').order('added_at', { ascending: false });
+      if (!data || !data.length) {
+        container.innerHTML = '<div style="padding:1rem; font-size:0.8rem; color:var(--muted);">No stocks in watchlist.</div>';
+        return;
+      }
+      container.innerHTML = data.map(s => `
+        <div style="display:grid; grid-template-columns:80px 1fr 1fr auto; gap:1rem; align-items:center; padding:0.8rem 1rem; border-bottom:1px solid var(--rule);">
+          <div style="font-family:'IBM Plex Mono',monospace; color:var(--gold); font-size:0.85rem;">${s.ticker}</div>
+          <div style="font-size:0.78rem; color:var(--white);">${s.company_name || '—'}</div>
+          <div style="font-size:0.72rem; color:var(--muted);">${s.sector || '—'}</div>
+          <button onclick="removeStock('${s.id}', '${s.ticker}')" style="background:transparent; border:1px solid rgba(139,58,58,0.4); color:var(--danger); padding:0.3rem 0.7rem; cursor:pointer; font-size:0.65rem; letter-spacing:0.1em; font-family:'DM Sans',sans-serif;">Remove</button>
+        </div>
+      `).join('');
+    } catch(e) {
+      container.innerHTML = '<div style="padding:1rem; font-size:0.8rem; color:var(--muted);">Error loading watchlist.</div>';
+    }
+  }
+
+  let pendingRemoveId   = null;
+  let pendingRemoveTicker = null;
+
+  function removeStock(id, ticker) {
+    pendingRemoveId     = id;
+    pendingRemoveTicker = ticker;
+    document.getElementById('remove-ticker-label').textContent = ticker;
+    document.getElementById('remove-dialog').style.display = 'flex';
+  }
+
+  function cancelRemove() {
+    pendingRemoveId     = null;
+    pendingRemoveTicker = null;
+    document.getElementById('remove-dialog').style.display = 'none';
+  }
+
+  async function confirmRemove() {
+    if (!pendingRemoveId) return;
+    document.getElementById('remove-dialog').style.display = 'none';
+    try {
+      await db.from('stocks').delete().eq('id', pendingRemoveId);
+      await loadAdminWatchlist();
+    } catch(e) {}
+    pendingRemoveId     = null;
+    pendingRemoveTicker = null;
+  }
+
   async function addStock() {
-    const ticker = document.getElementById('new-ticker').value.toUpperCase().trim();
+    const ticker  = document.getElementById('new-ticker').value.toUpperCase().trim();
     const company = document.getElementById('new-company').value.trim();
-    const sector = document.getElementById('new-sector').value.trim();
+    const sector  = document.getElementById('new-sector').value.trim();
     if (!ticker) return;
 
     const { error } = await db.from('stocks').insert({ ticker, company_name: company, sector });
     if (!error) {
       document.getElementById('stock-success').classList.add('visible');
-      document.getElementById('new-ticker').value = '';
+      document.getElementById('new-ticker').value  = '';
       document.getElementById('new-company').value = '';
-      document.getElementById('new-sector').value = '';
+      document.getElementById('new-sector').value  = '';
       setTimeout(() => document.getElementById('stock-success').classList.remove('visible'), 3000);
+      await loadAdminWatchlist();
     }
   }
 
@@ -1128,6 +1195,7 @@ const parsed = JSON.parse(text.replace(/```json|```/g, '').trim());
   loadAlerts();
   runHealthScan();
   autoRatePicks();
+  loadAdminWatchlist();
 </script>
 
 <script src="tickers.js"></script>
