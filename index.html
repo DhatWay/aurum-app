@@ -73,6 +73,11 @@
     align-items: center;
   }
 
+  .mode-active {
+    background: rgba(201,168,76,0.1) !important;
+    color: #C9A84C !important;
+  }
+
   .hamburger {
     background: transparent;
     border: 1px solid var(--rule);
@@ -632,7 +637,13 @@
     AU
     <span>PRIVATE INTELLIGENCE</span>
   </div>
-<button class="hamburger" onclick="openNav()">☰</button>
+  <div style="display:flex; align-items:center; gap:0.8rem;">
+    <div style="display:flex; border:1px solid rgba(201,168,76,0.3); font-size:0.65rem; letter-spacing:0.15em; font-family:'IBM Plex Mono',monospace;">
+      <button id="mode-stock" onclick="switchMode('stock')" style="background:transparent; border:none; color:#6B6560; padding:0.4rem 0.8rem; cursor:pointer; transition:all 0.3s;" class="mode-active">STOCKS</button>
+      <button id="mode-crypto" onclick="switchMode('crypto')" style="background:transparent; border:none; color:#6B6560; padding:0.4rem 0.8rem; cursor:pointer; transition:all 0.3s;">CRYPTO</button>
+    </div>
+    <button class="hamburger" onclick="openNav()">☰</button>
+  </div>
 </header>
 
 <!-- LIVE PRICE FEED BAR -->
@@ -744,9 +755,70 @@
   let priceCache = {};
   let priceFeedInterval = null;
   let watchlistTickers = [];
+  let currentMode = 'stock'; // 'stock' or 'crypto' — loaded from trading_settings on init
+
+  // CoinGecko symbol map — maps ticker to CoinGecko coin id
+  const COINGECKO_IDS = {
+    'BTC':   'bitcoin',
+    'ETH':   'ethereum',
+    'SOL':   'solana',
+    'BNB':   'binancecoin',
+    'XRP':   'ripple',
+    'AVAX':  'avalanche-2',
+    'MATIC': 'matic-network',
+    'LINK':  'chainlink',
+    'ADA':   'cardano',
+    'DOT':   'polkadot',
+    'DOGE':  'dogecoin',
+    'SHIB':  'shiba-inu',
+    'UNI':   'uniswap',
+    'ATOM':  'cosmos',
+    'LTC':   'litecoin'
+  };
+
+  async function fetchCryptoPrices(tickers) {
+    if (!tickers || !tickers.length) return {};
+    try {
+      const ids = tickers
+        .map(t => COINGECKO_IDS[t.toUpperCase()])
+        .filter(Boolean)
+        .join(',');
+      if (!ids) return {};
+
+      const res = await fetch(
+        'https://api.coingecko.com/api/v3/simple/price?ids=' + ids +
+        '&vs_currencies=usd&include_24hr_change=true&include_24hr_vol=true'
+      );
+      if (!res.ok) return {};
+      const data = await res.json();
+
+      const prices = {};
+      tickers.forEach(ticker => {
+        const id = COINGECKO_IDS[ticker.toUpperCase()];
+        if (!id || !data[id]) return;
+        const coin = data[id];
+        const price = coin.usd || 0;
+        const changePct = coin.usd_24h_change || 0;
+        prices[ticker] = {
+          price,
+          change:    price * changePct / 100,
+          changePct: changePct,
+          source:    'coingecko'
+        };
+      });
+      return prices;
+    } catch(e) {
+      return {};
+    }
+  }
 
   async function fetchLivePrices(tickers) {
     if (!tickers || !tickers.length) return {};
+
+    // Route to correct price source based on active mode
+    if (currentMode === 'crypto') {
+      return fetchCryptoPrices(tickers);
+    }
 
     try {
       // Twelve Data batch quote — comma-separated symbols in one call
@@ -896,9 +968,15 @@
   }
 
   async function loadWatchlist() {
-    const { data } = await db.from('stocks').select('*').order('added_at', { ascending: false });
+    const { data } = await db.from('stocks')
+      .select('*')
+      .eq('type', currentMode === 'crypto' ? 'crypto' : 'stock')
+      .order('added_at', { ascending: false });
     const container = document.getElementById('watchlist-container');
-    if (!data || !data.length) { container.innerHTML = '<div class="empty-state">No stocks in watchlist.</div>'; return; }
+    if (!data || !data.length) {
+      container.innerHTML = '<div class="empty-state">No ' + (currentMode === 'crypto' ? 'crypto' : 'stocks') + ' in watchlist.</div>';
+      return;
+    }
 
     watchlistTickers = data.map(s => s.ticker);
 
@@ -913,6 +991,30 @@
 
     // Fetch prices immediately after loading watchlist
     refreshPrices();
+  }
+
+  async function switchMode(mode) {
+    if (mode === currentMode) return;
+    currentMode = mode;
+
+    // Persist to trading_settings
+    const { data: settings } = await db.from('trading_settings').select('id').single();
+    if (settings?.id) {
+      await db.from('trading_settings').update({ active_mode: mode }).eq('id', settings.id);
+    }
+
+    // Update toggle UI
+    document.getElementById('mode-stock').classList.toggle('mode-active', mode === 'stock');
+    document.getElementById('mode-crypto').classList.toggle('mode-active', mode === 'crypto');
+
+    // Reload everything for the new mode
+    clearInterval(priceFeedInterval);
+    priceCache = {};
+    watchlistTickers = [];
+    await loadPicks();
+    await loadAccuracy();
+    await loadWatchlist();
+    priceFeedInterval = setInterval(refreshPrices, 30000);
   }
 
   async function loadRatings() {
@@ -930,6 +1032,16 @@
   }
 
   async function init() {
+    // Read active mode from trading_settings first — everything else depends on it
+    try {
+      const { data: settings } = await db.from('trading_settings').select('active_mode').single();
+      if (settings?.active_mode) {
+        currentMode = settings.active_mode;
+        document.getElementById('mode-stock').classList.toggle('mode-active', currentMode === 'stock');
+        document.getElementById('mode-crypto').classList.toggle('mode-active', currentMode === 'crypto');
+      }
+    } catch(e) {}
+
     await loadPicks();
     await loadAccuracy();
     await loadWatchlist();
