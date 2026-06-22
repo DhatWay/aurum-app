@@ -130,183 +130,36 @@
 <script>
   const SUPABASE_URL = 'https://zpcbbwynvvyldavxzjng.supabase.co';
   const SUPABASE_KEY = 'sb_publishable_K80lcfk8LsQNqo5enznRRA_lrzf2U9K';
-  const FINNHUB_KEY  = 'd8ipl11r01qtcvnt331gd8ipl11r01qtcvnt3320';
   const { createClient } = supabase;
   const db = createClient(SUPABASE_URL, SUPABASE_KEY);
 
   let allNews = [];
 
-  const BULLISH_WORDS = ['surge','rally','beat','growth','gain','record','strong','upgrade','buy','profit','soar','rise','higher','boost','bullish','exceed'];
-  const BEARISH_WORDS = ['drop','fall','miss','loss','decline','weak','downgrade','sell','crash','plunge','warning','lower','cut','bearish','concern'];
-
-  function scoreSentiment(text) {
-    const t = text.toLowerCase();
-    const bull = BULLISH_WORDS.filter(w => t.includes(w)).length;
-    const bear = BEARISH_WORDS.filter(w => t.includes(w)).length;
-    return { sentiment: bull > bear ? 'bullish' : bear > bull ? 'bearish' : 'neutral', score: bull - bear };
-  }
-
   function setProgress(msg) {
     document.getElementById('fetch-progress').textContent = msg;
-  }
-
-  async function safeFetch(url, opts = {}) {
-    try {
-      const res = await fetch(url, { ...opts, signal: AbortSignal.timeout(8000) });
-      if (!res.ok) return null;
-      return res;
-    } catch(e) { return null; }
   }
 
   async function fetchNews() {
     const btn = document.getElementById('fetch-btn');
     btn.disabled = true;
     btn.textContent = 'Fetching...';
-    setProgress('Loading watchlist...');
-
-    const newsItems = [];
-    const archiveMonth = new Date().toISOString().slice(0, 7);
-    const toDate   = new Date().toISOString().split('T')[0];
-    const fromDate = new Date(Date.now() - 7 * 86400000).toISOString().split('T')[0];
+    setProgress('Triggering news fetch — this takes about 60 seconds...');
 
     try {
-      const { data: stocks } = await db.from('stocks').select('ticker');
-      const tickers = stocks?.map(s => s.ticker) || [];
-
-      if (!tickers.length) {
-        setProgress('No stocks in watchlist. Add stocks via Admin first.');
-        btn.disabled = false;
-        btn.textContent = 'Fetch Now';
-        return;
-      }
-
-      // ── Finnhub — primary source ──
-      setProgress(`Finnhub: fetching for ${tickers.length} tickers...`);
-      for (const ticker of tickers) {
-        const res = await safeFetch(
-          `https://finnhub.io/api/v1/company-news?symbol=${ticker}&from=${fromDate}&to=${toDate}&token=${FINNHUB_KEY}`
-        );
-        if (!res) continue;
-        const data = await res.json();
-        const articles = Array.isArray(data) ? data.slice(0, 8) : [];
-        for (const item of articles) {
-          if (!item.headline || item.headline.length < 10) continue;
-          const { sentiment, score } = scoreSentiment(item.headline + ' ' + (item.summary || ''));
-          newsItems.push({
-            ticker, headline: item.headline,
-            summary: (item.summary || '').slice(0, 300),
-            source: item.source || 'Finnhub', source_tier: 1,
-            url: item.url || null,
-            sentiment_score: score,
-            algorithm_alignment: { sentiment },
-            published_at: item.datetime ? new Date(item.datetime * 1000).toISOString() : new Date().toISOString(),
-            archive_month: archiveMonth
-          });
-        }
-        setProgress(`Finnhub: ${ticker} — ${articles.length} articles`);
-        await new Promise(r => setTimeout(r, 500));
-      }
-
-      // ── Yahoo Finance RSS ──
-      setProgress('Yahoo Finance: fetching...');
-      for (const ticker of tickers) {
-        const res = await safeFetch(`https://finance.yahoo.com/rss/headline?s=${ticker}`, {
-          headers: { 'User-Agent': 'Mozilla/5.0 (compatible; AURUM/1.0)' }
-        });
-        if (!res) continue;
-        const text = await res.text();
-        const items = text.match(/<item>([\s\S]*?)<\/item>/g) || [];
-        for (const itemXml of items.slice(0, 5)) {
-          const headline = (itemXml.match(/<title><!\[CDATA\[(.*?)\]\]><\/title>/) || [])[1]?.trim() || '';
-          const url      = (itemXml.match(/<link>(.*?)<\/link>/)                  || [])[1]?.trim() || '';
-          const pubDate  = (itemXml.match(/<pubDate>(.*?)<\/pubDate>/)            || [])[1]?.trim() || '';
-          if (!headline || headline.length < 10) continue;
-          const { sentiment, score } = scoreSentiment(headline);
-          newsItems.push({
-            ticker, headline, summary: '', source: 'Yahoo Finance', source_tier: 1,
-            url: url || null, sentiment_score: score,
-            algorithm_alignment: { sentiment },
-            published_at: pubDate ? new Date(pubDate).toISOString() : new Date().toISOString(),
-            archive_month: archiveMonth
-          });
-        }
-        await new Promise(r => setTimeout(r, 500));
-      }
-
-      // ── Reddit r/investing ──
-      setProgress('Reddit: fetching...');
-      for (const ticker of tickers) {
-        const res = await safeFetch(
-          `https://www.reddit.com/r/investing/search.json?q=${ticker}&sort=new&limit=5&restrict_sr=true&t=day`,
-          { headers: { 'User-Agent': 'AURUM:v1.0 (by /u/aurum_intelligence)' } }
-        );
-        if (!res) continue;
-        const data = await res.json();
-        for (const post of (data?.data?.children || []).slice(0, 3)) {
-          const p = post.data;
-          if (!p.title) continue;
-          const { sentiment, score } = scoreSentiment(p.title + ' ' + (p.selftext || ''));
-          newsItems.push({
-            ticker, headline: p.title,
-            summary: (p.selftext || '').slice(0, 200),
-            source: 'Reddit r/investing', source_tier: 2,
-            url: `https://reddit.com${p.permalink}`,
-            sentiment_score: score,
-            algorithm_alignment: { sentiment },
-            published_at: new Date(p.created_utc * 1000).toISOString(),
-            archive_month: archiveMonth
-          });
-        }
-        await new Promise(r => setTimeout(r, 1000));
-      }
-
-      // ── SEC EDGAR ──
-      setProgress('SEC EDGAR: fetching...');
-      for (const ticker of tickers) {
-        const res = await safeFetch(
-          `https://efts.sec.gov/LATEST/search-index?q="${ticker}"&dateRange=custom&startdt=${fromDate}&enddt=${toDate}`,
-          { headers: { 'User-Agent': 'AURUM research tool admin@aurum.app' } }
-        );
-        if (!res) continue;
-        const data = await res.json();
-        for (const hit of (data?.hits?.hits || []).slice(0, 2)) {
-          const s = hit._source;
-          if (!s.form_type) continue;
-          newsItems.push({
-            ticker,
-            headline: `SEC Filing: ${s.form_type} — ${s.entity_name}`,
-            summary: `Form ${s.form_type} filed on ${s.file_date}`,
-            source: 'SEC EDGAR', source_tier: 1,
-            url: `https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&company=${ticker}&type=${s.form_type}`,
-            sentiment_score: 0,
-            algorithm_alignment: { sentiment: 'neutral' },
-            published_at: s.file_date ? new Date(s.file_date).toISOString() : new Date().toISOString(),
-            archive_month: archiveMonth
-          });
-        }
-        await new Promise(r => setTimeout(r, 500));
-      }
-
-      setProgress(`Storing ${newsItems.length} articles...`);
-
-      // Store in Supabase — insert only, skip duplicates by url
-      if (newsItems.length) {
-        const withUrl    = newsItems.filter(n => n.url);
-        const withoutUrl = newsItems.filter(n => !n.url);
-        if (withUrl.length)    await db.from('news_feed').upsert(withUrl,    { onConflict: 'url', ignoreDuplicates: true });
-        if (withoutUrl.length) await db.from('news_feed').insert(withoutUrl);
-      }
-
-      setProgress(`Done — ${newsItems.length} articles fetched. Reloading...`);
+      const res = await fetch('https://zpcbbwynvvyldavxzjng.supabase.co/functions/v1/clever-processor', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + SUPABASE_KEY }
+      });
+      const data = await res.json();
+      setProgress('Done — ' + (data.articles_collected || 0) + ' articles fetched. Loading...');
       await loadStoredNews();
-      setProgress('');
-
     } catch(e) {
-      setProgress('Error during fetch. Try again.');
+      setProgress('Fetch failed. Try again.');
     }
 
     btn.disabled = false;
     btn.textContent = 'Fetch Now';
+    setTimeout(() => setProgress(''), 4000);
   }
 
   async function loadStoredNews() {
@@ -328,11 +181,11 @@
     const months = [...new Set(data.map(n => n.archive_month).filter(Boolean))].sort().reverse();
     const bar = document.getElementById('month-filter');
     if (!months.length) { bar.innerHTML = ''; return; }
-    bar.innerHTML = months.map((m, i) => `
-      <button class="filter-btn ${i === 0 ? 'active' : ''}" onclick="filterByMonth('${m}', this)">
-        ${new Date(m + '-02').toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
-      </button>
-    `).join('');
+    bar.innerHTML = months.map((m, i) =>
+      '<button class="filter-btn ' + (i === 0 ? 'active' : '') + '" onclick="filterByMonth(\'' + m + '\', this)">' +
+      new Date(m + '-02').toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) +
+      '</button>'
+    ).join('');
   }
 
   function filterByMonth(month, btn) {
@@ -353,25 +206,17 @@
     container.innerHTML = items.map(n => {
       const sentiment = n.algorithm_alignment?.sentiment || 'neutral';
       const time = n.published_at ? new Date(n.published_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
-      return `
-        <div class="news-card" onclick="${n.url ? `window.open('${n.url}', '_blank')` : ''}">
-          <div class="news-top">
-            <div class="news-headline">${n.headline}</div>
-            <div class="news-ticker">${n.ticker}</div>
-          </div>
-          <div class="news-meta">
-            <div class="news-source">${n.source}</div>
-            <div class="news-time">${time}</div>
-          </div>
-          ${n.summary ? `<div class="news-summary">${n.summary}</div>` : ''}
-          <div class="news-signals">
-            <span class="news-signal-tag ${sentiment}">${sentiment}</span>
-            ${n.source_tier ? `<span class="news-signal-tag">Tier ${n.source_tier}</span>` : ''}
-            ${n.sentiment_score > 0 ? `<span class="news-signal-tag bullish">+${n.sentiment_score} signal</span>` : ''}
-            ${n.sentiment_score < 0 ? `<span class="news-signal-tag bearish">${n.sentiment_score} signal</span>` : ''}
-          </div>
-        </div>
-      `;
+      const clickHandler = n.url ? 'window.open(\'' + n.url + '\', \'_blank\')' : '';
+      return '<div class="news-card" onclick="' + clickHandler + '">' +
+        '<div class="news-top"><div class="news-headline">' + n.headline + '</div><div class="news-ticker">' + n.ticker + '</div></div>' +
+        '<div class="news-meta"><div class="news-source">' + n.source + '</div><div class="news-time">' + time + '</div></div>' +
+        (n.summary ? '<div class="news-summary">' + n.summary + '</div>' : '') +
+        '<div class="news-signals">' +
+        '<span class="news-signal-tag ' + sentiment + '">' + sentiment + '</span>' +
+        (n.source_tier ? '<span class="news-signal-tag">Tier ' + n.source_tier + '</span>' : '') +
+        (n.sentiment_score > 0 ? '<span class="news-signal-tag bullish">+' + n.sentiment_score + ' signal</span>' : '') +
+        (n.sentiment_score < 0 ? '<span class="news-signal-tag bearish">' + n.sentiment_score + ' signal</span>' : '') +
+        '</div></div>';
     }).join('');
   }
 
