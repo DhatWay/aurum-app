@@ -383,38 +383,17 @@
     const btn = document.getElementById('fetch-btn');
     btn.disabled = true;
     btn.textContent = 'Fetching...';
-
     try {
-      // Pull watchlist tickers and run Governor for each — this populates news_feed as a side effect
-      const { data: stocks } = await db.from('stocks').select('ticker').limit(10);
-      const tickers = stocks?.map(s => s.ticker) || [];
-
-      if (!tickers.length) {
-        document.getElementById('news-container').innerHTML = '<div class="empty-state">No stocks in watchlist. Add stocks via Admin first.</div>';
+      await fetch('https://zpcbbwynvvyldavxzjng.supabase.co/functions/v1/clever-processor');
+      setTimeout(async () => {
+        await loadStoredNews();
         btn.disabled = false;
         btn.textContent = 'Fetch Now';
-        return;
-      }
-
-      // Run Governor for each ticker sequentially — each run writes news to news_feed
-      for (const t of tickers.slice(0, 5)) {
-        await fetch('https://zpcbbwynvvyldavxzjng.supabase.co/functions/v1/clever-responder', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + SUPABASE_KEY },
-          body: JSON.stringify({ ticker: t, strategy: 'swing', instrument: 'stock' })
-        }).catch(() => {});
-      }
-
-      // Give Supabase a moment then reload
-      await new Promise(r => setTimeout(r, 2000));
-      await loadStoredNews();
-
+      }, 90000);
     } catch(e) {
-      document.getElementById('news-container').innerHTML = '<div class="empty-state">Error fetching news.</div>';
+      btn.disabled = false;
+      btn.textContent = 'Fetch Now';
     }
-
-    btn.disabled = false;
-    btn.textContent = 'Fetch Now';
   }
 
   function buildMonthFilter(data) {
