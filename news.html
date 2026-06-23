@@ -202,8 +202,8 @@
 
   async function loadStoredNews() {
     const modeType = activeMode === 'crypto' ? 'crypto' : 'stock';
-    // Live Feed = news from last 24 hours
-    const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    // Live Feed = news from last 7 days
+    const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
     try {
       const { data } = await db.from('news_feed')
         .select('*').eq('type', modeType)
@@ -224,9 +224,9 @@
 
   async function loadArchive() {
     const modeType = activeMode === 'crypto' ? 'crypto' : 'stock';
-    // Archive = news older than 24 hours
+    // Archive = news older than 7 days
     // Uses published_at date comparison — no dependency on archived column
-    const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
     try {
       const { data } = await db.from('news_feed')
         .select('*').eq('type', modeType)
@@ -311,7 +311,27 @@
 
   function renderArchive(items) {
     const c = document.getElementById('archive-container');
-    c.innerHTML = items && items.length ? items.map(renderNewsCard).join('') : '<div class="empty-state">No archived news for this filter.</div>';
+    if (!items || !items.length) {
+      c.innerHTML = '<div class="empty-state">No archived news for this filter.</div>';
+      return;
+    }
+
+    // Group by date
+    const grouped = {};
+    items.forEach(n => {
+      const date = n.published_at
+        ? new Date(n.published_at).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
+        : 'Unknown Date';
+      if (!grouped[date]) grouped[date] = [];
+      grouped[date].push(n);
+    });
+
+    c.innerHTML = Object.entries(grouped).map(([date, articles]) => `
+      <div style="margin-bottom:0.5rem;">
+        <div style="font-size:0.68rem; letter-spacing:0.2em; color:var(--gold); font-family:'IBM Plex Mono',monospace; padding:0.6rem 0; border-bottom:1px solid var(--rule); margin-bottom:0.5rem; text-transform:uppercase;">${date} — ${articles.length} article${articles.length !== 1 ? 's' : ''}</div>
+        <div class="news-list" style="border:none; gap:1px;">${articles.map(renderNewsCard).join('')}</div>
+      </div>
+    `).join('');
   }
 
   function openNav() { document.getElementById('nav-overlay').classList.add('open'); }
