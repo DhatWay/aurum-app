@@ -1,4 +1,4 @@
-const CACHE_NAME = 'aurum-v27';
+const CACHE_NAME = 'aurum-v28';
 const ASSETS = [
   '/aurum-app/',
   '/aurum-app/index.html',
