@@ -437,10 +437,18 @@
   const { createClient } = supabase;
   const db = createClient(SUPABASE_URL, SUPABASE_KEY);
 
+  let activeMode = 'stock';
+  async function loadActiveMode() {
+    try {
+      const { data } = await db.from('trading_settings').select('active_mode').single();
+      if (data?.active_mode) activeMode = data.active_mode;
+    } catch(e) {}
+  }
+
   let allPicks = [];
 
   async function loadHistory() {
-    const { data } = await db.from('picks').select('*').order('picked_at', { ascending: false });
+    const { data } = await db.from('picks').select('*').eq('type', activeMode === 'crypto' ? 'crypto' : 'stock').order('picked_at', { ascending: false });
     if (!data) return;
     allPicks = data;
     renderPicks(data);
@@ -505,7 +513,7 @@
     renderPicks(filtered);
   }
 
-  loadHistory();
+  loadActiveMode().then(() => loadHistory());
 
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/aurum-app/sw.js');
