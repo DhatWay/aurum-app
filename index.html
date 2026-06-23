@@ -997,14 +997,21 @@
     if (mode === currentMode) return;
     currentMode = mode;
 
-    // Upsert instead of update — works even if trading_settings row doesn't exist yet
-    await db.from('trading_settings').upsert({ id: 1, active_mode: mode }).catch(() => {});
-
-    // Update toggle UI
+    // Update UI immediately so toggle feels responsive
     document.getElementById('mode-stock').classList.toggle('mode-active', mode === 'stock');
     document.getElementById('mode-crypto').classList.toggle('mode-active', mode === 'crypto');
 
-    // Reload everything for the new mode
+    // Persist mode — update existing row or insert if none exists
+    try {
+      const { data } = await db.from('trading_settings').select('id').single();
+      if (data?.id) {
+        await db.from('trading_settings').update({ active_mode: mode }).eq('id', data.id);
+      } else {
+        await db.from('trading_settings').insert({ active_mode: mode });
+      }
+    } catch(e) {}
+
+    // Reload data for the new mode
     clearInterval(priceFeedInterval);
     priceCache = {};
     watchlistTickers = [];
