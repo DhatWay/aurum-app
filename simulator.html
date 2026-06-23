@@ -811,7 +811,7 @@ footer p { font-size: 0.6rem; letter-spacing: 0.12em; color: var(--muted); text-
           <input type="text" id="trade-ticker" placeholder="e.g. NVDA" autocomplete="off">
         </div>
         <div>
-          <div class="field-label">Number of Shares</div>
+          <div class="field-label" id="shares-label">Number of Shares</div>
           <input type="number" id="num-shares" placeholder="e.g. 10" step="1" min="1">
         </div>
       </div>
@@ -905,7 +905,7 @@ footer p { font-size: 0.6rem; letter-spacing: 0.12em; color: var(--muted); text-
       </div>
     </div>
 
-    <button class="btn" onclick="openTrade()">Open Simulated Position</button>
+    <button class="btn" id="open-trade-btn" onclick="openTrade()">Open Simulated Position</button>
     <div class="success-msg" id="trade-success">Position opened. Slippage and commission applied.</div>
   </div>
 
@@ -966,6 +966,17 @@ async function loadActiveMode() {
     const { data } = await db.from('trading_settings').select('active_mode').single();
     if (data?.active_mode) activeMode = data.active_mode;
   } catch(e) {}
+
+  // Update UI for active mode
+  const sharesLabel = document.getElementById('shares-label');
+  const openBtn     = document.getElementById('open-trade-btn');
+  if (activeMode === 'crypto') {
+    if (sharesLabel) sharesLabel.textContent = 'Quantity (e.g. 0.5 ETH)';
+    if (openBtn)     openBtn.textContent     = 'Open Crypto Paper Position';
+  } else {
+    if (sharesLabel) sharesLabel.textContent = 'Number of Shares';
+    if (openBtn)     openBtn.textContent     = 'Open Simulated Position';
+  }
 }
 
 // ── STATE ──
@@ -1098,6 +1109,7 @@ async function loadTrades() {
         <div class="trade-val">${currentLabel}</div>
         <div>${t.stop_loss ? '<span class="stop-badge' + (stopTriggered ? ' triggered' : '') + '">' + stopLabel + (stopTriggered ? ' !' : '') + '</span>' : '<span style="color:var(--muted);font-size:0.65rem">—</span>'}</div>
         <div class="trade-gl ${gl >= 0 ? 'positive' : 'negative'}">${gl >= 0 ? '+' : ''}$${Math.abs(gl).toFixed(2)} (${glPct >= 0 ? '+' : ''}${glPct.toFixed(2)}%)</div>
+        ${t.type === 'crypto' && t.dex ? `<div style="font-size:0.65rem;color:var(--gold);font-family:'IBM Plex Mono',monospace;letter-spacing:0.08em;">${t.dex}${t.trading_pair ? ' · ' + t.trading_pair : ''}</div>` : '<div></div>'}
         <button class="close-btn" onclick="closeTrade('${t.id}')">Close</button>
       </div>
     `;
@@ -1536,7 +1548,11 @@ async function openTrade() {
       gain_loss:     gl,
       gain_loss_pct: glPct,
       slippage_cost: slippageCost,
-      commission:    commissionCost
+      commission:    commissionCost,
+      // Crypto-specific fields — populated from Claude suggestion via applySuggestion
+      dex:            activeMode === 'crypto' ? (claudeSuggestion?.dex || null) : null,
+      trading_pair:   activeMode === 'crypto' ? (claudeSuggestion?.pair || null) : null,
+      execution_note: activeMode === 'crypto' ? (claudeSuggestion?.execution_note || null) : null,
     });
 
   } else {
