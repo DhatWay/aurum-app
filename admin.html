@@ -726,6 +726,14 @@
   const { createClient } = supabase;
   const db = createClient(SUPABASE_URL, SUPABASE_KEY);
 
+  let activeMode = 'stock';
+  async function loadActiveMode() {
+    try {
+      const { data } = await db.from('trading_settings').select('active_mode').single();
+      if (data?.active_mode) activeMode = data.active_mode;
+    } catch(e) {}
+  }
+
   let algorithms = [];
   let currentAlgo = null;
   let improvedCode = '';
@@ -906,7 +914,7 @@ const parsed = JSON.parse(text.replace(/```json|```/g, '').trim());
   async function loadAdminWatchlist() {
     const container = document.getElementById('admin-watchlist-container');
     try {
-      const { data } = await db.from('stocks').select('*').order('added_at', { ascending: false });
+      const { data } = await db.from('stocks').select('*').eq('type', activeMode === 'crypto' ? 'crypto' : 'stock').order('added_at', { ascending: false });
       if (!data || !data.length) {
         container.innerHTML = '<div style="padding:1rem; font-size:0.8rem; color:var(--muted);">No stocks in watchlist.</div>';
         return;
@@ -1191,11 +1199,13 @@ const parsed = JSON.parse(text.replace(/```json|```/g, '').trim());
     navigator.serviceWorker.register('/aurum-app/sw.js');
   }
 
-  loadAlgorithms();
-  loadAlerts();
-  runHealthScan();
-  autoRatePicks();
-  loadAdminWatchlist();
+  loadActiveMode().then(() => {
+    loadAlgorithms();
+    loadAlerts();
+    runHealthScan();
+    autoRatePicks();
+    loadAdminWatchlist();
+  });
 </script>
 
 <script src="tickers.js"></script>
