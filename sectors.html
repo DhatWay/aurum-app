@@ -457,9 +457,18 @@
   const { createClient } = supabase;
   const db = createClient(SUPABASE_URL, SUPABASE_KEY);
 
+  let activeMode = 'stock';
+  async function loadActiveMode() {
+    try {
+      const { data } = await db.from('trading_settings').select('active_mode').single();
+      if (data?.active_mode) activeMode = data.active_mode;
+    } catch(e) {}
+  }
+
   async function loadSectors() {
-    const { data: stocks } = await db.from('stocks').select('*');
-    const { data: picks } = await db.from('picks').select('*');
+    const modeType = activeMode === 'crypto' ? 'crypto' : 'stock';
+    const { data: stocks } = await db.from('stocks').select('*').eq('type', modeType);
+    const { data: picks } = await db.from('picks').select('*').eq('type', modeType);
 
     if (!stocks || !stocks.length) {
       document.getElementById('sector-container').innerHTML = '<div class="empty-state">No stocks on watchlist.</div>';
@@ -536,7 +545,7 @@
     }).join('');
   }
 
-  loadSectors();
+  loadActiveMode().then(() => loadSectors());
 
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/aurum-app/sw.js');
