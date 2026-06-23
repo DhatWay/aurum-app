@@ -959,6 +959,15 @@ const SUPABASE_KEY = 'sb_publishable_K80lcfk8LsQNqo5enznRRA_lrzf2U9K';
 const { createClient } = supabase;
 const db = createClient(SUPABASE_URL, SUPABASE_KEY);
 
+let activeMode = 'stock'; // 'stock' or 'crypto'
+
+async function loadActiveMode() {
+  try {
+    const { data } = await db.from('trading_settings').select('active_mode').single();
+    if (data?.active_mode) activeMode = data.active_mode;
+  } catch(e) {}
+}
+
 // ── STATE ──
 let currentStrategy  = 'swing';
 let currentInstrument = 'stock';
@@ -1279,8 +1288,9 @@ async function getClaudeSuggestion() {
   document.getElementById('suggestion-panel').classList.remove('visible');
 
   try {
-    const { data: stocks } = await db.from('stocks').select('ticker, sector');
-    const { data: picks  } = await db.from('picks').select('ticker, score, brief').order('picked_at', { ascending: false }).limit(5);
+    const modeType = activeMode === 'crypto' ? 'crypto' : 'stock';
+    const { data: stocks } = await db.from('stocks').select('ticker, sector').eq('type', modeType);
+    const { data: picks  } = await db.from('picks').select('ticker, score, brief').eq('type', modeType).order('picked_at', { ascending: false }).limit(5);
 
     const watchlist  = stocks?.map(s => s.ticker + '(' + s.sector + ')').join(', ') || 'None';
     const pickSum    = picks?.map(p => p.ticker + ':' + p.score + ' ' + p.brief).join(' | ') || 'None';
@@ -1447,6 +1457,7 @@ async function openTrade() {
     strategy:  currentStrategy,
     instrument: currentInstrument,
     direction: currentInstrument === 'options' ? currentContract : currentDirection,
+    type:      activeMode,
     note,
     slippage_pct: slippagePct * 100,
     opened_at: new Date().toISOString()
@@ -1630,6 +1641,7 @@ if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('/aurum-app/sw.js').catch(() => {});
 }
 
+loadActiveMode();
 loadActiveStrategy();
 loadPortfolio();
 loadTrades();
