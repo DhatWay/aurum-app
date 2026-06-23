@@ -943,66 +943,155 @@ let faqExpanded = false;
 // AURUM KNOWLEDGE BASE — embedded offline
 // ─────────────────────────────────────────────
 const AURUM_KB = `
-AURUM — COMPLETE APP DOCUMENTATION v2.0
-========================================
+AURUM — COMPLETE SYSTEM DOCUMENTATION v3.0
+===========================================
 
-OVERVIEW: AURUM is a private market intelligence system with 21+ algorithms synthesized
-by a master orchestrator. PWA on GitHub Pages, Supabase backend, Claude AI analysis.
-Python FastAPI ML engine with DRL, GRU, FLSPI, Autoencoder, Mamba algorithms.
+OVERVIEW:
+AURUM is a private market intelligence system operating in two modes: STOCKS and CRYPTO.
+It runs 25 algorithms (+ Governor orchestrator = 26 total) synthesized by a master Governor,
+then Claude turns the Governor's output into a plain-language trade instruction.
+PWA hosted on GitHub Pages, Supabase backend, Claude AI via smooth-service edge function,
+market data via Twelve Data (stocks) and CoinGecko (crypto, free, no key).
+
+TOGGLE:
+STOCKS / CRYPTO toggle in the Brief page header. Persisted to trading_settings.active_mode.
+Every page reads active_mode on load and filters all data by type ('stock' or 'crypto').
+Switching modes reloads the watchlist, picks, news, and price feed for the active mode only.
 
 PAGES:
-- index.html: Brief — picks, accuracy, watchlist, rating history
-- trading.html: Trading — Auto mode (full autofill + execute), Manual mode (ranked list, select, autofill, Enter to submit)
-- brokerage.html: Brokerage — account connections, positions
-- simulator.html: Simulator — paper trading
-- sectors.html: Sectors — sector intelligence
-- admin.html: Admin — algorithm health monitor (auto-scans on load), stock management
-- news.html: News — sentiment feed
-- history.html: History — pick performance
-- options.html: Options — options chain analysis
-- ipo.html: IPO — tracker with ipo_early_detection algorithm
-- report.html: Report — weekly briefings
-- tutorial.html: Tutorial
-- help.html: Help
-- assistant.html: Assistant — AI chat + offline FAQ + Code Engine
+- index.html (Brief): picks, accuracy, watchlist with live prices, rating history
+- trading.html (Trading): Auto/Manual mode, Day/Swing strategy, Stock/Options/Crypto instrument
+- simulator.html (Simulator): paper trading, Governor + Claude suggestion, autofill, P&L tracking
+- options.html (Options): options position logging, Claude assessment (TAKE PROFIT/HOLD/FLIP/EXIT)
+- news.html (News): sentiment feed from Finnhub, Yahoo, Reddit, SEC EDGAR (mode-filtered)
+- sectors.html (Sectors): sector intelligence (mode-filtered)
+- history.html (History): pick archive (mode-filtered)
+- report.html (Report): monthly P&L, pick accuracy, strategy switch history, PDF download
+- admin.html (Admin): watchlist management, algorithm improvement, health scan, auto-rating
+- assistant.html (Assistant): AI chat (this page), offline FAQ, Code Engine
+- brokerage.html (Brokerage): broker account connection (Alpaca)
+- ipo.html (IPO): IPO tracker
+- help.html (Help): full FAQ and glossary
+- tutorial.html (Tutorial): 9-step walkthrough
 
-JS ALGORITHMS (Supabase):
-momentum_detector, political_signal_detector, macro_detector, correlation_filter,
-earnings_cycle_detector, macro_regime_detector, sentiment_velocity, options_flow_detector,
-sentiment_detector, insider_transaction_tracker, probability_spread_model,
-hybrid_sentiment_pipeline, algorithm_orchestrator, ipo_early_detection,
-market_regime_adaptive_ga, mcts_formula_tester, autonomous_strategy_evolution,
-genetic_algorithm_optimizer, evolutionary_data_labeling, hybrid_ga_learning_to_rank,
-agentic_llm_workflow
+STOCK ALGORITHMS (25 + Governor):
+Phase 1 — Core Signals:
+  momentum_detector, sentiment_detector, political_signal_detector, macro_detector,
+  options_flow_detector (2.2x weight), insider_transaction_tracker (2.0x weight),
+  correlation_filter, earnings_cycle_detector
 
-PYTHON ML ENGINE (FastAPI):
-/drl — Deep Reinforcement Learning (3 agents: selection, trend, risk)
-/gru — Attention-Augmented GRU (directional accuracy)
-/flspi — Fuzzy Least-Squares Policy Iteration (RSI + volatility)
-/autoencoder — Dual autoencoder (technical + fundamental)
-/mamba — State-Space Model (sequence dynamics)
-/orchestrate — Master orchestrator (synthesizes all outputs, conflict detection)
+Phase 2 — Advanced Analysis:
+  macro_regime_detector (1.4x), sentiment_velocity, probability_spread_model (1.8x),
+  hybrid_sentiment_pipeline, ipo_early_detection
 
-ORCHESTRATOR: Weights each algorithm by historical accuracy. Conflict detected when
-score range > 35 points. Confidence: High (8+ algos, no conflict), Medium (5+, no conflict),
-Conflicted, Low. Verdict: BUY >65, WATCH >50, AVOID <=50.
+Phase 3 — Evolutionary ML:
+  market_regime_adaptive_ga, mcts_formula_tester, autonomous_strategy_evolution,
+  genetic_algorithm_optimizer, evolutionary_data_labeling, hybrid_ga_learning_to_rank,
+  agentic_llm_workflow
+
+Phase 4 — Deep AI:
+  deep_reinforcement_learning (1.5x), attention_augmented_gru (1.3x),
+  fuzzy_lspi, autoencoder_selection, state_space_mamba (1.2x)
+
+Governor: algorithm_orchestrator — synthesizes all 25 outputs, weights by regime and
+  historical accuracy, detects conflicts, applies high-alpha overrides, outputs claude_brief.
+
+CRYPTO ALGORITHMS (6 crypto-specific + shared ML/AI algorithms):
+  crypto_derivatives_flow (2.2x) — replaces options_flow_detector
+  crypto_whale_tracker (2.0x) — replaces insider_transaction_tracker
+  crypto_protocol_events (1.3x) — replaces earnings_cycle_detector
+  crypto_regulatory_signals (0.7x) — replaces political_signal_detector
+  crypto_onchain_momentum (1.8x) — NEW: NVT ratio, MVRV Z-score, SOPR, active addresses
+  crypto_market_cycle_detector (1.6x) — NEW: halving cycle, BTC dominance, Fear & Greed
+
+CRYPTO REGIMES (9):
+  bull_run, altseason, accumulation, distribution, markdown,
+  pre_halving, post_halving, extreme_fear, extreme_greed, regulatory_event
+
+STOCK REGIMES (10):
+  goldilocks, low_rate_expansion, high_rate_expansion, recovery, inversion_warning,
+  stagflation, recession, risk_off, deflation_risk, high_volatility_bear
+
+GOVERNOR OUTPUT:
+  composite_score (0-100), verdict (STRONG_BUY/BUY/WATCH_LONG/HOLD/WATCH_SHORT/SELL/STRONG_SELL),
+  direction (LONG/SHORT/NEUTRAL), confidence (High/Medium/Low/Conflicted),
+  signal_quality (0-100), recommended_position_pct, claude_brief (structured text for Claude),
+  high_alpha_override, binary_event_override, regime_consistency_boost, mode
 
 TRADING MODES:
-AUTO: Claude picks top trade, all 9 fields autofill, Execute Order button
-MANUAL: Claude returns ranked list of 5 trades, user selects, 12 fields autofill, press Enter
+  AUTO: Governor runs, Claude generates ONE trade, all fields autofill, execute button ready
+  MANUAL: Claude generates 5 ranked trades, user selects one, all fields autofill
+  CRYPTO: Same flow but generates DEX execution instructions (Uniswap, dYdX, Jupiter)
+  BOTH DIRECTIONS: LONG and SHORT supported in all modes for both stocks and crypto
 
-SAFETY: Principal Floor (halt if balance below), Max Position Size %, Max Daily Trades
+SIMULATOR:
+  $10,000 starting capital (paper). Get Claude Trade Suggestion → Apply to Trade Form → autofill.
+  Trades tagged with type (stock/crypto) so P&L tracked separately per mode.
+  Closes feed into Report page. No broker required.
 
-SCORING: 0-100. 75+ = gold (high conviction). Score drives position size.
+EXECUTION:
+  STOCKS: Via Alpaca connected broker (brokerage.html)
+  CRYPTO: DEX — Uniswap (ERC-20), dYdX (BTC/ETH perpetuals), Jupiter (Solana). No broker, no ID required.
 
-SUPABASE TABLES: stocks, picks, algorithms, aurum_accuracy, news_feed, auto_trade_log,
-trading_settings, brokerage_accounts, brokerage_positions, self_ratings, ipo_watchlist,
-ipo_buzz, ipo_alerts, app_files
+PRICE DATA:
+  Stocks: Twelve Data API (key: active, free tier)
+  Crypto: CoinGecko free API (no key required)
 
-WATCHLIST: Remove tickers directly from Brief page (index.html)
-HEALTH MONITOR: Admin page auto-scans algorithms on every load via Claude
-CODE ENGINE: In Assistant — describe change, Claude writes diff, approve to download
+NEWS SOURCES:
+  Stock mode: Finnhub, Yahoo Finance RSS, Reddit r/investing, SEC EDGAR
+  Crypto mode: Finnhub, Reddit (coin-specific subreddits: r/Bitcoin, r/ethereum, r/solana etc.)
+
+DATA SOURCES — ACTIVE (free):
+  Twelve Data — stock prices/quotes
+  Finnhub — company news, earnings, insider transactions
+  CoinGecko — crypto prices (free, no key)
+  Alternative.me Fear & Greed — crypto sentiment (free, no key)
+  Binance /fapi/v1/fundingRate — crypto funding rates (free, no key)
+  SEC EDGAR — regulatory filings (free, no key)
+
+DATA SOURCES — PLUG LATER (require paid API keys):
+  Glassnode — on-chain metrics (MVRV, exchange flows, HODL waves) → crypto_onchain_momentum, crypto_whale_tracker
+  CryptoQuant — whale exchange flow data → crypto_whale_tracker
+  Coinglass — aggregated OI, liquidations → crypto_derivatives_flow
+  Deribit API — crypto options flow → crypto_derivatives_flow
+  Unusual Whales — stock options flow → options_flow_detector
+  Quiver Quantitative — congressional trading → political_signal_detector
+  CoinMarketCal — protocol event calendar → crypto_protocol_events
+  Messari — crypto fundamentals → crypto_onchain_momentum
+
+SELF-RATING SYSTEM:
+  Every pick logged at time of pick. 30 days later, autoRatePicks() in admin.html fetches
+  historical prices via Twelve Data, compares pick return vs SPY (benchmark), marks beat_market.
+  Runs silently every time Admin page loads.
+
+STRATEGY AUTO-SWITCH:
+  rapid-handler edge function runs hourly via pg_cron (job #5).
+  Compares last 20 Day vs Swing closed paper_trades by win rate.
+  Switches active_strategy in trading_settings if win rate gap >= 15% (min 5 trades each side).
+  Logs every switch to strategy_switches table. Report page shows switch history.
+
+EDGE FUNCTIONS (Supabase):
+  clever-responder — Governor (runs all 25/crypto algorithms with Twelve Data + Finnhub)
+  smooth-service — Claude proxy (holds Anthropic key server-side, supports simple + multi-turn)
+  clever-processor — News fetcher (mode-aware: stock or crypto sources, service role key)
+  rapid-handler — Strategy monitor (hourly cron, Day vs Swing comparison)
+
+SUPABASE TABLES:
+  stocks (ticker, company_name, sector, type), picks (type), paper_trades (type),
+  paper_portfolio, news_feed (type), trading_settings (active_mode, active_strategy),
+  algorithms, algorithm_log, self_ratings, strategy_switches,
+  options_positions, auto_trade_log, brokerage_accounts, brokerage_positions,
+  aurum_accuracy, ipo_watchlist, ipo_buzz, ipo_alerts
+
+SAFETY PARAMETERS:
+  Principal Floor: auto trading halts if balance drops below this amount (default $5,000)
+  Max Position Size %: no single trade exceeds this % of balance (default 10%)
+  Crypto Position Sizing: automatically reduced 25% vs stocks due to higher volatility
+  Binary Event Override: -12 to -15 point penalty near earnings/protocol events
+
+SERVICE WORKER: v25 (current cache version)
 `;
+
 
 // ─────────────────────────────────────────────
 // OFFLINE FAQ
@@ -1101,20 +1190,25 @@ function switchTab(tab) {
 // ─────────────────────────────────────────────
 async function loadContext() {
   try {
+    const settingsRes = await db.from('trading_settings').select('active_mode').single();
+    const activeMode  = settingsRes.data?.active_mode || 'stock';
+    const modeType    = activeMode === 'crypto' ? 'crypto' : 'stock';
+
     const [stocksRes, picksRes, accuracyRes, tradesRes] = await Promise.all([
-      db.from('stocks').select('ticker, sector'),
-      db.from('picks').select('ticker, score, brief').order('picked_at', { ascending: false }).limit(5),
+      db.from('stocks').select('ticker, sector').eq('type', modeType),
+      db.from('picks').select('ticker, score, brief').eq('type', modeType).order('picked_at', { ascending: false }).limit(5),
       db.from('aurum_accuracy').select('*').single(),
       db.from('auto_trade_log').select('ticker, direction, orchestrator_score, status').order('created_at', { ascending: false }).limit(5)
     ]);
     aurumContext = {
+      activeMode,
       watchlist: stocksRes.data?.map(s => s.ticker + ' (' + s.sector + ')').join(', ') || 'None',
       picks: picksRes.data?.map(p => p.ticker + ' score:' + p.score + ' — ' + p.brief).join('\n') || 'None',
       accuracy: accuracyRes.data ? 'Total:' + accuracyRes.data.total_picks + ' BeatMkt:' + accuracyRes.data.beats_market + ' Avg:' + accuracyRes.data.avg_accuracy + '%' : 'No data',
       trades: tradesRes.data?.map(t => t.ticker + ' ' + t.direction + ' score:' + t.orchestrator_score + ' ' + t.status).join('\n') || 'None'
     };
   } catch(e) {
-    aurumContext = { watchlist: 'unavailable', picks: 'unavailable', accuracy: 'unavailable', trades: 'unavailable' };
+    aurumContext = { activeMode: 'stock', watchlist: 'unavailable', picks: 'unavailable', accuracy: 'unavailable', trades: 'unavailable' };
   }
 }
 
@@ -1139,7 +1233,8 @@ async function sendMessage() {
 AURUM KNOWLEDGE BASE:
 ${AURUM_KB}
 
-LIVE DATA:
+LIVE CONTEXT:
+Active mode: ${aurumContext.activeMode || 'stock'} (${aurumContext.activeMode === 'crypto' ? 'CRYPTO MODE — crypto watchlist, CoinGecko prices, DEX execution' : 'STOCK MODE — stock watchlist, Twelve Data prices, Alpaca execution'})
 Watchlist: ${aurumContext.watchlist}
 Recent picks: ${aurumContext.picks}
 System accuracy: ${aurumContext.accuracy}
