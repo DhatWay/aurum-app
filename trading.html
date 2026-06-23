@@ -706,10 +706,22 @@ function autofillAutoPanel(r) {
   const maxPct = settings.max_position_size_pct || 10;
 
   // Use live price if available
-  const livePrice = priceCache[r.ticker]?.price;
+  const livePrice  = priceCache[r.ticker]?.price;
   const entryPrice = livePrice || r.entry_price;
 
-  if (currentInstrument === 'stock') {
+  if (activeMode === 'crypto') {
+    const dollars = ((r.position_size_pct || maxPct) / 100) * pf;
+    setField('a-ticker',    r.ticker, 'gold');
+    setField('a-direction', r.direction, r.direction === 'SHORT' ? 'danger' : 'positive');
+    setField('a-order-type', r.dex || 'DEX');
+    setField('a-entry',     entryPrice ? '$' + Number(entryPrice).toFixed(2) + (livePrice ? ' (live)' : '') : 'Market');
+    setField('a-exit',      r.exit_target ? '$' + r.exit_target : '—', 'positive');
+    setField('a-stop',      r.stop_loss   ? '$' + r.stop_loss   : '—', 'danger');
+    setField('a-size',      (r.position_size_pct || maxPct) + '%');
+    setField('a-dollars',   '~$' + Math.round(dollars).toLocaleString(), 'gold');
+    setField('a-tif',       r.pair || '—');
+    document.getElementById('auto-order-status').textContent = (r.execution_note || 'Execute on DEX — no broker required.') + (livePrice ? ' (live price used)' : '');
+  } else if (currentInstrument === 'stock') {
     const hasLimit = entryPrice > 0;
     const dollars  = ((r.position_size_pct || maxPct) / 100) * pf;
     setField('a-ticker',     r.ticker, 'gold');
@@ -721,6 +733,7 @@ function autofillAutoPanel(r) {
     setField('a-size',       (r.position_size_pct || maxPct) + '%');
     setField('a-dollars',    '~$' + Math.round(dollars).toLocaleString(), 'gold');
     setField('a-tif',        currentStrategy === 'day' ? 'IOC' : 'Day');
+    document.getElementById('auto-order-status').textContent = 'All fields auto-populated' + (livePrice ? ' with live price' : '') + ' \u2014 confirm to execute.';
   } else {
     const contracts = r.contracts || 1;
     const premium   = r.premium   || 0;
@@ -737,12 +750,12 @@ function autofillAutoPanel(r) {
     setField('a-exit',      r.target_premium ? '$' + r.target_premium : '—', 'positive');
     setField('a-delta',     r.delta || '—');
     setField('a-tif',       'Day');
+    document.getElementById('auto-order-status').textContent = 'All fields auto-populated' + (livePrice ? ' with live price' : '') + ' \u2014 confirm to execute.';
   }
 
-  document.getElementById('auto-order-status').textContent = 'All fields auto-populated' + (livePrice ? ' with live price' : '') + ' \u2014 confirm to execute.';
   document.getElementById('auto-order-status').className = 'order-status';
   document.getElementById('auto-execute-btn').disabled = false;
-  document.getElementById('auto-execute-btn').textContent = 'Execute Order via Alpaca';
+  document.getElementById('auto-execute-btn').textContent = activeMode === 'crypto' ? 'Execute on DEX' : 'Execute Order via Alpaca';
   panel.classList.add('visible');
   panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
@@ -946,7 +959,10 @@ async function generateInstruction() {
       ? 'DAY TRADE mode: favor momentum, volume, options flow, sentiment velocity, news catalysts. Use tighter stops (1-2%). Time horizon: intraday. Order TIF: IOC. ' + modeNote
       : 'SWING TRADE mode: use full algorithm stack. Time horizon: days to weeks. Order TIF: Day. ' + modeNote;
 
-    if (currentInstrument === 'stock') {
+    if (activeMode === 'crypto') {
+      if (currentMode === 'manual') await generateManualCrypto(watchlist, pickSum, newsSum, stratNote, livePriceContext, governorOutput);
+      else                          await generateAutoCrypto(watchlist, pickSum, newsSum, stratNote, livePriceContext, governorOutput);
+    } else if (currentInstrument === 'stock') {
       if (currentMode === 'manual') await generateManualStocks(watchlist, pickSum, newsSum, stratNote, livePriceContext, governorOutput);
       else                          await generateAutoStock(watchlist, pickSum, newsSum, stratNote, livePriceContext, governorOutput);
     } else {
@@ -1057,6 +1073,33 @@ JSON only: {"trades":[{"rank":1,"ticker":"NVDA","direction":"BUY_CALL","contract
   renderTradeList(manualTradeList);
   document.getElementById('manual-panel').classList.add('visible');
   document.getElementById('manual-panel-sub').textContent = manualTradeList.length + ' options trades ranked by Governor. Select one to autofill.';
+}
+
+async function generateAutoCrypto(watchlist, picks, news, stratNote, livePrices, gov) {
+  const result = await callClaude(`${buildGovernorHeader(gov, stratNote)}
+Watchlist: ${watchlist} | Picks: ${picks} | News: ${news}
+Live prices: ${livePrices}
+CRYPTO MODE: Generate ONE highest-conviction crypto trade. Both LONG and SHORT are valid based on Governor signal.
+DEX execution — no broker required. Suggest appropriate DEX (Uniswap for ERC-20, dYdX for perpetuals, Jupiter for Solana).
+Use live prices for entry. Position sizing should reflect crypto volatility (tighter than stocks).
+JSON only: {"ticker":"ETH","direction":"LONG","entry_price":3250.00,"exit_target":3650.00,"stop_loss":3050.00,"position_size_pct":5,"orchestrator_score":84,"confidence":"High","reasoning":"2-3 sentence AURUM-tone instruction citing which crypto algorithms drove this","algo_signals":"Specific algorithm names","dex":"Uniswap v3","pair":"ETH/USDC","execution_note":"Market buy ETH against USDC on Uniswap. Set limit sell at $3650, stop at $3050."}`, 1200);
+  currentInstruction = result;
+  showResult(result, {});
+  if (currentMode === 'auto') autofillAutoPanel(result);
+  if (result.ticker) selectFeedTicker(result.ticker);
+}
+
+async function generateManualCrypto(watchlist, picks, news, stratNote, livePrices, gov) {
+  const result = await callClaude(`${buildGovernorHeader(gov, stratNote)}
+Watchlist: ${watchlist} | Picks: ${picks} | News: ${news}
+Live prices: ${livePrices}
+CRYPTO MODE: Return 5 ranked crypto trades. Mix of LONG and SHORT based on Governor signals for each asset.
+DEX execution — no broker required. Include appropriate DEX per trade.
+JSON only: {"trades":[{"rank":1,"ticker":"ETH","direction":"LONG","entry_price":3250.00,"exit_target":3650.00,"stop_loss":3050.00,"position_size_pct":5,"orchestrator_score":84,"confidence":"High","reasoning":"2-3 sentence instruction citing crypto algorithm signals","algo_signals":"Algorithm names that drove this","dex":"Uniswap v3","pair":"ETH/USDC","execution_note":"Market buy ETH/USDC on Uniswap"},{"rank":2,"ticker":"BTC","direction":"SHORT","entry_price":67000,"exit_target":62000,"stop_loss":69500,"position_size_pct":4,"orchestrator_score":38,"confidence":"Medium","reasoning":"Derivatives flow showing extreme long crowding — contrarian short setup","algo_signals":"crypto_derivatives_flow, crypto_whale_tracker","dex":"dYdX","pair":"BTC-USD","execution_note":"Open short perpetual on dYdX with 2x leverage max"}]}`, 3000);
+  manualTradeList = result.trades || [];
+  renderTradeList(manualTradeList);
+  document.getElementById('manual-panel').classList.add('visible');
+  document.getElementById('manual-panel-sub').textContent = manualTradeList.length + ' crypto trades ranked by Governor — both LONG and SHORT. Select one to autofill.';
 }
 
 function showResult(r, params) {
