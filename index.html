@@ -997,11 +997,8 @@
     if (mode === currentMode) return;
     currentMode = mode;
 
-    // Persist to trading_settings
-    const { data: settings } = await db.from('trading_settings').select('id').single();
-    if (settings?.id) {
-      await db.from('trading_settings').update({ active_mode: mode }).eq('id', settings.id);
-    }
+    // Upsert instead of update — works even if trading_settings row doesn't exist yet
+    await db.from('trading_settings').upsert({ id: 1, active_mode: mode }).catch(() => {});
 
     // Update toggle UI
     document.getElementById('mode-stock').classList.toggle('mode-active', mode === 'stock');
