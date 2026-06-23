@@ -427,6 +427,14 @@
   const { createClient } = supabase;
   const db = createClient(SUPABASE_URL, SUPABASE_KEY);
 
+  let activeMode = 'stock';
+  async function loadActiveMode() {
+    try {
+      const { data } = await db.from('trading_settings').select('active_mode').single();
+      if (data?.active_mode) activeMode = data.active_mode;
+    } catch(e) {}
+  }
+
   let currentMonth = '';
   let reportData = {};
 
@@ -434,13 +442,15 @@
     const months = new Set();
     months.add(new Date().toISOString().slice(0, 7));
 
+    const modeType = activeMode === 'crypto' ? 'crypto' : 'stock';
+
     try {
-      const { data: picks } = await db.from('picks').select('picked_at');
+      const { data: picks } = await db.from('picks').select('picked_at').eq('type', modeType);
       picks?.forEach(p => months.add(p.picked_at.slice(0, 7)));
     } catch(e) {}
 
     try {
-      const { data: trades } = await db.from('paper_trades').select('opened_at');
+      const { data: trades } = await db.from('paper_trades').select('opened_at').eq('type', modeType);
       trades?.forEach(t => months.add(t.opened_at.slice(0, 7)));
     } catch(e) {}
 
@@ -467,11 +477,12 @@
   async function loadReport(month) {
     const start = month + '-01';
     const end = new Date(new Date(start).getFullYear(), new Date(start).getMonth() + 1, 1).toISOString().split('T')[0];
+    const modeType = activeMode === 'crypto' ? 'crypto' : 'stock';
 
     let picks = [], ratings = [], trades = [];
 
     try {
-      const r = await db.from('picks').select('*').gte('picked_at', start).lt('picked_at', end).order('picked_at', { ascending: false });
+      const r = await db.from('picks').select('*').eq('type', modeType).gte('picked_at', start).lt('picked_at', end).order('picked_at', { ascending: false });
       picks = r.data || [];
     } catch(e) {}
 
@@ -481,7 +492,7 @@
     } catch(e) {}
 
     try {
-      const r = await db.from('paper_trades').select('*').gte('opened_at', start).lt('opened_at', end).order('opened_at', { ascending: false });
+      const r = await db.from('paper_trades').select('*').eq('type', modeType).gte('opened_at', start).lt('opened_at', end).order('opened_at', { ascending: false });
       trades = r.data || [];
     } catch(e) {}
 
@@ -689,7 +700,7 @@
     navigator.serviceWorker.register('/aurum-app/sw.js');
   }
 
-  loadMonths();
+  loadActiveMode().then(() => loadMonths());
 </script>
 
 </body>
