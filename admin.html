@@ -718,6 +718,29 @@
     <div style="padding:1.5rem;font-size:0.8rem;color:var(--muted)">Loading alerts...</div>
   </div>
 
+  <div class="gold-rule"></div>
+
+  <!-- AURUM Notes — Pending Upgrades & Reminders -->
+  <div class="section-label">System Notes</div>
+  <div class="improve-sub" style="margin-bottom:1rem; font-size:0.75rem; color:var(--muted);">Pending upgrades, reminders, and development notes. The Assistant will be able to write to this section in a future update.</div>
+
+  <div id="notes-container" style="margin-bottom:1rem;"></div>
+
+  <div style="display:flex; gap:0.8rem; margin-bottom:0.5rem;">
+    <textarea id="new-note" placeholder="Add a note, reminder, or pending upgrade..." style="flex:1; background:transparent; border:1px solid var(--rule); color:var(--white); font-family:'DM Sans',sans-serif; font-size:0.85rem; padding:0.8rem; resize:vertical; min-height:80px;"></textarea>
+  </div>
+  <div style="display:flex; gap:0.8rem; align-items:center; margin-bottom:2rem;">
+    <select id="note-category" style="background:#0d0d0d; border:1px solid var(--rule); color:var(--muted); font-family:'IBM Plex Mono',monospace; font-size:0.72rem; padding:0.5rem; letter-spacing:0.1em;">
+      <option value="upgrade">PENDING UPGRADE</option>
+      <option value="reminder">REMINDER</option>
+      <option value="plug">PLUG & PLAY</option>
+      <option value="bug">BUG / FIX</option>
+      <option value="idea">IDEA</option>
+    </select>
+    <button class="btn" onclick="addNote()" style="white-space:nowrap;">Add Note</button>
+    <div class="success-msg" id="note-success" style="margin:0;">Note saved.</div>
+  </div>
+
 </main>
 
 <script>
@@ -1099,6 +1122,68 @@ const parsed = JSON.parse(text.replace(/```json|```/g, '').trim());
     if (!error) loadAlerts();
   }
 
+  /* ── SYSTEM NOTES ── */
+  const NOTE_CATEGORY_COLORS = {
+    upgrade:  '#C9A84C',
+    reminder: '#6B9FD4',
+    plug:     '#3A6B4A',
+    bug:      '#8B3A3A',
+    idea:     '#7B6B9D'
+  };
+  const NOTE_CATEGORY_LABELS = {
+    upgrade:  'PENDING UPGRADE',
+    reminder: 'REMINDER',
+    plug:     'PLUG & PLAY',
+    bug:      'BUG / FIX',
+    idea:     'IDEA'
+  };
+
+  async function loadNotes() {
+    try {
+      const { data } = await db.from('system_notes')
+        .select('*').eq('resolved', false)
+        .order('created_at', { ascending: false });
+      const container = document.getElementById('notes-container');
+      if (!data || !data.length) {
+        container.innerHTML = '<div style="font-size:0.8rem; color:var(--muted); padding:1rem 0;">No pending notes.</div>';
+        return;
+      }
+      container.innerHTML = data.map(n => {
+        const color = NOTE_CATEGORY_COLORS[n.category] || '#C9A84C';
+        const label = NOTE_CATEGORY_LABELS[n.category] || n.category.toUpperCase();
+        const date  = new Date(n.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        return `<div style="border:1px solid var(--rule); padding:1rem; margin-bottom:0.8rem;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem;">
+            <span style="font-size:0.62rem; letter-spacing:0.15em; color:${color}; font-family:'IBM Plex Mono',monospace;">${label}</span>
+            <div style="display:flex; gap:0.8rem; align-items:center;">
+              <span style="font-size:0.65rem; color:var(--muted);">${date}</span>
+              <button onclick="resolveNote('${n.id}')" style="background:transparent; border:1px solid rgba(201,168,76,0.3); color:var(--muted); font-size:0.6rem; letter-spacing:0.1em; padding:0.2rem 0.6rem; cursor:pointer; font-family:'DM Sans',sans-serif;">DONE</button>
+            </div>
+          </div>
+          <div style="font-size:0.82rem; color:var(--white); line-height:1.6;">${n.note}</div>
+        </div>`;
+      }).join('');
+    } catch(e) {}
+  }
+
+  async function addNote() {
+    const note     = document.getElementById('new-note').value.trim();
+    const category = document.getElementById('note-category').value;
+    if (!note) return;
+    const { error } = await db.from('system_notes').insert({ note, category });
+    if (!error) {
+      document.getElementById('new-note').value = '';
+      document.getElementById('note-success').classList.add('visible');
+      setTimeout(() => document.getElementById('note-success').classList.remove('visible'), 3000);
+      await loadNotes();
+    }
+  }
+
+  async function resolveNote(id) {
+    await db.from('system_notes').update({ resolved: true, resolved_at: new Date().toISOString() }).eq('id', id);
+    await loadNotes();
+  }
+
   /* ── AUTO-RATE PICKS — populates self_ratings for picks 30+ days old ── */
   const TWELVE_KEY_RATING = '1fbbfd6ec92c489ca009d00e7127fbe3';
 
@@ -1205,6 +1290,7 @@ const parsed = JSON.parse(text.replace(/```json|```/g, '').trim());
     runHealthScan();
     autoRatePicks();
     loadAdminWatchlist();
+    loadNotes();
   });
 </script>
 
