@@ -332,6 +332,9 @@ footer p { font-size: 0.62rem; letter-spacing: 0.12em; color: var(--muted); text
       <div class="order-panel" id="auto-order-panel" style="margin:1.5rem;margin-top:0;">
         <div class="order-panel-title"><span class="pulse-dot"></span>Auto-Fill Order Ready</div>
         <div class="order-fields" id="auto-order-fields"></div>
+        <div id="wallet-connect-row" style="display:none; margin-bottom:0.8rem;">
+          <button id="wallet-connect-btn" onclick="connectWallet()" style="background:transparent; border:1px solid var(--rule); color:var(--muted); font-family:'IBM Plex Mono',monospace; font-size:0.7rem; letter-spacing:0.15em; padding:0.5rem 1rem; cursor:pointer; width:100%;">Connect Wallet for DEX Execution</button>
+        </div>
         <button class="execute-btn" id="auto-execute-btn" onclick="executeAutoOrder()">Execute Order via Alpaca</button>
         <div class="order-status" id="auto-order-status">All fields auto-populated — confirm to execute.</div>
       </div>
@@ -756,6 +759,7 @@ function autofillAutoPanel(r) {
   document.getElementById('auto-order-status').className = 'order-status';
   document.getElementById('auto-execute-btn').disabled = false;
   document.getElementById('auto-execute-btn').textContent = activeMode === 'crypto' ? 'Execute on DEX' : 'Execute Order via Alpaca';
+  document.getElementById('wallet-connect-row').style.display = activeMode === 'crypto' ? 'block' : 'none';
   panel.classList.add('visible');
   panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
@@ -1171,6 +1175,124 @@ function selectTrade(i) {
   if (selectedTrade?.ticker) selectFeedTicker(selectedTrade.ticker);
 }
 
+// ── WALLET & DEX EXECUTION ──
+let connectedWallet = null;
+let walletProvider  = null;
+
+async function connectWallet() {
+  const btn    = document.getElementById('wallet-connect-btn');
+  const status = document.getElementById('wallet-status');
+  if (!btn) return;
+
+  try {
+    // Try MetaMask first
+    if (window.ethereum) {
+      const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+      if (accounts && accounts.length > 0) {
+        connectedWallet = accounts[0];
+        walletProvider  = window.ethereum;
+        const short = connectedWallet.slice(0, 6) + '...' + connectedWallet.slice(-4);
+        btn.textContent = short + ' Connected';
+        btn.style.borderColor = 'var(--positive)';
+        btn.style.color       = 'var(--positive)';
+        if (status) { status.textContent = 'Wallet connected — ready for DEX execution.'; status.className = 'order-status done'; }
+        return true;
+      }
+    } else {
+      if (status) { status.textContent = 'No wallet detected. Install MetaMask or Coinbase Wallet.'; status.className = 'order-status error'; }
+      return false;
+    }
+  } catch(e) {
+    if (status) { status.textContent = 'Wallet connection cancelled.'; status.className = 'order-status error'; }
+    return false;
+  }
+}
+
+async function executeDEXTrade(instruction) {
+  // DEX execution — routes to correct protocol based on instruction.dex
+  // Auto mode: executes autonomously once wallet connected
+  // Manual mode: opens DEX in browser with pre-filled parameters
+
+  const { ticker, direction, entry_price, stop_loss, exit_target,
+          dex, pair, execution_note, position_size_pct } = instruction;
+
+  const settings    = await db.from('trading_settings').select('*').single().then(r => r.data || {});
+  const principal   = settings.principal_floor || 5000;
+  const positionUSD = ((position_size_pct || 5) / 100) * principal;
+  const livePrice   = priceCache[ticker]?.price || entry_price;
+
+  // ── Auto mode — attempt autonomous execution via MetaMask ──
+  if (currentMode === 'auto') {
+    if (!connectedWallet) {
+      const connected = await connectWallet();
+      if (!connected) return { ok: false, error: 'Wallet not connected. Connect MetaMask or Coinbase Wallet to execute autonomously.' };
+    }
+
+    // For now: autonomous execution opens the DEX with a deep link
+    // Full on-chain signing requires ethers.js/viem — flagged for next build phase
+    // Current: opens DEX URL pre-configured, user confirms one tap in wallet
+    const dexUrl = buildDEXUrl(ticker, direction, livePrice, pair, dex, positionUSD);
+    if (dexUrl) {
+      window.open(dexUrl, '_blank');
+      return { ok: true, orderId: null, note: 'DEX opened — confirm transaction in your wallet app.' };
+    }
+    return { ok: false, error: 'Could not build DEX URL for ' + dex };
+  }
+
+  // ── Manual mode — open DEX with pre-filled parameters ──
+  const dexUrl = buildDEXUrl(ticker, direction, livePrice, pair, dex, positionUSD);
+  if (dexUrl) {
+    window.open(dexUrl, '_blank');
+    return { ok: true, orderId: null, note: 'DEX opened in new tab. Follow Claude\'s execution note.' };
+  }
+  return { ok: false, error: 'Could not open DEX.' };
+}
+
+function buildDEXUrl(ticker, direction, price, pair, dex, amountUSD) {
+  // CoinGecko ID map for token addresses on major networks
+  const tokenAddresses = {
+    'ETH':   '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee', // native ETH
+    'WETH':  '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2',
+    'USDC':  '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
+    'LINK':  '0x514910771AF9Ca656af840dff83E8264EcF986CA',
+    'UNI':   '0x1f9840a85d5aF5bf1D1762F925BDADdC4201F984',
+    'MATIC': '0x7D1AfA7B718fb893dB30A3aBc0Cfc608AaCfeBB0',
+    'AVAX':  '0x85f138bfEE4ef8e540890CFb48F620571d67Eda',
+    'BNB':   '0xB8c77482e45F1F44dE1745F52C74426C631bDD52',
+  };
+
+  const dexName = (dex || '').toLowerCase();
+
+  if (dexName.includes('uniswap')) {
+    // Uniswap v3 deep link
+    const inputToken  = direction === 'long' ? 'USDC' : (ticker === 'ETH' ? 'ETH' : ticker);
+    const outputToken = direction === 'long' ? ticker : 'USDC';
+    const inputAddr   = tokenAddresses[inputToken]  || inputToken;
+    const outputAddr  = tokenAddresses[outputToken] || outputToken;
+    return `https://app.uniswap.org/swap?inputCurrency=${inputAddr}&outputCurrency=${outputAddr}&exactAmount=${Math.round(amountUSD)}`;
+
+  } else if (dexName.includes('dydx')) {
+    // dYdX v4 perpetuals
+    const market = ticker + '-USD';
+    const side   = direction === 'long' ? 'BUY' : 'SELL';
+    return `https://dydx.trade/trade/${market}?side=${side}`;
+
+  } else if (dexName.includes('jupiter')) {
+    // Jupiter (Solana)
+    const inputMint  = direction === 'long' ? 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v' : ticker; // USDC mint
+    const outputMint = direction === 'long' ? ticker : 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
+    return `https://jup.ag/swap/${inputMint}-${outputMint}?inAmount=${Math.round(amountUSD)}`;
+  }
+
+  // Generic fallback — just open the DEX homepage
+  const dexUrls = {
+    'uniswap': 'https://app.uniswap.org',
+    'dydx':    'https://dydx.trade',
+    'jupiter': 'https://jup.ag',
+  };
+  return dexUrls[dexName] || null;
+}
+
 async function sendAlpacaOrder(order) {
   if (!alpacaConfig?.apiKey) return { ok: false, error: 'No Alpaca credentials. Connect Alpaca in Brokerage page.' };
   const baseUrl = alpacaConfig.paper ? 'https://paper-api.alpaca.markets' : 'https://api.alpaca.markets';
@@ -1211,36 +1333,90 @@ async function executeAutoOrder() {
   const btn    = document.getElementById('auto-execute-btn');
   const status = document.getElementById('auto-order-status');
   btn.disabled = true;
-  btn.textContent  = 'Executing...';
-  status.textContent = 'Sending order to Alpaca...';
-  status.className   = 'order-status firing';
 
-  const alpacaOrder = buildAlpacaOrder(currentInstruction);
-  const result      = await sendAlpacaOrder(alpacaOrder);
-  const livePrice   = priceCache[currentInstruction.ticker]?.price;
+  if (activeMode === 'crypto') {
+    // ── Crypto — DEX execution ──
+    btn.textContent    = 'Executing...';
+    status.textContent = 'Opening DEX — confirm transaction in your wallet...';
+    status.className   = 'order-status firing';
 
-  await db.from('auto_trade_log').insert({
-    ticker: currentInstruction.ticker, direction: currentInstruction.direction,
-    instruction: JSON.stringify(currentInstruction), claude_reasoning: currentInstruction.reasoning,
-    orchestrator_score: currentInstruction.orchestrator_score, orchestrator_confidence: currentInstruction.confidence,
-    position_size: currentInstruction.position_size_pct, entry_price: livePrice || currentInstruction.entry_price,
-    exit_target: currentInstruction.exit_target || currentInstruction.target_premium,
-    stop_loss: currentInstruction.stop_loss || currentInstruction.stop_premium,
-    status: result.ok ? 'executed' : 'execution_failed', strategy: currentStrategy, instrument: currentInstrument,
-    alpaca_order_id: result.orderId || null, brokerage: 'alpaca', executed_at: new Date().toISOString()
-  });
+    const result    = await executeDEXTrade(currentInstruction);
+    const livePrice = priceCache[currentInstruction.ticker]?.price;
 
-  await loadLog();
+    await db.from('auto_trade_log').insert({
+      ticker:                  currentInstruction.ticker,
+      direction:               currentInstruction.direction,
+      instruction:             JSON.stringify(currentInstruction),
+      claude_reasoning:        currentInstruction.reasoning,
+      orchestrator_score:      currentInstruction.orchestrator_score,
+      orchestrator_confidence: currentInstruction.confidence,
+      position_size:           currentInstruction.position_size_pct,
+      entry_price:             livePrice || currentInstruction.entry_price,
+      exit_target:             currentInstruction.exit_target,
+      stop_loss:               currentInstruction.stop_loss,
+      status:                  result.ok ? 'dex_opened' : 'execution_failed',
+      strategy:                currentStrategy,
+      instrument:              'crypto',
+      brokerage:               currentInstruction.dex || 'dex',
+      executed_at:             new Date().toISOString(),
+      type:                    'crypto'
+    });
 
-  if (result.ok) {
-    btn.textContent    = 'Order Sent \u2713';
-    status.textContent = currentInstruction.ticker + ' order sent. ID: ' + result.orderId;
-    status.className   = 'order-status done';
+    await loadLog();
+
+    if (result.ok) {
+      btn.textContent    = 'DEX Opened ✓';
+      status.textContent = result.note || 'DEX opened — confirm transaction in your wallet.';
+      status.className   = 'order-status done';
+    } else {
+      btn.textContent    = 'Execution Failed';
+      status.textContent = result.error;
+      status.className   = 'order-status error';
+      btn.disabled = false;
+    }
+
   } else {
-    btn.textContent    = 'Execution Failed';
-    status.textContent = result.error;
-    status.className   = 'order-status error';
-    btn.disabled = false;
+    // ── Stock — Alpaca execution (unchanged) ──
+    btn.textContent    = 'Executing...';
+    status.textContent = 'Sending order to Alpaca...';
+    status.className   = 'order-status firing';
+
+    const alpacaOrder = buildAlpacaOrder(currentInstruction);
+    const result      = await sendAlpacaOrder(alpacaOrder);
+    const livePrice   = priceCache[currentInstruction.ticker]?.price;
+
+    await db.from('auto_trade_log').insert({
+      ticker:                  currentInstruction.ticker,
+      direction:               currentInstruction.direction,
+      instruction:             JSON.stringify(currentInstruction),
+      claude_reasoning:        currentInstruction.reasoning,
+      orchestrator_score:      currentInstruction.orchestrator_score,
+      orchestrator_confidence: currentInstruction.confidence,
+      position_size:           currentInstruction.position_size_pct,
+      entry_price:             livePrice || currentInstruction.entry_price,
+      exit_target:             currentInstruction.exit_target || currentInstruction.target_premium,
+      stop_loss:               currentInstruction.stop_loss   || currentInstruction.stop_premium,
+      status:                  result.ok ? 'executed' : 'execution_failed',
+      strategy:                currentStrategy,
+      instrument:              currentInstrument,
+      alpaca_order_id:         result.orderId || null,
+      brokerage:               'alpaca',
+      executed_at:             new Date().toISOString(),
+      type:                    'stock'
+    });
+
+    await loadLog();
+
+    if (result.ok) {
+      btn.textContent    = 'Order Sent ✓';
+      status.textContent = currentInstruction.ticker + ' order sent. ID: ' + result.orderId;
+      status.className   = 'order-status done';
+    } else {
+      btn.textContent    = 'Execution Failed';
+      status.textContent = result.error;
+      status.className   = 'order-status error';
+      btn.disabled = false;
+    }
   }
 }
 
@@ -1249,36 +1425,87 @@ async function submitManualOrder() {
   const btn    = document.getElementById('manual-submit-btn');
   const status = document.getElementById('manual-status');
   btn.disabled = true;
-  btn.textContent  = 'Submitting...';
-  status.textContent = 'Sending order to Alpaca...';
-  status.className   = 'order-status firing';
 
-  const alpacaOrder = buildAlpacaOrder(selectedTrade);
-  const result      = await sendAlpacaOrder(alpacaOrder);
-  const livePrice   = priceCache[selectedTrade.ticker]?.price;
+  if (activeMode === 'crypto') {
+    btn.textContent    = 'Opening DEX...';
+    status.textContent = 'Opening DEX — confirm in your wallet...';
+    status.className   = 'order-status firing';
 
-  await db.from('auto_trade_log').insert({
-    ticker: selectedTrade.ticker, direction: selectedTrade.direction,
-    instruction: JSON.stringify(selectedTrade), claude_reasoning: selectedTrade.reasoning,
-    orchestrator_score: selectedTrade.orchestrator_score, orchestrator_confidence: selectedTrade.confidence,
-    position_size: selectedTrade.position_size_pct, entry_price: livePrice || selectedTrade.entry_price,
-    exit_target: selectedTrade.exit_target || selectedTrade.target_premium,
-    stop_loss: selectedTrade.stop_loss || selectedTrade.stop_premium,
-    status: result.ok ? 'executed' : 'logged_manual', strategy: currentStrategy, instrument: currentInstrument,
-    alpaca_order_id: result.orderId || null, brokerage: result.ok ? 'alpaca' : 'manual_submitted',
-    executed_at: new Date().toISOString()
-  });
+    const result    = await executeDEXTrade(selectedTrade);
+    const livePrice = priceCache[selectedTrade.ticker]?.price;
 
-  await loadLog();
+    await db.from('auto_trade_log').insert({
+      ticker:                  selectedTrade.ticker,
+      direction:               selectedTrade.direction,
+      instruction:             JSON.stringify(selectedTrade),
+      claude_reasoning:        selectedTrade.reasoning,
+      orchestrator_score:      selectedTrade.orchestrator_score,
+      orchestrator_confidence: selectedTrade.confidence,
+      position_size:           selectedTrade.position_size_pct,
+      entry_price:             livePrice || selectedTrade.entry_price,
+      exit_target:             selectedTrade.exit_target,
+      stop_loss:               selectedTrade.stop_loss,
+      status:                  result.ok ? 'dex_opened' : 'execution_failed',
+      strategy:                currentStrategy,
+      instrument:              'crypto',
+      brokerage:               selectedTrade.dex || 'dex',
+      executed_at:             new Date().toISOString(),
+      type:                    'crypto'
+    });
 
-  if (result.ok) {
-    btn.textContent    = 'Order Sent \u2713';
-    status.textContent = selectedTrade.ticker + ' order sent. ID: ' + result.orderId;
-    status.className   = 'order-status done';
+    await loadLog();
+
+    if (result.ok) {
+      btn.textContent    = 'DEX Opened ✓';
+      status.textContent = result.note || 'DEX opened — confirm in your wallet.';
+      status.className   = 'order-status done';
+    } else {
+      btn.textContent    = 'Failed';
+      status.textContent = result.error;
+      status.className   = 'order-status error';
+      btn.disabled = false;
+    }
+
   } else {
-    btn.textContent    = 'Logged';
-    status.textContent = result.error ? result.error + ' \u2014 logged only.' : 'Logged. Connect Alpaca to execute live.';
-    status.className   = result.error ? 'order-status error' : 'order-status done';
+    btn.textContent    = 'Submitting...';
+    status.textContent = 'Sending order to Alpaca...';
+    status.className   = 'order-status firing';
+
+    const alpacaOrder = buildAlpacaOrder(selectedTrade);
+    const result      = await sendAlpacaOrder(alpacaOrder);
+    const livePrice   = priceCache[selectedTrade.ticker]?.price;
+
+    await db.from('auto_trade_log').insert({
+      ticker:                  selectedTrade.ticker,
+      direction:               selectedTrade.direction,
+      instruction:             JSON.stringify(selectedTrade),
+      claude_reasoning:        selectedTrade.reasoning,
+      orchestrator_score:      selectedTrade.orchestrator_score,
+      orchestrator_confidence: selectedTrade.confidence,
+      position_size:           selectedTrade.position_size_pct,
+      entry_price:             livePrice || selectedTrade.entry_price,
+      exit_target:             selectedTrade.exit_target || selectedTrade.target_premium,
+      stop_loss:               selectedTrade.stop_loss   || selectedTrade.stop_premium,
+      status:                  result.ok ? 'executed' : 'logged_manual',
+      strategy:                currentStrategy,
+      instrument:              currentInstrument,
+      alpaca_order_id:         result.orderId || null,
+      brokerage:               result.ok ? 'alpaca' : 'manual_submitted',
+      executed_at:             new Date().toISOString(),
+      type:                    'stock'
+    });
+
+    await loadLog();
+
+    if (result.ok) {
+      btn.textContent    = 'Order Sent ✓';
+      status.textContent = selectedTrade.ticker + ' order sent. ID: ' + result.orderId;
+      status.className   = 'order-status done';
+    } else {
+      btn.textContent    = 'Submitted';
+      status.textContent = 'Logged for manual execution.';
+      status.className   = 'order-status done';
+    }
   }
 }
 
