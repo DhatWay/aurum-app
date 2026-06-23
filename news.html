@@ -202,39 +202,45 @@
 
   async function loadStoredNews() {
     const modeType = activeMode === 'crypto' ? 'crypto' : 'stock';
+    // Live Feed = news from last 24 hours
+    const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     try {
       const { data } = await db.from('news_feed')
-        .select('*').eq('type', modeType).eq('archived', false)
+        .select('*').eq('type', modeType)
+        .gte('published_at', cutoff)
         .order('published_at', { ascending: false }).limit(200);
       allNews = data || [];
-      if (allNews.length) { renderNews(allNews); buildMonthFilter(allNews); }
-      else document.getElementById('news-container').innerHTML = '<div class="empty-state">No news yet — tap Fetch Now to load headlines.</div>';
-    } catch(e) {
-      // archived column may not exist yet — fallback without filter
-      try {
-        const { data } = await db.from('news_feed')
-          .select('*').eq('type', modeType)
-          .order('published_at', { ascending: false }).limit(200);
-        allNews = data || [];
-        if (allNews.length) { renderNews(allNews); buildMonthFilter(allNews); }
-        else document.getElementById('news-container').innerHTML = '<div class="empty-state">No news yet — tap Fetch Now to load headlines.</div>';
-      } catch(e2) {
-        document.getElementById('news-container').innerHTML = '<div class="empty-state">Error loading news.</div>';
+      if (allNews.length) {
+        renderNews(allNews);
+        buildMonthFilter(allNews);
+      } else {
+        // No fresh news — show message and suggest fetch
+        document.getElementById('news-container').innerHTML = '<div class="empty-state">No news from the last 24 hours. Tap Fetch Now to refresh, or check the Archive tab for older headlines.</div>';
       }
+    } catch(e) {
+      document.getElementById('news-container').innerHTML = '<div class="empty-state">Error loading news.</div>';
     }
   }
 
   async function loadArchive() {
     const modeType = activeMode === 'crypto' ? 'crypto' : 'stock';
+    // Archive = news older than 24 hours
+    // Uses published_at date comparison — no dependency on archived column
+    const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     try {
       const { data } = await db.from('news_feed')
-        .select('*').eq('type', modeType).eq('archived', true)
+        .select('*').eq('type', modeType)
+        .lt('published_at', cutoff)
         .order('published_at', { ascending: false }).limit(500);
       allArchive = data || [];
-      renderArchive(allArchive);
-      buildArchiveMonthFilter(allArchive);
+      if (allArchive.length) {
+        renderArchive(allArchive);
+        buildArchiveMonthFilter(allArchive);
+      } else {
+        document.getElementById('archive-container').innerHTML = '<div class="empty-state">No archived news yet.</div>';
+      }
     } catch(e) {
-      document.getElementById('archive-container').innerHTML = '<div class="empty-state">No archived news yet. Articles older than 30 days will appear here automatically.</div>';
+      document.getElementById('archive-container').innerHTML = '<div class="empty-state">Error loading archive.</div>';
     }
   }
 
