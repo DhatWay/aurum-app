@@ -133,6 +133,14 @@
   const { createClient } = supabase;
   const db = createClient(SUPABASE_URL, SUPABASE_KEY);
 
+  let activeMode = 'stock';
+  async function loadActiveMode() {
+    try {
+      const { data } = await db.from('trading_settings').select('active_mode').single();
+      if (data?.active_mode) activeMode = data.active_mode;
+    } catch(e) {}
+  }
+
   let allNews = [];
 
   function setProgress(msg) {
@@ -164,7 +172,7 @@
 
   async function loadStoredNews() {
     try {
-      const { data } = await db.from('news_feed').select('*').order('published_at', { ascending: false }).limit(200);
+      const { data } = await db.from('news_feed').select('*').eq('type', activeMode === 'crypto' ? 'crypto' : 'stock').order('published_at', { ascending: false }).limit(200);
       if (data && data.length) {
         allNews = data;
         renderNews(data);
@@ -227,7 +235,7 @@
     navigator.serviceWorker.register('/aurum-app/sw.js');
   }
 
-  loadStoredNews();
+  loadActiveMode().then(() => loadStoredNews());
 </script>
 
 </body>
