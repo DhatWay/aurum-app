@@ -1324,6 +1324,11 @@ async function getClaudeSuggestion() {
       governorBrief = 'Governor edge function failed: ' + govErr.message + '. Proceeding without algorithm execution.';
     }
 
+    const isCrypto = activeMode === 'crypto';
+    const modeContext = isCrypto
+      ? 'CRYPTO MODE: Suggest a crypto paper trade. Both LONG and SHORT are valid based on Governor signal. Include DEX recommendation and trading pair. No broker required.'
+      : '';
+
     const prompt = `You are AURUM — private market intelligence system.
 
 === GOVERNOR BRIEF (${governorMeta.algoCount}/25 algorithms, signal quality ${governorMeta.signalQuality}/100) ===
@@ -1335,12 +1340,33 @@ Instrument: ${instLabel}
 Watchlist: ${watchlist}
 Recent picks: ${pickSum}
 Target ticker analyzed by Governor: ${targetTicker}
+${modeContext}
 
 Suggest ONE specific paper trade for the simulator, grounded in the Governor's output above. Be precise — give exact prices. This is for simulation so give realistic current-market prices.
 If signal quality is below 60, lower your confidence and say so in the reasoning.
+${isCrypto ? 'For crypto: direction can be "long" OR "short" based on Governor signal. Include dex and execution_note fields.' : ''}
 
 Respond ONLY in JSON, no extra text:
-{
+${isCrypto ? `{
+  "ticker": "ETH",
+  "direction": "long",
+  "reasoning": "2-3 sentence AURUM-tone rationale citing crypto algorithm signals",
+  "entry_price": 3250.00,
+  "stop_loss": 3050.00,
+  "target_price": 3650.00,
+  "shares": 0.5,
+  "confidence": "High",
+  "dex": "Uniswap v3",
+  "pair": "ETH/USDC",
+  "execution_note": "Buy ETH against USDC on Uniswap. Stop at $3050, target $3650.",
+  "contract_type": null,
+  "strike": null,
+  "expiration": null,
+  "premium": null,
+  "contracts": null,
+  "stop_premium": null,
+  "target_premium": null
+}` : `{
   "ticker": "NVDA",
   "direction": "long",
   "reasoning": "2-3 sentence AURUM-tone rationale citing the Governor's signal and specific algorithms",
@@ -1356,7 +1382,7 @@ Respond ONLY in JSON, no extra text:
   "contracts": null,
   "stop_premium": null,
   "target_premium": null
-}`;
+}`}`;
 
     const res  = await fetch('https://zpcbbwynvvyldavxzjng.supabase.co/functions/v1/smooth-service', {
       method: 'POST',
@@ -1388,24 +1414,37 @@ function renderSuggestion(s) {
   document.getElementById('suggestion-text').textContent = s.reasoning || '—';
 
   const isOptions = currentInstrument === 'options';
+  const isCrypto  = activeMode === 'crypto';
+
   const fields = isOptions ? [
-    { label: 'Ticker',    value: s.ticker },
-    { label: 'Direction', value: (s.direction || '').toUpperCase(), cls: s.direction === 'long' ? 'positive' : 'danger' },
-    { label: 'Contract',  value: (s.contract_type || '—').toUpperCase() },
-    { label: 'Strike',    value: s.strike ? '$' + s.strike : '—' },
-    { label: 'Expiry',    value: s.expiration || '—' },
-    { label: 'Premium',   value: s.premium ? '$' + s.premium : '—' },
-    { label: 'Stop Prem', value: s.stop_premium ? '$' + s.stop_premium : '—', cls: 'danger' },
+    { label: 'Ticker',      value: s.ticker },
+    { label: 'Direction',   value: (s.direction || '').toUpperCase(), cls: s.direction === 'long' ? 'positive' : 'danger' },
+    { label: 'Contract',    value: (s.contract_type || '—').toUpperCase() },
+    { label: 'Strike',      value: s.strike ? '$' + s.strike : '—' },
+    { label: 'Expiry',      value: s.expiration || '—' },
+    { label: 'Premium',     value: s.premium ? '$' + s.premium : '—' },
+    { label: 'Stop Prem',   value: s.stop_premium ? '$' + s.stop_premium : '—', cls: 'danger' },
     { label: 'Target Prem', value: s.target_premium ? '$' + s.target_premium : '—', cls: 'positive' }
+  ] : isCrypto ? [
+    { label: 'Ticker',      value: s.ticker },
+    { label: 'Direction',   value: (s.direction || '').toUpperCase(), cls: s.direction === 'long' ? 'positive' : 'danger' },
+    { label: 'Entry',       value: s.entry_price ? '$' + s.entry_price : '—' },
+    { label: 'Stop Loss',   value: s.stop_loss ? '$' + s.stop_loss : '—', cls: 'danger' },
+    { label: 'Target',      value: s.target_price ? '$' + s.target_price : '—', cls: 'positive' },
+    { label: 'Qty',         value: s.shares || '—' },
+    { label: 'DEX',         value: s.dex || '—' },
+    { label: 'Pair',        value: s.pair || '—' },
+    { label: 'Confidence',  value: s.confidence || '—' },
+    { label: 'Execute',     value: s.execution_note || '—' }
   ] : [
-    { label: 'Ticker',    value: s.ticker },
-    { label: 'Direction', value: (s.direction || '').toUpperCase(), cls: s.direction === 'long' ? 'positive' : 'danger' },
-    { label: 'Shares',    value: s.shares || '—' },
-    { label: 'Entry',     value: s.entry_price ? '$' + s.entry_price : '—' },
-    { label: 'Stop Loss', value: s.stop_loss ? '$' + s.stop_loss : '—', cls: 'danger' },
-    { label: 'Target',    value: s.target_price ? '$' + s.target_price : '—', cls: 'positive' },
-    { label: 'Confidence', value: s.confidence || '—' },
-    { label: 'Cost',       value: s.entry_price && s.shares ? '$' + (s.entry_price * s.shares).toFixed(2) : '—' }
+    { label: 'Ticker',      value: s.ticker },
+    { label: 'Direction',   value: (s.direction || '').toUpperCase(), cls: s.direction === 'long' ? 'positive' : 'danger' },
+    { label: 'Shares',      value: s.shares || '—' },
+    { label: 'Entry',       value: s.entry_price ? '$' + s.entry_price : '—' },
+    { label: 'Stop Loss',   value: s.stop_loss ? '$' + s.stop_loss : '—', cls: 'danger' },
+    { label: 'Target',      value: s.target_price ? '$' + s.target_price : '—', cls: 'positive' },
+    { label: 'Confidence',  value: s.confidence || '—' },
+    { label: 'Cost',        value: s.entry_price && s.shares ? '$' + (s.entry_price * s.shares).toFixed(2) : '—' }
   ];
 
   document.getElementById('suggestion-fields').innerHTML = fields.map(f => `
@@ -1420,14 +1459,16 @@ function applySuggestion() {
   if (!claudeSuggestion) return;
   const s = claudeSuggestion;
 
-  if (currentInstrument === 'stock') {
+  // Crypto uses the same stock trade form — spot crypto trades work identically
+  // direction handles both long/short for crypto just like stocks
+  if (currentInstrument === 'stock' || activeMode === 'crypto') {
     document.getElementById('trade-ticker').value  = s.ticker || '';
     document.getElementById('entry-price').value   = s.entry_price || '';
     document.getElementById('num-shares').value    = s.shares || '';
     document.getElementById('stop-loss').value     = s.stop_loss || '';
     document.getElementById('target-price').value  = s.target_price || '';
     document.getElementById('current-price').value = s.entry_price || '';
-    document.getElementById('trade-note').value    = s.reasoning || '';
+    document.getElementById('trade-note').value    = (s.reasoning || '') + (s.execution_note ? ' | DEX: ' + s.dex + ' — ' + s.execution_note : '');
     if (s.direction === 'short') setDirection('short'); else setDirection('long');
   } else {
     document.getElementById('opt-ticker').value    = s.ticker || '';
