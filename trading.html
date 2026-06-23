@@ -365,6 +365,15 @@ const SUPABASE_KEY = 'sb_publishable_K80lcfk8LsQNqo5enznRRA_lrzf2U9K';
 const { createClient } = supabase;
 const db = createClient(SUPABASE_URL, SUPABASE_KEY);
 
+let activeMode = 'stock'; // 'stock' or 'crypto' — loaded from trading_settings
+
+async function loadActiveMode() {
+  try {
+    const { data } = await db.from('trading_settings').select('active_mode').single();
+    if (data?.active_mode) activeMode = data.active_mode;
+  } catch(e) {}
+}
+
 let currentMode = 'manual';
 let currentStrategy = 'swing';
 let currentInstrument = 'stock';
@@ -495,6 +504,7 @@ function useCurrentPrice() {
 
 // ── INIT ──
 async function init() {
+  await loadActiveMode();
   await loadSettings();
   await loadAlpacaConfig();
   await loadWatchlistTickers();
@@ -510,7 +520,7 @@ async function init() {
 
 async function loadWatchlistTickers() {
   try {
-    const { data } = await db.from('stocks').select('ticker');
+    const { data } = await db.from('stocks').select('ticker').eq('type', activeMode === 'crypto' ? 'crypto' : 'stock');
     watchlistTickers = data?.map(s => s.ticker) || [];
   } catch(e) {}
 }
@@ -811,9 +821,10 @@ async function runGovernor() {
   try {
     // Pass Alpaca credentials so the edge function can fetch price data
     const payload = {
-      ticker:        selectedFeedTicker || watchlistTickers[0] || 'SPY',
+      ticker:        selectedFeedTicker || watchlistTickers[0] || (activeMode === 'crypto' ? 'BTC' : 'SPY'),
       strategy:      currentStrategy,
       instrument:    currentInstrument,
+      mode:          activeMode,
       alpaca_key:    alpacaConfig?.apiKey    || '',
       alpaca_secret: alpacaConfig?.secretKey || '',
       alpaca_paper:  alpacaConfig?.paper     !== false,
@@ -911,11 +922,12 @@ async function generateInstruction() {
     // Governor runs first — reads all algorithms in phase order
     const governorOutput = await runGovernor();
 
-    // Then load market context in parallel
+    // Then load market context in parallel — filtered by active mode (stock or crypto)
+    const modeType = activeMode === 'crypto' ? 'crypto' : 'stock';
     const [picksRes, stocksRes, newsRes] = await Promise.all([
-      db.from('picks').select('ticker, score, brief').order('picked_at', { ascending: false }).limit(5),
-      db.from('stocks').select('ticker, sector'),
-      db.from('news_feed').select('ticker, algorithm_alignment, source').order('published_at', { ascending: false }).limit(8),
+      db.from('picks').select('ticker, score, brief').eq('type', modeType).order('picked_at', { ascending: false }).limit(5),
+      db.from('stocks').select('ticker, sector').eq('type', modeType),
+      db.from('news_feed').select('ticker, algorithm_alignment, source').eq('type', modeType).order('published_at', { ascending: false }).limit(8),
     ]);
 
     const watchlist = stocksRes.data?.map(s => s.ticker + '(' + s.sector + ')').join(', ') || 'None';
@@ -926,9 +938,13 @@ async function generateInstruction() {
     const livePriceContext = Object.entries(priceCache).slice(0, 10)
       .map(([t, d]) => t + ':$' + d.price.toFixed(2)).join(', ');
 
+    const modeNote = activeMode === 'crypto'
+      ? 'CRYPTO MODE: Trading cryptocurrency. Use DEX execution (Uniswap, dYdX). No broker required. Prices are 24/7. Both LONG and SHORT directions valid.'
+      : 'STOCK MODE: Trading equities on traditional markets.';
+
     const stratNote = currentStrategy === 'day'
-      ? 'DAY TRADE mode: favor momentum, volume, options flow, sentiment velocity, news catalysts. Use tighter stops (1-2%). Time horizon: intraday. Order TIF: IOC.'
-      : 'SWING TRADE mode: use full algorithm stack. Time horizon: days to weeks. Order TIF: Day.';
+      ? 'DAY TRADE mode: favor momentum, volume, options flow, sentiment velocity, news catalysts. Use tighter stops (1-2%). Time horizon: intraday. Order TIF: IOC. ' + modeNote
+      : 'SWING TRADE mode: use full algorithm stack. Time horizon: days to weeks. Order TIF: Day. ' + modeNote;
 
     if (currentInstrument === 'stock') {
       if (currentMode === 'manual') await generateManualStocks(watchlist, pickSum, newsSum, stratNote, livePriceContext, governorOutput);
