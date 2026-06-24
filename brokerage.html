@@ -402,6 +402,60 @@ footer p { font-size: 0.62rem; letter-spacing: 0.12em; color: var(--muted); text
     </div>
   </div>
 
+  <div class="gold-rule"></div>
+
+  <!-- CRYPTO WALLET -->
+  <div class="section-label">Crypto Wallet</div>
+  <div class="page-sub" style="margin-bottom:1.5rem;">Connect MetaMask or Coinbase Wallet for DEX execution. No ID required. Your private key never leaves your wallet app.</div>
+
+  <!-- Wallet connected banner -->
+  <div id="wallet-banner" style="display:none; border:1px solid rgba(58,107,74,0.5); background:rgba(58,107,74,0.03); padding:1rem 1.5rem; margin-bottom:1.5rem;">
+    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">
+      <div style="display:flex; align-items:center; gap:0.8rem;">
+        <div style="width:8px; height:8px; border-radius:50%; background:var(--positive); box-shadow:0 0 8px var(--positive);"></div>
+        <div>
+          <div style="font-size:0.78rem; color:var(--white);">Wallet Connected</div>
+          <div id="wallet-address-display" style="font-family:'IBM Plex Mono',monospace; font-size:0.65rem; color:var(--muted); margin-top:0.2rem;">—</div>
+        </div>
+      </div>
+      <div style="display:flex; gap:2rem; align-items:center;">
+        <div style="text-align:right;">
+          <div style="font-size:0.6rem; letter-spacing:0.15em; color:var(--muted); text-transform:uppercase;">ETH Balance</div>
+          <div id="wallet-eth-balance" style="font-family:'Cormorant Garamond',serif; font-size:1.5rem; color:var(--gold);">—</div>
+        </div>
+        <div style="text-align:right;">
+          <div style="font-size:0.6rem; letter-spacing:0.15em; color:var(--muted); text-transform:uppercase;">USDC Balance</div>
+          <div id="wallet-usdc-balance" style="font-family:'Cormorant Garamond',serif; font-size:1.5rem; color:var(--gold);">—</div>
+        </div>
+      </div>
+    </div>
+    <div style="display:flex; gap:0.8rem; margin-top:1rem;">
+      <button onclick="refreshWalletBalance()" style="background:transparent; border:1px solid var(--rule); color:var(--muted); font-size:0.65rem; letter-spacing:0.1em; padding:0.3rem 0.8rem; cursor:pointer; font-family:'DM Sans',sans-serif;">Refresh Balance</button>
+      <button onclick="disconnectWallet()" style="background:transparent; border:1px solid rgba(139,58,58,0.4); color:var(--danger); font-size:0.65rem; letter-spacing:0.1em; padding:0.3rem 0.8rem; cursor:pointer; font-family:'DM Sans',sans-serif;">Disconnect</button>
+    </div>
+  </div>
+
+  <!-- Wallet connect panel -->
+  <div id="wallet-connect-panel" style="border:1px solid var(--rule); padding:1.5rem; margin-bottom:1.5rem;">
+    <div style="font-size:0.82rem; color:var(--white); margin-bottom:0.5rem;">No wallet connected</div>
+    <div style="font-size:0.75rem; color:var(--muted); margin-bottom:1.2rem; line-height:1.6;">Open AURUM inside your <strong style="color:var(--white);">MetaMask</strong> or <strong style="color:var(--white);">Coinbase Wallet</strong> browser for automatic detection. Or tap connect below if your wallet extension is active.</div>
+    <div style="display:flex; gap:0.8rem; flex-wrap:wrap;">
+      <button onclick="connectWalletBrokerage('metamask')" style="background:transparent; border:1px solid var(--gold); color:var(--gold); font-family:'DM Sans',sans-serif; font-size:0.75rem; letter-spacing:0.15em; padding:0.7rem 1.5rem; cursor:pointer; transition:all 0.3s;">Connect MetaMask</button>
+      <button onclick="connectWalletBrokerage('coinbase')" style="background:transparent; border:1px solid var(--rule); color:var(--muted); font-family:'DM Sans',sans-serif; font-size:0.75rem; letter-spacing:0.15em; padding:0.7rem 1.5rem; cursor:pointer; transition:all 0.3s;">Connect Coinbase Wallet</button>
+    </div>
+    <div id="wallet-error" style="font-size:0.75rem; color:var(--danger); margin-top:0.8rem; display:none;"></div>
+  </div>
+
+  <!-- DEX quick links -->
+  <div style="margin-bottom:2rem;">
+    <div style="font-size:0.65rem; letter-spacing:0.2em; color:var(--muted); text-transform:uppercase; margin-bottom:0.8rem;">Supported DEXs</div>
+    <div style="display:flex; gap:0.8rem; flex-wrap:wrap;">
+      <a href="https://app.uniswap.org" target="_blank" style="background:transparent; border:1px solid var(--rule); color:var(--muted); font-size:0.72rem; letter-spacing:0.1em; padding:0.4rem 1rem; text-decoration:none; display:inline-block; transition:all 0.3s;">Uniswap (ERC-20)</a>
+      <a href="https://dydx.trade" target="_blank" style="background:transparent; border:1px solid var(--rule); color:var(--muted); font-size:0.72rem; letter-spacing:0.1em; padding:0.4rem 1rem; text-decoration:none; display:inline-block; transition:all 0.3s;">dYdX (Perpetuals)</a>
+      <a href="https://jup.ag" target="_blank" style="background:transparent; border:1px solid var(--rule); color:var(--muted); font-size:0.72rem; letter-spacing:0.1em; padding:0.4rem 1rem; text-decoration:none; display:inline-block; transition:all 0.3s;">Jupiter (Solana)</a>
+    </div>
+  </div>
+
 </main>
 
 <footer>
@@ -918,6 +972,112 @@ async function loadPositions() {
   }).join('');
 }
 
+// ── CRYPTO WALLET ──
+const USDC_ADDRESS = '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48'; // Mainnet USDC
+const USDC_ABI     = [{ name: 'balanceOf', type: 'function', inputs: [{ name: 'owner', type: 'address' }], outputs: [{ name: '', type: 'uint256' }], stateMutability: 'view' }];
+
+let connectedWalletAddress = null;
+
+async function loadWalletState() {
+  try {
+    const { data } = await db.from('trading_settings').select('wallet_address, wallet_type').single();
+    if (data?.wallet_address) {
+      connectedWalletAddress = data.wallet_address;
+      showWalletConnected(data.wallet_address);
+      await refreshWalletBalance();
+    }
+  } catch(e) {}
+}
+
+async function connectWalletBrokerage(type) {
+  const errorEl = document.getElementById('wallet-error');
+  errorEl.style.display = 'none';
+
+  if (!window.ethereum) {
+    errorEl.textContent = 'No wallet detected. Open AURUM inside your MetaMask or Coinbase Wallet browser app.';
+    errorEl.style.display = 'block';
+    return;
+  }
+
+  try {
+    const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+    if (!accounts || !accounts.length) {
+      errorEl.textContent = 'No accounts found. Unlock your wallet and try again.';
+      errorEl.style.display = 'block';
+      return;
+    }
+
+    connectedWalletAddress = accounts[0];
+
+    // Persist to trading_settings
+    const { data: settings } = await db.from('trading_settings').select('id').single();
+    if (settings?.id) {
+      await db.from('trading_settings').update({
+        wallet_address: connectedWalletAddress,
+        wallet_type:    type
+      }).eq('id', settings.id);
+    } else {
+      await db.from('trading_settings').insert({
+        wallet_address: connectedWalletAddress,
+        wallet_type:    type
+      });
+    }
+
+    showWalletConnected(connectedWalletAddress);
+    await refreshWalletBalance();
+
+  } catch(e) {
+    errorEl.textContent = 'Connection cancelled or failed. Try again.';
+    errorEl.style.display = 'block';
+  }
+}
+
+function showWalletConnected(address) {
+  const short = address.slice(0, 6) + '...' + address.slice(-4);
+  document.getElementById('wallet-address-display').textContent = address;
+  document.getElementById('wallet-banner').style.display = 'block';
+  document.getElementById('wallet-connect-panel').style.display = 'none';
+}
+
+async function refreshWalletBalance() {
+  if (!connectedWalletAddress || !window.ethereum) return;
+
+  try {
+    // ETH balance
+    const ethHex = await window.ethereum.request({
+      method: 'eth_getBalance',
+      params: [connectedWalletAddress, 'latest']
+    });
+    const ethBalance = parseInt(ethHex, 16) / 1e18;
+    document.getElementById('wallet-eth-balance').textContent = ethBalance.toFixed(4) + ' ETH';
+
+    // USDC balance via eth_call
+    const data = '0x70a08231' + connectedWalletAddress.slice(2).padStart(64, '0');
+    const usdcHex = await window.ethereum.request({
+      method: 'eth_call',
+      params: [{ to: USDC_ADDRESS, data }, 'latest']
+    });
+    const usdcBalance = parseInt(usdcHex, 16) / 1e6;
+    document.getElementById('wallet-usdc-balance').textContent = '$' + usdcBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  } catch(e) {
+    document.getElementById('wallet-eth-balance').textContent  = 'Unavailable';
+    document.getElementById('wallet-usdc-balance').textContent = 'Unavailable';
+  }
+}
+
+async function disconnectWallet() {
+  connectedWalletAddress = null;
+  try {
+    const { data: settings } = await db.from('trading_settings').select('id').single();
+    if (settings?.id) {
+      await db.from('trading_settings').update({ wallet_address: null, wallet_type: null }).eq('id', settings.id);
+    }
+  } catch(e) {}
+  document.getElementById('wallet-banner').style.display       = 'none';
+  document.getElementById('wallet-connect-panel').style.display = 'block';
+}
+
 function openNav() { document.getElementById('nav-overlay').classList.add('open'); }
 function closeNav() { document.getElementById('nav-overlay').classList.remove('open'); }
 
@@ -928,6 +1088,7 @@ async function init() {
   await loadPositions();
   await loadAlpacaBanner();
   await startMonitoring();
+  await loadWalletState();
 }
 
 init();
