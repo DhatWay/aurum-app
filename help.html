@@ -666,6 +666,35 @@
       <div class="faq-answer">The Governor detects 10 crypto-specific market regimes — bull_run, altseason, accumulation, distribution, markdown, pre_halving, post_halving, extreme_fear, extreme_greed, and regulatory_event. Each regime re-weights the algorithms the Governor trusts most. In a bull_run, momentum and derivatives flow get amplified. In accumulation, on-chain metrics and whale tracking dominate. In extreme_fear, the Governor applies contrarian signals — the same way crypto funds trade the Fear & Greed Index as a reversal indicator.</div>
     </div>
 
+    <div class="faq-item" data-keywords="wallet connect metamask coinbase how setup">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">How do I connect my wallet for crypto trading?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">On the Trading page in crypto mode, tap <strong>Connect Wallet for DEX Execution</strong> in the auto-fill panel. AURUM detects MetaMask or Coinbase Wallet automatically via your browser. Once connected, your shortened wallet address appears on the button confirming the connection. You need funds in your wallet to execute live trades — USDC or ETH for Uniswap, USDC for dYdX perpetuals.</div>
+    </div>
+
+    <div class="faq-item" data-keywords="offline trades monitored position stop loss target automatic close">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">Does AURUM monitor my trades when the app is closed?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">Yes — the <strong>Position Monitor</strong> (quick-service) runs every 15 minutes server-side regardless of whether the app is open. It fetches live prices for every open position, checks stop-loss and target levels, and closes positions automatically when triggered. This works for both stock and crypto trades in both directions (long and short). You open the trade with Claude's instruction, close the app, and the system enforces your stop and target autonomously.</div>
+    </div>
+
+    <div class="faq-item" data-keywords="autonomous offline workflow how it works governor claude position">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">What runs automatically while the app is offline?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">Four scheduled processes run server-side continuously:<br><br>
+      <strong>Every 15 minutes</strong> — Position Monitor checks all open trades against stop and target, closes automatically.<br>
+      <strong>Every hour</strong> — Strategy Monitor compares Day vs Swing win rates, switches strategy if one significantly outperforms.<br>
+      <strong>Daily at 10am Eastern</strong> — News feed fetches fresh headlines for your watchlist.<br>
+      <strong>Daily at 10:05am Eastern</strong> — Old news archives automatically.<br><br>
+      Opening new positions still requires you to open the app — the Governor and Claude need your intent to enter a trade.</div>
+    </div>
+
   </div>
 
   <div class="gold-rule"></div>
@@ -843,6 +872,14 @@
       <div class="glossary-item">
         <div class="glossary-term">Plug and Play</div>
         <div class="glossary-def">AURUM's architecture for data sources. The integration code is already built for each algorithm — adding an API key (Twelve Data, Finnhub, Unusual Whales, Quiver) activates real data immediately without any additional coding.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="glossary-term">MetaMask / Coinbase Wallet</div>
+        <div class="glossary-def">Browser-based crypto wallets that connect directly to DEXs. No account, no ID, no broker. AURUM detects these automatically via window.ethereum when you tap Connect Wallet on the Trading page.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="glossary-term">Position Monitor</div>
+        <div class="glossary-def">AURUM's server-side watchdog (quick-service) that runs every 15 minutes. Fetches live prices for all open trades and closes positions automatically when stop-loss or target is hit — even when the app is closed. Works for both stock and crypto in both long and short directions.</div>
       </div>
     </div>
   </div>
