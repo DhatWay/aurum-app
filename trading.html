@@ -372,8 +372,24 @@ let activeMode = 'stock'; // 'stock' or 'crypto' — loaded from trading_setting
 
 async function loadActiveMode() {
   try {
-    const { data } = await db.from('trading_settings').select('active_mode').single();
+    const { data } = await db.from('trading_settings').select('active_mode, wallet_address').single();
     if (data?.active_mode) activeMode = data.active_mode;
+    // Auto-restore wallet address if previously connected
+    if (data?.wallet_address && window.ethereum) {
+      try {
+        const accounts = await window.ethereum.request({ method: 'eth_accounts' });
+        if (accounts && accounts.includes(data.wallet_address)) {
+          connectedWallet = data.wallet_address;
+          const short = connectedWallet.slice(0, 6) + '...' + connectedWallet.slice(-4);
+          const btn = document.getElementById('wallet-connect-btn');
+          if (btn) {
+            btn.textContent = short + ' Connected';
+            btn.style.borderColor = 'var(--positive)';
+            btn.style.color       = 'var(--positive)';
+          }
+        }
+      } catch(e) {}
+    }
   } catch(e) {}
 }
 
