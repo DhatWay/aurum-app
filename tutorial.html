@@ -475,13 +475,13 @@
     <div class="step-number">Step 01 of 09</div>
     <div class="step-title">What is <em>AURUM?</em></div>
     <div class="step-body">
-      AURUM is a <strong>private market intelligence system</strong> — not a screener, not a generic trading bot. It runs <strong>25 algorithms</strong> across price action, sentiment, options flow, insider activity, and macro conditions, then synthesizes them through a master <strong>Governor</strong> before Claude turns the result into a plain-language trade instruction.<br><br>
-      Every signal you see — composite score, verdict, signal quality — traces back to real algorithm output, not a black box. You can test everything risk-free in the Simulator, or generate live trade instructions on the Trading page.<br><br>
+      AURUM is a <strong>private market intelligence system</strong> — not a screener, not a generic trading bot. It runs <strong>25+ algorithms</strong> across price action, sentiment, options flow, insider activity, macro conditions, and crypto-specific signals, then synthesizes them through a master <strong>Governor</strong> before Claude turns the result into a plain-language trade instruction.<br><br>
+      AURUM operates in two modes — <strong>Stocks</strong> and <strong>Crypto</strong>. Toggle between them on the Brief page. Crypto mode swaps in 6 crypto-specific algorithms and generates DEX execution instructions. No broker, no ID required for crypto — just a MetaMask or Coinbase Wallet.<br><br>
       The self-rating system is what makes AURUM accountable. Every pick is logged with its entry price and automatically graded against the S&P 500, 30 days later. That track record is the product.
     </div>
     <div class="highlight-box">
-      <div class="highlight-label">The Core Principle</div>
-      <div class="highlight-text">"Intelligence. Refined." — AURUM doesn't guess. It synthesizes, scores, and proves itself over time.</div>
+      <div class="highlight-label">Always On</div>
+      <div class="highlight-text">The Position Monitor runs every 15 minutes server-side — closing trades at stop-loss or target automatically, even when the app is closed. Open a trade, close the app, AURUM enforces it.</div>
     </div>
     <div class="step-nav">
       <button class="btn-nav" disabled>← Previous</button>
@@ -703,6 +703,14 @@
         <div class="feature-text"><strong>No Broker, No ID Required</strong> — Crypto trades execute via decentralized exchanges. Connect a MetaMask or Coinbase Wallet and follow Claude's exact execution note. No account, no KYC.</div>
       </div>
       <div class="feature-item">
+        <div class="feature-icon">WALLET</div>
+        <div class="feature-text"><strong>Connecting Your Wallet</strong> — In Auto mode, tap <strong>Connect Wallet for DEX Execution</strong> in the auto-fill panel. AURUM detects MetaMask or Coinbase Wallet automatically. Your shortened address appears on the button when connected. Keep funds in USDC or ETH for Uniswap trades, USDC for dYdX perpetuals.</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">MONITOR</div>
+        <div class="feature-text"><strong>Position Monitor</strong> — Once a trade is open, close the app. The Position Monitor (quick-service) checks every 15 minutes and closes the trade automatically at stop-loss or target. Works for both stock and crypto, both long and short, while you're completely offline.</div>
+      </div>
+      <div class="feature-item">
         <div class="feature-icon">ASSESS</div>
         <div class="feature-text"><strong>Options Assessment</strong> — For open options positions, Claude returns TAKE PROFIT, HOLD, FLIP, or EXIT based on current signal alignment and days to expiration.</div>
       </div>
@@ -791,29 +799,33 @@
     <div class="step-number">Step 09 of 09</div>
     <div class="step-title">How You <em>Use It</em></div>
     <div class="step-body">
-      AURUM runs on demand, not a fixed schedule. There's no cron job working in the background — every analysis happens fresh, the moment you ask for it. Here's the typical flow.
+      AURUM runs on demand for analysis — every Governor run and Claude decision happens fresh when you ask for it. But position management, news, and strategy switching run automatically in the background 24/7.
     </div>
     <div class="feature-list">
       <div class="feature-item">
         <div class="feature-icon">START</div>
-        <div class="feature-text"><strong>Test in the Simulator</strong> — Get a Claude trade suggestion, apply it, track it with paper money. No broker, no ID, zero risk.</div>
+        <div class="feature-text"><strong>Test in the Simulator</strong> — Get a Claude trade suggestion, apply it, track it with paper money. Both stocks and crypto. No broker, no ID, zero risk.</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">EXECUTE</div>
+        <div class="feature-text"><strong>Open a trade</strong> — Stocks: Governor → Claude → Auto or Manual instruction. Crypto: same workflow, Claude generates a DEX instruction, you execute in MetaMask or Coinbase Wallet.</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">OFFLINE</div>
+        <div class="feature-text"><strong>Close the app</strong> — The Position Monitor runs every 15 minutes server-side. It fetches live prices, checks every open position against its stop-loss and target, and closes automatically when triggered. Stocks and crypto both covered.</div>
       </div>
       <div class="feature-item">
         <div class="feature-icon">REVIEW</div>
-        <div class="feature-text"><strong>Check the Brief and Report pages</strong> — Watch your accuracy build as the self-rating system grades closed picks 30 days out.</div>
-      </div>
-      <div class="feature-item">
-        <div class="feature-icon">ACT</div>
-        <div class="feature-text"><strong>Move to Trading when ready</strong> — Generate a live Governor instruction and either execute through a connected broker or manually place the trade yourself.</div>
+        <div class="feature-text"><strong>Check the Report page</strong> — P&L, pick accuracy, DEX execution history, and strategy switches all logged. The self-rating system grades picks 30 days out automatically.</div>
       </div>
       <div class="feature-item">
         <div class="feature-icon">REFINE</div>
-        <div class="feature-text"><strong>Improve algorithms over time</strong> — Use the Admin panel's Algorithm Improvement tool to refine signals in plain English as you learn what works.</div>
+        <div class="feature-text"><strong>Improve over time</strong> — Admin panel lets you improve algorithms in plain English. System Notes tracks every pending upgrade and plug-and-play data source.</div>
       </div>
     </div>
     <div class="highlight-box">
-      <div class="highlight-label">Your Role</div>
-      <div class="highlight-text">Run the simulator. Watch the track record build. Trust the data — not the hype — before moving real capital. That's it.</div>
+      <div class="highlight-label">Always Running</div>
+      <div class="highlight-text">Position Monitor (every 15 min) · Strategy Monitor (hourly) · News Fetch (10am Eastern daily). AURUM manages your positions whether the app is open or not.</div>
     </div>
     <div class="step-nav">
       <button class="btn-nav" onclick="prevStep()">← Previous</button>
