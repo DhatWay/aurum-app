@@ -1413,7 +1413,7 @@ ${isCrypto ? `{
 
   } catch(e) {
     document.getElementById('suggestion-panel').classList.add('visible');
-    document.getElementById('suggestion-text').textContent = 'Claude API key required. Add CLAUDE_API_KEY to Supabase secrets.';
+    document.getElementById('suggestion-text').textContent = 'AI service unavailable. Check smooth-service deployment in Supabase Edge Functions.';
     document.getElementById('suggestion-fields').innerHTML = '';
   }
 
