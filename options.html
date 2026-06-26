@@ -823,7 +823,7 @@ Respond in this exact JSON format only, no extra text:
 
       const data = await response.json();
       if (data.error) throw new Error(data.error);
-      const text = data.text || '{}';
+      const text = data.content?.[0]?.text || data.text || '{}';
       const result = JSON.parse(text.replace(/```json|```/g, '').trim());
 
       document.getElementById('loading-assessment').classList.remove('visible');
