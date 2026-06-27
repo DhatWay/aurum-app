@@ -1408,6 +1408,17 @@ ${jsonExample}`;
     if (data.error) throw new Error(data.error);
     const text = data.content?.[0]?.text || data.text || '{}';
 
+    // Show/update mode indicator based on smooth-service ai_mode
+    const modeIndicator = document.getElementById('ai-mode-indicator');
+    if (modeIndicator) {
+      if (data.ai_mode === 'math') {
+        modeIndicator.textContent = '⚡ MATH MODE — Gemini quota exhausted. Scores calculated from live market data. Resets daily at midnight Pacific.';
+        modeIndicator.style.display = 'block';
+      } else {
+        modeIndicator.style.display = 'none';
+      }
+    }
+
     // Extract JSON — Gemini sometimes wraps in markdown or adds preamble
     let jsonStr = text;
     const jsonMatch = text.match(/\{[\s\S]*\}/);
