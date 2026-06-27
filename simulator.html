@@ -1316,22 +1316,35 @@ async function getClaudeSuggestion() {
     let governorBrief = 'Governor unavailable — proceeding without algorithm execution.';
     let governorMeta = { algoCount: 0, signalQuality: 0, coveragePct: 0 };
 
-    try {
+    // Governor call with one retry on failure (handles cold start timeouts)
+    async function callGovernor() {
       const govRes = await fetch(GOVERNOR_EDGE_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + GOVERNOR_ANON_KEY },
-        body: JSON.stringify({ ticker: targetTicker, strategy: currentStrategy, instrument: currentInstrument })
+        body: JSON.stringify({ ticker: targetTicker, strategy: currentStrategy, instrument: currentInstrument, mode: activeMode })
       });
-      if (govRes.ok) {
-        const gov = await govRes.json();
-        governorBrief = gov.claude_brief || governorBrief;
-        governorMeta = {
-          algoCount: gov.algorithms_succeeded || 0,
-          signalQuality: gov.signal_quality || 0,
-          coveragePct: gov.coverage_pct || 0,
-        };
-        thinking.textContent = 'Governor complete — ' + governorMeta.algoCount + '/25 algorithms ran. Asking Claude...';
+      if (!govRes.ok) throw new Error('Governor returned ' + govRes.status);
+      return await govRes.json();
+    }
+
+    try {
+      thinking.textContent = 'Governor executing 25 algorithms...';
+      let gov;
+      try {
+        gov = await callGovernor();
+      } catch(firstErr) {
+        // Cold start — wait 3 seconds and retry once
+        thinking.textContent = 'Governor warming up — retrying...';
+        await new Promise(r => setTimeout(r, 3000));
+        gov = await callGovernor();
       }
+      governorBrief = gov.claude_brief || governorBrief;
+      governorMeta = {
+        algoCount:    gov.algorithms_succeeded || 0,
+        signalQuality: gov.signal_quality      || 0,
+        coveragePct:  gov.coverage_pct         || 0,
+      };
+      thinking.textContent = 'Governor complete — ' + governorMeta.algoCount + '/25 algorithms ran. Asking Gemini...';
     } catch(govErr) {
       governorBrief = 'Governor edge function failed: ' + govErr.message + '. Proceeding without algorithm execution.';
     }
@@ -1380,18 +1393,8 @@ ${jsonExample}`;
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (jsonMatch) jsonStr = jsonMatch[0];
 
-    try {
-      claudeSuggestion = JSON.parse(jsonStr);
-      claudeSuggestion._governorMeta = governorMeta;
-    } catch(parseErr) {
-      // Show raw response so we can see what Gemini returned
-      document.getElementById('suggestion-panel').classList.add('visible');
-      document.getElementById('suggestion-text').textContent = 'RAW RESPONSE: ' + text.slice(0, 500);
-      document.getElementById('suggestion-fields').innerHTML = '';
-      thinking.classList.remove('visible');
-      btn.disabled = false;
-      return;
-    }
+    claudeSuggestion = JSON.parse(jsonStr);
+    claudeSuggestion._governorMeta = governorMeta;
 
     renderSuggestion(claudeSuggestion);
     document.getElementById('suggestion-panel').classList.add('visible');
