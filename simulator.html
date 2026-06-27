@@ -777,6 +777,8 @@ footer p { font-size: 0.6rem; letter-spacing: 0.12em; color: var(--muted); text-
   <div class="gold-rule"></div>
 
   <!-- CLAUDE SUGGESTION -->
+  <div id="ai-mode-indicator" style="display:none; border:1px solid rgba(201,168,76,0.4); background:rgba(201,168,76,0.06); color:#C9A84C; font-size:0.72rem; letter-spacing:0.1em; padding:0.7rem 1rem; margin-bottom:1rem; font-family:'IBM Plex Mono',monospace;"></div>
+
   <button class="btn-claude" id="claude-btn" onclick="getClaudeSuggestion()">Get Claude Trade Suggestion</button>
   <div class="claude-thinking" id="claude-thinking">Claude is analyzing your watchlist and algorithms...</div>
 
@@ -1344,7 +1346,19 @@ async function getClaudeSuggestion() {
         signalQuality: gov.signal_quality      || 0,
         coveragePct:  gov.coverage_pct         || 0,
       };
-      thinking.textContent = 'Governor complete — ' + governorMeta.algoCount + '/25 algorithms ran. Asking Gemini...';
+
+      // Show AI mode indicator
+      const modeIndicator = document.getElementById('ai-mode-indicator');
+      if (modeIndicator) {
+        if (gov.ai_mode === 'math') {
+          modeIndicator.textContent = '⚡ MATH MODE — Gemini quota exhausted. Scores calculated from live market data. Resets daily.';
+          modeIndicator.style.display = 'block';
+        } else {
+          modeIndicator.style.display = 'none';
+        }
+      }
+
+      thinking.textContent = 'Governor complete — ' + governorMeta.algoCount + ' algorithms ran. Asking Gemini...';
     } catch(govErr) {
       governorBrief = 'Governor edge function failed: ' + govErr.message + '. Proceeding without algorithm execution.';
     }
