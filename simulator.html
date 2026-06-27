@@ -1338,7 +1338,7 @@ async function getClaudeSuggestion() {
         await new Promise(r => setTimeout(r, 3000));
         gov = await callGovernor();
       }
-      governorBrief = gov.claude_brief || governorBrief;
+      governorBrief = gov.governor_brief || gov.claude_brief || governorBrief;
       governorMeta = {
         algoCount:    gov.algorithms_succeeded || 0,
         signalQuality: gov.signal_quality      || 0,
@@ -1355,12 +1355,12 @@ async function getClaudeSuggestion() {
       : '';
 
     const jsonExample = isCrypto
-      ? '{\n  "ticker": "ETH",\n  "direction": "long",\n  "reasoning": "2-3 sentence AURUM-tone rationale citing crypto algorithm signals",\n  "entry_price": 3250.00,\n  "stop_loss": 3050.00,\n  "target_price": 3650.00,\n  "shares": 0.5,\n  "confidence": "High",\n  "dex": "Uniswap v3",\n  "pair": "ETH/USDC",\n  "execution_note": "Buy ETH against USDC on Uniswap. Stop at $3050, target $3650.",\n  "contract_type": null,\n  "strike": null,\n  "expiration": null,\n  "premium": null,\n  "contracts": null,\n  "stop_premium": null,\n  "target_premium": null\n}'
-      : '{\n  "ticker": "NVDA",\n  "direction": "long",\n  "reasoning": "2-3 sentence AURUM-tone rationale citing the Governor\'s signal and specific algorithms",\n  "entry_price": 875.50,\n  "stop_loss": 850.00,\n  "target_price": 920.00,\n  "shares": 5,\n  "confidence": "High",\n  "contract_type": null,\n  "strike": null,\n  "expiration": null,\n  "premium": null,\n  "contracts": null,\n  "stop_premium": null,\n  "target_premium": null\n}';
+      ? '{\n  "ticker": "ETH",\n  "direction": "long",\n  "reasoning": "2-3 sentence rationale citing specific algorithm scores and signals from the Governor brief",\n  "entry_price": 3250.00,\n  "stop_loss": 3050.00,\n  "target_price": 3650.00,\n  "shares": 0.5,\n  "confidence": "High",\n  "dex": "Uniswap v3",\n  "pair": "ETH/USDC",\n  "execution_note": "Buy ETH against USDC on Uniswap v3. Stop at $3050, target $3650.",\n  "contract_type": null,\n  "strike": null,\n  "expiration": null,\n  "premium": null,\n  "contracts": null,\n  "stop_premium": null,\n  "target_premium": null\n}'
+      : '{\n  "ticker": "NVDA",\n  "direction": "long",\n  "reasoning": "2-3 sentence rationale citing specific algorithm scores and signals from the Governor brief",\n  "entry_price": 875.50,\n  "stop_loss": 850.00,\n  "target_price": 920.00,\n  "shares": 5,\n  "confidence": "High",\n  "contract_type": null,\n  "strike": null,\n  "expiration": null,\n  "premium": null,\n  "contracts": null,\n  "stop_premium": null,\n  "target_premium": null\n}';
 
-    const prompt = `You are AURUM — private market intelligence system.
+    const prompt = `You are AURUM — a private market intelligence system powered by a 32-algorithm Governor suite.
 
-=== GOVERNOR BRIEF (${governorMeta.algoCount}/25 algorithms, signal quality ${governorMeta.signalQuality}/100) ===
+=== GOVERNOR BRIEF (${governorMeta.algoCount} algorithms executed, signal quality ${governorMeta.signalQuality}/100) ===
 ${governorBrief}
 === END GOVERNOR BRIEF ===
 
@@ -1368,14 +1368,20 @@ Strategy: ${stratLabel}
 Instrument: ${instLabel}
 Watchlist: ${watchlist}
 Recent picks: ${pickSum}
-Target ticker analyzed by Governor: ${targetTicker}
 ${modeContext}
 
-Suggest ONE specific paper trade for the simulator, grounded in the Governor's output above. Be precise — give exact prices. This is for simulation so give realistic current-market prices.
-If signal quality is below 60, lower your confidence and say so in the reasoning.
-${isCrypto ? 'For crypto: direction can be "long" OR "short" based on Governor signal. Include dex and execution_note fields.' : ''}
+TASK: Generate ONE specific paper trade for the simulator based on the Governor brief above.
 
-Respond ONLY in JSON, no extra text:
+CRITICAL RULES:
+1. Use the ENTRY PRICE, STOP LOSS, and TARGET PRICE from the Governor brief if provided
+2. If the Governor brief contains specific price levels, use them exactly
+3. Set direction based on Governor verdict (LONG if BUY, SHORT if SELL)
+4. The reasoning must cite specific algorithm scores and signals from the brief
+5. All numeric fields (entry_price, stop_loss, target_price, shares) MUST be real numbers — never null
+6. If signal quality is below 40, set confidence to "Very Low" and note it in reasoning
+${isCrypto ? '7. For crypto: include dex, pair, and execution_note fields with real DEX instructions' : ''}
+
+Respond ONLY in this exact JSON format with no additional text:
 ${jsonExample}`;
 
     const res  = await fetch('https://zpcbbwynvvyldavxzjng.supabase.co/functions/v1/smooth-service', {
