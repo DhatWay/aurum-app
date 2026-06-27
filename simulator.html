@@ -1374,8 +1374,24 @@ ${jsonExample}`;
     const data = await res.json();
     if (data.error) throw new Error(data.error);
     const text = data.content?.[0]?.text || data.text || '{}';
-    claudeSuggestion = JSON.parse(text.replace(/```json|```/g, '').trim());
-    claudeSuggestion._governorMeta = governorMeta;
+
+    // Extract JSON — Gemini sometimes wraps in markdown or adds preamble
+    let jsonStr = text;
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (jsonMatch) jsonStr = jsonMatch[0];
+
+    try {
+      claudeSuggestion = JSON.parse(jsonStr);
+      claudeSuggestion._governorMeta = governorMeta;
+    } catch(parseErr) {
+      // Show raw response so we can see what Gemini returned
+      document.getElementById('suggestion-panel').classList.add('visible');
+      document.getElementById('suggestion-text').textContent = 'RAW RESPONSE: ' + text.slice(0, 500);
+      document.getElementById('suggestion-fields').innerHTML = '';
+      thinking.classList.remove('visible');
+      btn.disabled = false;
+      return;
+    }
 
     renderSuggestion(claudeSuggestion);
     document.getElementById('suggestion-panel').classList.add('visible');
