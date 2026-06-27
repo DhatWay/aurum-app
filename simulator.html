@@ -1381,7 +1381,7 @@ ${jsonExample}`;
     const res  = await fetch('https://zpcbbwynvvyldavxzjng.supabase.co/functions/v1/smooth-service', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + GOVERNOR_ANON_KEY },
-      body: JSON.stringify({ prompt, max_tokens: 800 })
+      body: JSON.stringify({ prompt, max_tokens: 1500 })
     });
 
     const data = await res.json();
