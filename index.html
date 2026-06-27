@@ -646,6 +646,10 @@
   </div>
 </header>
 
+<div id="ai-mode-banner" style="display:none; background:rgba(201,168,76,0.06); border-bottom:1px solid rgba(201,168,76,0.3); padding:0.5rem 2.5rem; font-size:0.68rem; letter-spacing:0.1em; color:#C9A84C; font-family:'IBM Plex Mono',monospace;">
+  ⚡ MATH MODE ACTIVE — Gemini quota exhausted. Governor running on live math signals. AI synthesis resumes when daily quota resets.
+</div>
+
 <!-- LIVE PRICE FEED BAR -->
 <div class="price-feed-bar" id="price-feed-bar">
   <div class="feed-dot"></div>
@@ -1043,6 +1047,17 @@
         currentMode = settings.active_mode;
         document.getElementById('mode-stock').classList.toggle('mode-active', currentMode === 'stock');
         document.getElementById('mode-crypto').classList.toggle('mode-active', currentMode === 'crypto');
+      }
+    } catch(e) {}
+
+    // Check last Governor log to see if math mode is active
+    try {
+      const { data: lastLog } = await db.from('algorithm_log')
+        .select('output').eq('algorithm_name', 'governor')
+        .order('created_at', { ascending: false }).limit(1).single();
+      const banner = document.getElementById('ai-mode-banner');
+      if (banner && lastLog?.output?.ai_mode === 'math') {
+        banner.style.display = 'block';
       }
     } catch(e) {}
 
