@@ -777,8 +777,6 @@ footer p { font-size: 0.6rem; letter-spacing: 0.12em; color: var(--muted); text-
   <div class="gold-rule"></div>
 
   <!-- CLAUDE SUGGESTION -->
-  <div id="ai-mode-indicator" style="display:none; border:1px solid rgba(201,168,76,0.4); background:rgba(201,168,76,0.06); color:#C9A84C; font-size:0.72rem; letter-spacing:0.1em; padding:0.7rem 1rem; margin-bottom:1rem; font-family:'IBM Plex Mono',monospace;"></div>
-
   <button class="btn-claude" id="claude-btn" onclick="getClaudeSuggestion()">Get Claude Trade Suggestion</button>
   <div class="claude-thinking" id="claude-thinking">Claude is analyzing your watchlist and algorithms...</div>
 
@@ -1159,6 +1157,12 @@ function computeAnalytics(trades) {
     return;
   }
 
+  // Filter corrupted rows from analytics
+  trades = (trades || []).filter(t =>
+    t.gain_loss !== null &&
+    Number(t.entry_price) > 0 &&
+    Number(t.shares) > 0
+  );
   const returns   = trades.map(t => Number(t.gain_loss_pct) / 100);
   const wins      = returns.filter(r => r > 0);
   const losses    = returns.filter(r => r < 0);
@@ -1227,10 +1231,24 @@ function drawEquityCurve(trades) {
   const pad = { top: 10, bottom: 20, left: 8, right: 8 };
 
   // Build equity points
+  // Filter out corrupted trades (zero entry, null gain_loss)
+  const validTrades = (trades || []).filter(t =>
+    t.gain_loss !== null &&
+    t.gain_loss !== undefined &&
+    Number(t.entry_price) > 0 &&
+    Number(t.shares) > 0
+  );
+
+  if (!validTrades.length) {
+    empty.style.display = 'flex';
+    return;
+  }
+
+  // Build equity from oldest to newest (reverse since ordered newest-first)
   let eq = 10000;
   const points = [{ x: 0, y: eq }];
-  trades.slice().reverse().forEach((t, i) => {
-    eq += Number(t.gain_loss);
+  validTrades.slice().reverse().forEach((t, i) => {
+    eq += Number(t.gain_loss || 0);
     points.push({ x: i + 1, y: eq });
   });
 
@@ -1347,17 +1365,6 @@ async function getClaudeSuggestion() {
         coveragePct:  gov.coverage_pct         || 0,
       };
 
-      // Show AI mode indicator
-      const modeIndicator = document.getElementById('ai-mode-indicator');
-      if (modeIndicator) {
-        if (gov.ai_mode === 'math') {
-          modeIndicator.textContent = '⚡ MATH MODE — Gemini quota exhausted. Scores calculated from live market data. Resets daily.';
-          modeIndicator.style.display = 'block';
-        } else {
-          modeIndicator.style.display = 'none';
-        }
-      }
-
       thinking.textContent = 'Governor complete — ' + governorMeta.algoCount + ' algorithms ran. Asking Gemini...';
     } catch(govErr) {
       governorBrief = 'Governor edge function failed: ' + govErr.message + '. Proceeding without algorithm execution.';
@@ -1407,17 +1414,6 @@ ${jsonExample}`;
     const data = await res.json();
     if (data.error) throw new Error(data.error);
     const text = data.content?.[0]?.text || data.text || '{}';
-
-    // Show/update mode indicator based on smooth-service ai_mode
-    const modeIndicator = document.getElementById('ai-mode-indicator');
-    if (modeIndicator) {
-      if (data.ai_mode === 'math') {
-        modeIndicator.textContent = '⚡ MATH MODE — Gemini quota exhausted. Scores calculated from live market data. Resets daily at midnight Pacific.';
-        modeIndicator.style.display = 'block';
-      } else {
-        modeIndicator.style.display = 'none';
-      }
-    }
 
     // Extract JSON — Gemini sometimes wraps in markdown or adds preamble
     let jsonStr = text;
@@ -1586,28 +1582,35 @@ async function openTrade() {
 
     if (!ticker || !premium || !contracts) { alert('Ticker, premium, and contracts are required.'); return; }
 
+    // ── CORRECT OPTIONS COMPUTATION ──
     const slippageAmount = premium * slippagePct;
-    const effectivePrem  = premium + slippageAmount;
+    const effectivePrem  = premium + slippageAmount;  // pay slightly more
     const slippageCost   = slippageAmount * contracts * 100;
-    const commissionCost = (commission + 0.15) * contracts * 2; // options commission per contract
-    const posValue       = contracts * current * 100;
-    const gl             = (current - effectivePrem) * contracts * 100 - commissionCost;
-    const glPct          = (gl / (effectivePrem * contracts * 100)) * 100;
+    // Options commission: $0.65 per contract per leg, round trip = × 2
+    const commissionCost = commission * contracts * 2;
+    const posValue       = contracts * effectivePrem * 100; // position value at open
+    // gain_loss = 0 at open — nothing realized yet
+    const grossGL        = 0;
+    const glPct          = 0;
 
     Object.assign(record, {
       ticker,
-      shares: contracts,
-      entry_price:   effectivePrem,
-      current_price: current,
-      stop_loss:     stop,
-      target_price:  target,
-      strike_price:  strike,
-      expiration:    expiry,
-      position_value: posValue,
-      gain_loss:     gl,
-      gain_loss_pct: glPct,
-      slippage_cost: slippageCost,
-      commission:    commissionCost
+      shares:          contracts,
+      entry_price:     parseFloat(effectivePrem.toFixed(4)),
+      effective_entry: parseFloat(effectivePrem.toFixed(4)),
+      current_price:   effectivePrem, // at open, current = effective entry
+      stop_loss:       stop,
+      target_price:    target,
+      strike_price:    strike,
+      expiration:      expiry,
+      position_value:  parseFloat(posValue.toFixed(2)),
+      gain_loss:       0,       // CORRECT: nothing realized at open
+      gain_loss_pct:   0,
+      gross_gain_loss: 0,
+      net_gain_loss:   0,
+      unrealized_gl:   0,
+      slippage_cost:   parseFloat(slippageCost.toFixed(4)),
+      commission:      parseFloat(commissionCost.toFixed(2)),
     });
   }
 
@@ -1631,14 +1634,61 @@ async function closeTrade(id) {
   const { data: t } = await db.from('paper_trades').select('*').eq('id', id).single();
   if (!t) return;
 
-  // Apply closing slippage
-  const slippagePct    = (t.slippage_pct || 0.05) / 100;
-  const slippageClose  = Number(t.current_price) * slippagePct;
-  const closingCommission = Number(t.commission || 0);
+  // Check if swing is available and not expired
+  if (t.swing_signal && t.swing_expires_at && !t.swing_taken) {
+    const expires = new Date(t.swing_expires_at);
+    const now     = new Date();
+    if (expires > now) {
+      // Show swing dialog
+      showSwingDialog(t, id);
+      return;
+    }
+  }
+
+  await executeClose(id, t);
+}
+
+async function executeClose(id, trade) {
+  const currentPrice  = Number(trade.current_price);
+  const effectiveEntry = Number(trade.effective_entry || trade.entry_price);
+  const shares        = Number(trade.shares);
+  const direction     = (trade.direction || 'long').toLowerCase();
+  const slippageCost  = Number(trade.slippage_cost || 0);
+  const commissionCost = Number(trade.commission || 1.30); // already round trip
+
+  // Calculate final gross P&L at current price
+  let grossGL;
+  if (direction === 'long') {
+    grossGL = (currentPrice - effectiveEntry) * shares;
+  } else if (direction === 'short') {
+    grossGL = (effectiveEntry - currentPrice) * shares;
+  } else {
+    grossGL = (currentPrice - effectiveEntry) * shares;
+  }
+
+  // Net P&L = gross minus ALL costs (commission + slippage)
+  // Commission stored as round-trip already — deduct once here at close
+  const netGL    = grossGL - commissionCost - slippageCost;
+  const netGLPct = effectiveEntry > 0 ? (netGL / (effectiveEntry * shares)) * 100 : 0;
+
+  // Swing expiry for manual close
+  const swingExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+  const swingDirection = direction === 'long' ? 'short' : 'long';
 
   await db.from('paper_trades').update({
-    status:    'closed',
-    closed_at: new Date().toISOString()
+    status:          'closed',
+    closed_at:       new Date().toISOString(),
+    close_reason:    'manual_close',
+    closed_by:       'user',
+    gross_gain_loss: parseFloat(grossGL.toFixed(2)),
+    net_gain_loss:   parseFloat(netGL.toFixed(2)),
+    gain_loss:       parseFloat(netGL.toFixed(2)),
+    gain_loss_pct:   parseFloat(netGLPct.toFixed(4)),
+    swing_signal:    true,
+    swing_direction: swingDirection,
+    swing_expires_at: swingExpiry,
+    swing_trigger:   'manual',
+    swing_taken:     false,
   }).eq('id', id);
 
   await updatePortfolioBalance();
@@ -1647,26 +1697,188 @@ async function closeTrade(id) {
   loadPortfolio();
 }
 
+// ── SWING DIALOG ──
+function showSwingDialog(trade, id) {
+  const expires    = new Date(trade.swing_expires_at);
+  const now        = new Date();
+  const msLeft     = expires - now;
+  const isStop     = trade.swing_trigger === 'stop';
+  const swingDir   = trade.swing_direction || (trade.direction === 'long' ? 'short' : 'long');
+
+  // Create overlay
+  const overlay = document.createElement('div');
+  overlay.id    = 'swing-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(8,8,8,0.95);z-index:2000;display:flex;align-items:center;justify-content:center;padding:2rem;';
+
+  const box = document.createElement('div');
+  box.style.cssText = 'border:1px solid rgba(201,168,76,0.4);background:#0d0d0d;padding:2rem;max-width:420px;width:100%;';
+
+  const timerLabel = isStop ? 'STOP HIT' : 'TARGET REACHED';
+  const timerColor = isStop ? '#8B3A3A' : '#3A6B4A';
+
+  box.innerHTML = `
+    <div style="font-size:0.65rem;letter-spacing:0.25em;color:${timerColor};font-family:'IBM Plex Mono',monospace;margin-bottom:0.8rem;">${timerLabel}</div>
+    <div style="font-family:'Cormorant Garamond',serif;font-size:1.8rem;font-weight:300;color:#F0EDE6;margin-bottom:0.5rem;">${trade.ticker} Position Closed</div>
+    <div style="font-size:0.82rem;color:#6B6560;margin-bottom:1.5rem;line-height:1.6;">
+      ${isStop ? 'Stop loss triggered. Do you want to swing ' + swingDir.toUpperCase() + ' to capitalize on the reversal?' : 'Target reached. Do you want to swing ' + swingDir.toUpperCase() + ' to ride the momentum reversal?'}
+    </div>
+    <div style="font-size:0.72rem;color:#C9A84C;font-family:'IBM Plex Mono',monospace;margin-bottom:1.5rem;">
+      SWING EXPIRES IN: <span id="swing-countdown" style="font-size:1rem;">...</span>
+    </div>
+    <div style="display:flex;gap:0.8rem;">
+      <button id="swing-yes-btn" onclick="takeSwing('${id}', '${swingDir}')" style="flex:1;background:rgba(201,168,76,0.1);border:1px solid rgba(201,168,76,0.5);color:#C9A84C;font-family:'DM Sans',sans-serif;font-size:0.8rem;letter-spacing:0.15em;padding:0.8rem;cursor:pointer;">
+        SWING ${swingDir.toUpperCase()}
+      </button>
+      <button onclick="dismissSwing('${id}')" style="flex:1;background:transparent;border:1px solid rgba(107,101,96,0.4);color:#6B6560;font-family:'DM Sans',sans-serif;font-size:0.8rem;letter-spacing:0.15em;padding:0.8rem;cursor:pointer;">
+        CLOSE ONLY
+      </button>
+    </div>
+  `;
+
+  overlay.appendChild(box);
+  document.body.appendChild(overlay);
+
+  // Countdown timer
+  const updateCountdown = () => {
+    const remaining = new Date(trade.swing_expires_at) - new Date();
+    const el = document.getElementById('swing-countdown');
+    if (!el) return;
+    if (remaining <= 0) {
+      el.textContent = 'EXPIRED';
+      dismissSwing(id);
+      return;
+    }
+    if (isStop) {
+      // Show seconds for 60s window
+      el.textContent = Math.ceil(remaining / 1000) + 's';
+    } else {
+      // Show hours/minutes for 24h window
+      const hrs  = Math.floor(remaining / 3600000);
+      const mins = Math.floor((remaining % 3600000) / 60000);
+      el.textContent = hrs + 'h ' + mins + 'm';
+    }
+  };
+
+  updateCountdown();
+  const countdownInterval = setInterval(() => {
+    const remaining = new Date(trade.swing_expires_at) - new Date();
+    if (remaining <= 0) {
+      clearInterval(countdownInterval);
+      dismissSwing(id);
+    } else {
+      updateCountdown();
+    }
+  }, isStop ? 1000 : 60000); // update every second for stop, every minute for target
+}
+
+async function takeSwing(originalId, swingDirection) {
+  // Mark original trade as swing taken
+  await db.from('paper_trades').update({
+    swing_taken: true
+  }).eq('id', originalId);
+
+  // Get original trade details to populate the new swing trade
+  const { data: orig } = await db.from('paper_trades').select('*').eq('id', originalId).single();
+  if (!orig) { dismissSwing(originalId); return; }
+
+  // Open reverse position with same parameters
+  const entry          = Number(orig.current_price);
+  const slippagePct    = (orig.slippage_pct || 0.05) / 100;
+  const slippageAmount = entry * slippagePct;
+  const effectiveEntry = swingDirection === 'long'
+    ? entry + slippageAmount
+    : entry - slippageAmount;
+
+  // Stop and target flipped from original
+  const stopPct   = 0.04;
+  const targetPct = 0.08;
+  const stop   = swingDirection === 'long'
+    ? parseFloat((effectiveEntry * (1 - stopPct)).toFixed(2))
+    : parseFloat((effectiveEntry * (1 + stopPct)).toFixed(2));
+  const target = swingDirection === 'long'
+    ? parseFloat((effectiveEntry * (1 + targetPct)).toFixed(2))
+    : parseFloat((effectiveEntry * (1 - targetPct)).toFixed(2));
+
+  const { data: newTrade } = await db.from('paper_trades').insert({
+    ticker:          orig.ticker,
+    shares:          orig.shares,
+    direction:       swingDirection,
+    strategy:        orig.strategy,
+    instrument:      orig.instrument || 'stock',
+    type:            orig.type,
+    status:          'open',
+    entry_price:     parseFloat(effectiveEntry.toFixed(4)),
+    effective_entry: parseFloat(effectiveEntry.toFixed(4)),
+    current_price:   effectiveEntry,
+    stop_loss:       stop,
+    target_price:    target,
+    position_value:  parseFloat((orig.shares * effectiveEntry).toFixed(2)),
+    gain_loss:       0,
+    gain_loss_pct:   0,
+    gross_gain_loss: 0,
+    net_gain_loss:   0,
+    unrealized_gl:   0,
+    slippage_cost:   parseFloat((slippageAmount * orig.shares).toFixed(4)),
+    commission:      orig.commission,
+    slippage_pct:    orig.slippage_pct,
+    note:            'Swing from ' + (orig.swing_trigger || 'close') + ' — ' + swingDirection.toUpperCase() + ' on ' + orig.ticker,
+    opened_at:       new Date().toISOString(),
+    dex:             orig.dex || null,
+    trading_pair:    orig.trading_pair || null,
+  }).select().single();
+
+  // Link swing trade to original
+  if (newTrade?.id) {
+    await db.from('paper_trades').update({
+      swing_trade_id: newTrade.id
+    }).eq('id', originalId);
+  }
+
+  dismissSwing(originalId);
+  await updatePortfolioBalance();
+  loadTrades();
+  loadHistory();
+  loadPortfolio();
+}
+
+function dismissSwing(id) {
+  const overlay = document.getElementById('swing-overlay');
+  if (overlay) overlay.remove();
+  // Execute the close without swing
+  db.from('paper_trades').select('*').eq('id', id).single().then(({ data: t }) => {
+    if (t) {
+      updatePortfolioBalance();
+      loadTrades();
+      loadHistory();
+      loadPortfolio();
+    }
+  });
+}
+
 // ── UPDATE PORTFOLIO BALANCE ──
+// CORRECT: balance = startingBalance + sum(CLOSED net gain_loss) only
+// Unrealized P&L from open trades shown separately, never mixed into balance
 async function updatePortfolioBalance() {
-  const { data: open }  = await db.from('paper_trades').select('gain_loss, slippage_cost, commission').eq('status', 'open');
-  const { data: closed } = await db.from('paper_trades').select('gain_loss, slippage_cost, commission').eq('status', 'closed');
+  const { data: closed } = await db.from('paper_trades').select('gain_loss').eq('status', 'closed');
+  const { data: open }   = await db.from('paper_trades').select('unrealized_gl, gain_loss').eq('status', 'open');
   const { data: port }   = await db.from('paper_portfolio').select('*').single();
   if (!port) return;
 
-  const startBal   = Number(port.starting_balance) || 10000;
-  const openGL     = (open   || []).reduce((s, t) => s + Number(t.gain_loss   || 0), 0);
-  const closedGL   = (closed || []).reduce((s, t) => s + Number(t.gain_loss   || 0), 0);
-  const totalGL    = openGL + closedGL;
-  const totalCosts = [...(open||[]), ...(closed||[])].reduce((s,t) => s + Number(t.commission||0) + Number(t.slippage_cost||0), 0);
-  const netGL      = totalGL;
-  const curBal     = startBal + netGL;
-  const glPct      = (netGL / startBal) * 100;
+  const startBal    = Number(port.starting_balance) || 10000;
+  // Realized = only closed trades net P&L
+  const realizedGL  = (closed || []).reduce((s, t) => s + Number(t.gain_loss || 0), 0);
+  // Unrealized = open trades gross P&L (no costs deducted yet)
+  const unrealizedGL = (open  || []).reduce((s, t) => s + Number(t.unrealized_gl || t.gain_loss || 0), 0);
+  // Balance only moves when trades close
+  const curBal      = startBal + realizedGL;
+  const glPct       = startBal > 0 ? (realizedGL / startBal) * 100 : 0;
 
   await db.from('paper_portfolio').update({
-    current_balance:  curBal,
-    total_return:     netGL,
-    total_return_pct: glPct,
+    current_balance:  parseFloat(curBal.toFixed(2)),
+    realized_gl:      parseFloat(realizedGL.toFixed(2)),
+    unrealized_gl:    parseFloat(unrealizedGL.toFixed(2)),
+    total_return:     parseFloat(realizedGL.toFixed(2)),
+    total_return_pct: parseFloat(glPct.toFixed(4)),
     updated_at:       new Date().toISOString()
   }).eq('id', port.id);
 }
