@@ -741,6 +741,68 @@
     <div class="success-msg" id="note-success" style="margin:0;">Note saved.</div>
   </div>
 
+  <div class="gold-rule"></div>
+
+  <!-- DATABASE LOG CLEANER -->
+  <div class="section-label">Database Cleaner</div>
+  <div class="improve-sub" style="margin-bottom:1.5rem; font-size:0.75rem; color:var(--muted);">Clear junk logs and test data from the database. All actions require confirmation and cannot be undone.</div>
+
+  <div style="display:grid; gap:0.8rem; margin-bottom:2rem;">
+
+    <div style="border:1px solid var(--rule); padding:1rem; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.8rem;">
+      <div>
+        <div style="font-size:0.78rem; color:var(--white);">Paper Trades</div>
+        <div style="font-size:0.68rem; color:var(--muted);">Clear all simulation trades (open and closed)</div>
+      </div>
+      <button onclick="confirmClear('paper_trades', 'ALL simulation trades')" style="background:transparent; border:1px solid rgba(139,58,58,0.5); color:var(--danger); font-size:0.68rem; letter-spacing:0.1em; padding:0.4rem 0.8rem; cursor:pointer; font-family:'DM Sans',sans-serif; white-space:nowrap;">Clear Trades</button>
+    </div>
+
+    <div style="border:1px solid var(--rule); padding:1rem; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.8rem;">
+      <div>
+        <div style="font-size:0.78rem; color:var(--white);">Algorithm Log</div>
+        <div style="font-size:0.68rem; color:var(--muted);">Clear Governor execution logs</div>
+      </div>
+      <button onclick="confirmClear('algorithm_log', 'algorithm execution logs')" style="background:transparent; border:1px solid rgba(139,58,58,0.5); color:var(--danger); font-size:0.68rem; letter-spacing:0.1em; padding:0.4rem 0.8rem; cursor:pointer; font-family:'DM Sans',sans-serif; white-space:nowrap;">Clear Logs</button>
+    </div>
+
+    <div style="border:1px solid var(--rule); padding:1rem; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.8rem;">
+      <div>
+        <div style="font-size:0.78rem; color:var(--white);">Auto Trade Log</div>
+        <div style="font-size:0.68rem; color:var(--muted);">Clear DEX execution history</div>
+      </div>
+      <button onclick="confirmClear('auto_trade_log', 'DEX execution history')" style="background:transparent; border:1px solid rgba(139,58,58,0.5); color:var(--danger); font-size:0.68rem; letter-spacing:0.1em; padding:0.4rem 0.8rem; cursor:pointer; font-family:'DM Sans',sans-serif; white-space:nowrap;">Clear Log</button>
+    </div>
+
+    <div style="border:1px solid var(--rule); padding:1rem; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.8rem;">
+      <div>
+        <div style="font-size:0.78rem; color:var(--white);">News Feed</div>
+        <div style="font-size:0.68rem; color:var(--muted);">Clear all fetched news articles</div>
+      </div>
+      <button onclick="confirmClear('news_feed', 'all news articles')" style="background:transparent; border:1px solid rgba(139,58,58,0.5); color:var(--danger); font-size:0.68rem; letter-spacing:0.1em; padding:0.4rem 0.8rem; cursor:pointer; font-family:'DM Sans',sans-serif; white-space:nowrap;">Clear News</button>
+    </div>
+
+    <div style="border:1px solid var(--rule); padding:1rem; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.8rem;">
+      <div>
+        <div style="font-size:0.78rem; color:var(--white);">Reset Portfolio Balance</div>
+        <div style="font-size:0.68rem; color:var(--muted);">Reset paper_portfolio to $10,000 starting balance</div>
+      </div>
+      <button onclick="confirmResetPortfolio()" style="background:transparent; border:1px solid rgba(139,58,58,0.5); color:var(--danger); font-size:0.68rem; letter-spacing:0.1em; padding:0.4rem 0.8rem; cursor:pointer; font-family:'DM Sans',sans-serif; white-space:nowrap;">Reset Balance</button>
+    </div>
+
+  </div>
+
+  <!-- Confirmation Dialog -->
+  <div id="confirm-dialog" style="display:none; position:fixed; inset:0; background:rgba(8,8,8,0.95); z-index:2000; display:none; align-items:center; justify-content:center; padding:2rem;">
+    <div style="border:1px solid rgba(139,58,58,0.5); background:#0d0d0d; padding:2rem; max-width:380px; width:100%;">
+      <div style="font-size:0.65rem; letter-spacing:0.25em; color:var(--danger); font-family:'IBM Plex Mono',monospace; margin-bottom:0.8rem;">⚠ CONFIRM DELETE</div>
+      <div id="confirm-message" style="font-size:0.9rem; color:var(--white); margin-bottom:1.5rem; line-height:1.6;"></div>
+      <div style="display:flex; gap:0.8rem;">
+        <button id="confirm-yes" style="flex:1; background:rgba(139,58,58,0.15); border:1px solid rgba(139,58,58,0.5); color:var(--danger); font-family:'DM Sans',sans-serif; font-size:0.75rem; letter-spacing:0.15em; padding:0.7rem; cursor:pointer;">YES, DELETE</button>
+        <button onclick="closeConfirmDialog()" style="flex:1; background:transparent; border:1px solid var(--rule); color:var(--muted); font-family:'DM Sans',sans-serif; font-size:0.75rem; letter-spacing:0.15em; padding:0.7rem; cursor:pointer;">CANCEL</button>
+      </div>
+    </div>
+  </div>
+
 </main>
 
 <script>
@@ -904,6 +966,61 @@ const parsed = JSON.parse(text.replace(/```json|```/g, '').trim());
   }
 
   /* ── Nav ── */
+  // ── DATABASE CLEANER ──
+  let pendingClearAction = null;
+
+  function confirmClear(table, label) {
+    pendingClearAction = { type: 'clear', table };
+    document.getElementById('confirm-message').textContent = 'This will permanently delete ' + label + '. This cannot be undone. Are you sure?';
+    const dialog = document.getElementById('confirm-dialog');
+    dialog.style.display = 'flex';
+    document.getElementById('confirm-yes').onclick = executeClear;
+  }
+
+  function confirmResetPortfolio() {
+    pendingClearAction = { type: 'reset_portfolio' };
+    document.getElementById('confirm-message').textContent = 'This will reset your paper portfolio balance to $10,000 and clear all trades. Are you sure?';
+    const dialog = document.getElementById('confirm-dialog');
+    dialog.style.display = 'flex';
+    document.getElementById('confirm-yes').onclick = executeClear;
+  }
+
+  function closeConfirmDialog() {
+    document.getElementById('confirm-dialog').style.display = 'none';
+    pendingClearAction = null;
+  }
+
+  async function executeClear() {
+    if (!pendingClearAction) return;
+    closeConfirmDialog();
+    try {
+      if (pendingClearAction.type === 'clear') {
+        await db.from(pendingClearAction.table).delete().neq('id', '00000000-0000-0000-0000-000000000000');
+        alert(pendingClearAction.table + ' cleared successfully.');
+      } else if (pendingClearAction.type === 'reset_portfolio') {
+        await db.from('paper_trades').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+        const { data: port } = await db.from('paper_portfolio').select('id').single();
+        if (port?.id) {
+          await db.from('paper_portfolio').update({
+            current_balance: 10000, starting_balance: 10000,
+            realized_gl: 0, unrealized_gl: 0,
+            total_return: 0, total_return_pct: 0,
+            updated_at: new Date().toISOString()
+          }).eq('id', port.id);
+        } else {
+          await db.from('paper_portfolio').insert({
+            starting_balance: 10000, current_balance: 10000,
+            realized_gl: 0, unrealized_gl: 0,
+            total_return: 0, total_return_pct: 0,
+          });
+        }
+        alert('Portfolio reset to $10,000 successfully.');
+      }
+    } catch(e) {
+      alert('Error: ' + (e?.message || 'Delete failed.'));
+    }
+  }
+
   function openNav() {
     document.getElementById('nav-overlay').classList.add('open');
   }
