@@ -646,9 +646,6 @@
   </div>
 </header>
 
-<div id="ai-mode-banner" style="display:none; background:rgba(201,168,76,0.06); border-bottom:1px solid rgba(201,168,76,0.3); padding:0.5rem 2.5rem; font-size:0.68rem; letter-spacing:0.1em; color:#C9A84C; font-family:'IBM Plex Mono',monospace;">
-  ⚡ MATH MODE ACTIVE — Gemini quota exhausted. Governor running on live math signals. AI synthesis resumes when daily quota resets.
-</div>
 
 <!-- LIVE PRICE FEED BAR -->
 <div class="price-feed-bar" id="price-feed-bar">
@@ -914,17 +911,26 @@
 
   // ── DATA LOADERS ──
   async function loadPicks() {
-    const { data } = await db.from('picks').select('*').order('picked_at', { ascending: false }).limit(5);
+    const modeType = currentMode === 'crypto' ? 'crypto' : 'stock';
+    const { data } = await db.from('picks').select('*')
+      .eq('type', modeType)
+      .order('picked_at', { ascending: false })
+      .limit(5);
     const container = document.getElementById('picks-container');
-    if (!data || !data.length) return;
-    container.innerHTML = data.map(p => {
+    if (!data || !data.length) {
+      container.innerHTML = '<div style="font-size:0.8rem;color:var(--muted);padding:1rem 0;">No picks yet for ' + modeType + ' mode.</div>';
+      return;
+    }
+    container.innerHTML = data.map((p, idx) => {
       const signals = p.signals || {};
       const spread  = signals.spread || null;
+      // Use idx to make IDs unique even if same ticker appears twice
+      const priceId = 'pick-price-' + idx + '-' + (p.ticker || '').replace(/[^a-zA-Z0-9]/g, '');
       return `
       <div class="pick-card">
-        <div class="pick-score ${p.score >= 75 ? 'high' : 'mid'}">${p.score}</div>
+        <div class="pick-score ${(p.score || 0) >= 75 ? 'high' : 'mid'}">${p.score || '—'}</div>
         <div class="pick-info">
-          <div class="pick-ticker">${p.ticker} <span id="pick-price-${p.ticker}" style="font-size:0.7rem;color:var(--muted);font-family:'IBM Plex Mono',monospace;"></span></div>
+          <div class="pick-ticker">${p.ticker || '—'} <span id="${priceId}" style="font-size:0.7rem;color:var(--muted);font-family:'IBM Plex Mono',monospace;"></span></div>
           <div class="pick-brief">${p.brief || '—'}</div>
           ${signals.momentum || signals.sentiment ? `
           <div class="signal-breakdown">
@@ -942,7 +948,7 @@
             </div>
             <div class="spread-case base">
               <div class="spread-label">Base Case</div>
-              <div class="spread-return ${spread.base_case_return >= 0 ? 'positive' : 'negative'}">${spread.base_case_return >= 0 ? '+' : ''}${spread.base_case_return}%</div>
+              <div class="spread-return ${(spread.base_case_return || 0) >= 0 ? 'positive' : 'negative'}">${(spread.base_case_return || 0) >= 0 ? '+' : ''}${spread.base_case_return}%</div>
               <div class="spread-prob">${spread.base_probability}% prob</div>
             </div>
             <div class="spread-case bear">
@@ -1047,17 +1053,6 @@
         currentMode = settings.active_mode;
         document.getElementById('mode-stock').classList.toggle('mode-active', currentMode === 'stock');
         document.getElementById('mode-crypto').classList.toggle('mode-active', currentMode === 'crypto');
-      }
-    } catch(e) {}
-
-    // Check last Governor log to see if math mode is active
-    try {
-      const { data: lastLog } = await db.from('algorithm_log')
-        .select('output').eq('algorithm_name', 'governor')
-        .order('created_at', { ascending: false }).limit(1).single();
-      const banner = document.getElementById('ai-mode-banner');
-      if (banner && lastLog?.output?.ai_mode === 'math') {
-        banner.style.display = 'block';
       }
     } catch(e) {}
 
