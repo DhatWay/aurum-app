@@ -1360,9 +1360,16 @@ async function getClaudeSuggestion() {
       }
       governorBrief = gov.governor_brief || gov.claude_brief || governorBrief;
       governorMeta = {
-        algoCount:    gov.algorithms_succeeded || 0,
-        signalQuality: gov.signal_quality      || 0,
-        coveragePct:  gov.coverage_pct         || 0,
+        algoCount:            gov.algorithms_succeeded || 0,
+        signalQuality:        gov.signal_quality       || 0,
+        coveragePct:          gov.coverage_pct         || 0,
+        recommended_position_pct: gov.recommended_position_pct || 5,
+        swing_signal:         gov.swing_signal         || false,
+        swing_direction:      gov.swing_direction      || null,
+        swing_confidence:     gov.swing_confidence     || null,
+        entry_price:          gov.entry_price          || null,
+        stop_loss:            gov.stop_loss            || null,
+        target_price:         gov.target_price         || null,
       };
 
       thinking.textContent = 'Governor complete — ' + governorMeta.algoCount + ' algorithms ran. Asking Gemini...';
