@@ -1336,28 +1336,15 @@ async function getClaudeSuggestion() {
     let governorBrief = 'Governor unavailable — proceeding without algorithm execution.';
     let governorMeta = { algoCount: 0, signalQuality: 0, coveragePct: 0 };
 
-    // Governor call with one retry on failure (handles cold start timeouts)
-    async function callGovernor() {
+    try {
+      thinking.textContent = 'Governor executing algorithms...';
       const govRes = await fetch(GOVERNOR_EDGE_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + GOVERNOR_ANON_KEY },
         body: JSON.stringify({ ticker: targetTicker, strategy: currentStrategy, instrument: currentInstrument, mode: activeMode })
       });
-      if (!govRes.ok) throw new Error('Governor returned ' + govRes.status);
-      return await govRes.json();
-    }
-
-    try {
-      thinking.textContent = 'Governor executing 25 algorithms...';
-      let gov;
-      try {
-        gov = await callGovernor();
-      } catch(firstErr) {
-        // Cold start — wait 3 seconds and retry once
-        thinking.textContent = 'Governor warming up — retrying...';
-        await new Promise(r => setTimeout(r, 3000));
-        gov = await callGovernor();
-      }
+      const gov = govRes.ok ? await govRes.json() : null;
+      if (gov) {
       governorBrief = gov.governor_brief || gov.claude_brief || governorBrief;
       governorMeta = {
         algoCount:            gov.algorithms_succeeded || 0,
@@ -1373,6 +1360,7 @@ async function getClaudeSuggestion() {
       };
 
       thinking.textContent = 'Governor complete — ' + governorMeta.algoCount + ' algorithms ran. Asking Gemini...';
+      }
     } catch(govErr) {
       governorBrief = 'Governor edge function failed: ' + govErr.message + '. Proceeding without algorithm execution.';
     }
