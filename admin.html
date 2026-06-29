@@ -743,6 +743,16 @@
 
   <div class="gold-rule"></div>
 
+  <!-- POSITION ALERTS -->
+  <div class="section-label">Position Alerts</div>
+  <div class="improve-sub" style="margin-bottom:1rem; font-size:0.75rem; color:var(--muted);">Live intelligence alerts from the position monitor — signal changes, stop adjustments, direction reversals.</div>
+  <div id="admin-alerts-container"></div>
+  <div style="margin-bottom:2rem;">
+    <button class="btn" onclick="clearAllAlerts()" style="font-size:0.7rem; padding:0.5rem 1rem;">Clear All Alerts</button>
+  </div>
+
+  <div class="gold-rule"></div>
+
   <!-- DATABASE LOG CLEANER -->
   <div class="section-label">Database Cleaner</div>
   <div class="improve-sub" style="margin-bottom:1.5rem; font-size:0.75rem; color:var(--muted);">Clear junk logs and test data from the database. All actions require confirmation and cannot be undone.</div>
@@ -966,6 +976,40 @@ const parsed = JSON.parse(text.replace(/```json|```/g, '').trim());
   }
 
   /* ── Nav ── */
+  // ── POSITION ALERTS ──
+  async function loadAdminAlerts() {
+    try {
+      const { data } = await db.from('position_alerts')
+        .select('*').order('created_at', { ascending: false }).limit(20);
+      const container = document.getElementById('admin-alerts-container');
+      if (!data || !data.length) {
+        container.innerHTML = '<div style="font-size:0.8rem;color:var(--muted);padding:1rem 0;">No alerts.</div>';
+        return;
+      }
+      const colors = { direction_reversal: 'var(--danger)', stop_tightened: 'var(--gold)', target_reached: 'var(--positive)', stop_loss_triggered: 'var(--danger)', manual_close: 'var(--muted)' };
+      container.innerHTML = data.map(a => {
+        const color = colors[a.alert_type] || 'var(--muted)';
+        const time  = new Date(a.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+        return '<div style="border:1px solid var(--rule);border-left:3px solid ' + color + ';padding:0.8rem 1rem;margin-bottom:0.5rem;opacity:' + (a.read ? '0.5' : '1') + ';">' +
+          '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.3rem;">' +
+            '<span style="font-size:0.62rem;letter-spacing:0.15em;color:' + color + ';font-family:\'IBM Plex Mono\',monospace;">' + a.alert_type.toUpperCase().replace(/_/g,' ') + ' · ' + a.ticker + '</span>' +
+            '<span style="font-size:0.65rem;color:var(--muted);">' + time + '</span>' +
+          '</div>' +
+          '<div style="font-size:0.8rem;color:var(--white);line-height:1.5;">' + a.message + '</div>' +
+        '</div>';
+      }).join('');
+    } catch(e) {
+      document.getElementById('admin-alerts-container').innerHTML = '<div style="font-size:0.8rem;color:var(--muted);">Position alerts table not yet created. Run intelligent_workflow_setup.sql first.</div>';
+    }
+  }
+
+  async function clearAllAlerts() {
+    try {
+      await db.from('position_alerts').update({ read: true }).eq('read', false);
+      loadAdminAlerts();
+    } catch(e) {}
+  }
+
   // ── DATABASE CLEANER ──
   let pendingClearAction = null;
 
@@ -1408,6 +1452,7 @@ const parsed = JSON.parse(text.replace(/```json|```/g, '').trim());
     autoRatePicks();
     loadAdminWatchlist();
     loadNotes();
+    loadAdminAlerts();
   });
 </script>
 
