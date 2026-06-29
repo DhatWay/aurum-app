@@ -643,6 +643,7 @@
       <button id="mode-crypto" onclick="switchMode('crypto')" style="background:transparent; border:none; color:#6B6560; padding:0.4rem 0.8rem; cursor:pointer; transition:all 0.3s;">CRYPTO</button>
     </div>
     <button class="hamburger" onclick="openNav()">☰</button>
+    <div id="alert-badge" style="display:none; background:var(--danger); color:#fff; font-size:0.6rem; font-family:'IBM Plex Mono',monospace; padding:0.2rem 0.5rem; border-radius:2px; cursor:pointer;" onclick="window.location.href='simulator.html'">⚠ ALERTS</div>
   </div>
 </header>
 
@@ -1060,9 +1061,19 @@
     await loadAccuracy();
     await loadWatchlist();
     await loadRatings();
+    await checkPositionAlerts();
 
     // Auto-refresh prices every 30 seconds
     priceFeedInterval = setInterval(refreshPrices, 30000);
+  }
+
+  async function checkPositionAlerts() {
+    try {
+      const { data } = await db.from('position_alerts')
+        .select('id').eq('read', false).limit(1);
+      const badge = document.getElementById('alert-badge');
+      if (badge) badge.style.display = data?.length ? 'block' : 'none';
+    } catch(e) {}
   }
 
   function openNav() { document.getElementById('nav-overlay').classList.add('open'); }
