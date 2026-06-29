@@ -1375,7 +1375,8 @@ async function executeAutoOrder() {
       instrument:              'crypto',
       brokerage:               currentInstruction.dex || 'dex',
       executed_at:             new Date().toISOString(),
-      type:                    'crypto'
+      type:                    'crypto',
+      entry_signal_quality:    currentInstruction.signal_quality || 50,
     });
 
     await loadLog();
@@ -1418,7 +1419,8 @@ async function executeAutoOrder() {
       alpaca_order_id:         result.orderId || null,
       brokerage:               'alpaca',
       executed_at:             new Date().toISOString(),
-      type:                    'stock'
+      type:                    'stock',
+      entry_signal_quality:    currentInstruction.signal_quality || 50,
     });
 
     await loadLog();
