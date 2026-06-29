@@ -777,6 +777,11 @@ footer p { font-size: 0.6rem; letter-spacing: 0.12em; color: var(--muted); text-
   <div class="gold-rule"></div>
 
   <!-- CLAUDE SUGGESTION -->
+  <!-- Position Alerts -->
+  <div id="position-alerts-container" style="display:none; margin-bottom:1.5rem;">
+    <div style="font-size:0.65rem;letter-spacing:0.2em;color:var(--gold);font-family:'IBM Plex Mono',monospace;margin-bottom:0.5rem;">⚠ POSITION ALERTS</div>
+  </div>
+
   <button class="btn-claude" id="claude-btn" onclick="getClaudeSuggestion()">Get Claude Trade Suggestion</button>
   <div class="claude-thinking" id="claude-thinking">Claude is analyzing your watchlist and algorithms...</div>
 
@@ -1110,6 +1115,7 @@ async function loadTrades() {
         <div>${t.stop_loss ? '<span class="stop-badge' + (stopTriggered ? ' triggered' : '') + '">' + stopLabel + (stopTriggered ? ' !' : '') + '</span>' : '<span style="color:var(--muted);font-size:0.65rem">—</span>'}</div>
         <div class="trade-gl ${gl >= 0 ? 'positive' : 'negative'}">${gl >= 0 ? '+' : ''}$${Math.abs(gl).toFixed(2)} (${glPct >= 0 ? '+' : ''}${glPct.toFixed(2)}%)</div>
         ${t.type === 'crypto' && t.dex ? `<div style="font-size:0.65rem;color:var(--gold);font-family:'IBM Plex Mono',monospace;letter-spacing:0.08em;">${t.dex}${t.trading_pair ? ' · ' + t.trading_pair : ''}</div>` : '<div></div>'}
+        <div style="font-size:0.65rem;font-family:'IBM Plex Mono',monospace;color:${(t.live_signal_quality||50) >= 60 ? 'var(--positive)' : (t.live_signal_quality||50) >= 40 ? 'var(--muted)' : 'var(--danger)'};">SQ: ${t.live_signal_quality || t.entry_signal_quality || '—'}/100</div>
         <button class="close-btn" onclick="closeTrade('${t.id}')">Close</button>
       </div>
     `;
