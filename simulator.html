@@ -974,12 +974,15 @@ async function loadActiveMode() {
 
   // Update UI for active mode
   const sharesLabel = document.getElementById('shares-label');
+  const sharesInput = document.getElementById('num-shares');
   const openBtn     = document.getElementById('open-trade-btn');
   if (activeMode === 'crypto') {
     if (sharesLabel) sharesLabel.textContent = 'Quantity (e.g. 0.5 ETH)';
+    if (sharesInput) { sharesInput.step = '0.0001'; sharesInput.min = '0.0001'; sharesInput.placeholder = 'e.g. 0.5'; }
     if (openBtn)     openBtn.textContent     = 'Open Crypto Paper Position';
   } else {
     if (sharesLabel) sharesLabel.textContent = 'Number of Shares';
+    if (sharesInput) { sharesInput.step = '1'; sharesInput.min = '1'; sharesInput.placeholder = 'e.g. 10'; }
     if (openBtn)     openBtn.textContent     = 'Open Simulated Position';
   }
 }
