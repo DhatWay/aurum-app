@@ -759,6 +759,7 @@
   const TWELVE_KEY = '1fbbfd6ec92c489ca009d00e7127fbe3';
   let priceCache = {};
   let priceFeedInterval = null;
+  let lastFetchErrors = [];
   let watchlistTickers = [];
   let currentMode = 'stock'; // 'stock' or 'crypto' — loaded from trading_settings on init
 
@@ -835,13 +836,13 @@
 
     try {
       // Twelve Data free tier limits batch quotes to 8 symbols per call
-      // Split watchlist into batches of 8 and fetch all of them
       const batches = [];
       for (let i = 0; i < tickers.length; i += 8) {
         batches.push(tickers.slice(i, i + 8));
       }
 
       const prices = {};
+      const errors = [];
 
       await Promise.all(batches.map(async (batch) => {
         const symbols = batch.join(',');
@@ -849,23 +850,49 @@
           const res = await fetch(
             'https://api.twelvedata.com/quote?symbol=' + symbols + '&apikey=' + TWELVE_KEY
           );
-          if (!res.ok) return;
+          if (!res.ok) {
+            errors.push('Batch [' + symbols + ']: HTTP ' + res.status);
+            return;
+          }
           const data = await res.json();
+
+          // Check for top-level error (rate limit, invalid key, etc.)
+          if (data.code && data.code !== 200) {
+            errors.push('Batch [' + symbols + ']: ' + (data.message || 'API error ' + data.code));
+            return;
+          }
+
           const quotes = batch.length === 1 ? { [batch[0]]: data } : data;
 
           Object.entries(quotes).forEach(([ticker, q]) => {
-            if (!q || q.code || !q.close) return;
+            if (!q || q.code || !q.close) {
+              if (q?.code) errors.push(ticker + ': ' + (q.message || 'error ' + q.code));
+              return;
+            }
             const price = parseFloat(q.close);
             const prevClose = parseFloat(q.previous_close || q.close);
             prices[ticker] = {
               price,
-              change:    price - prevClose,
-              changePct: prevClose > 0 ? (price - prevClose) / prevClose * 100 : 0,
-              source:    'twelve_data'
+              change:        price - prevClose,
+              changePct:     prevClose > 0 ? (price - prevClose) / prevClose * 100 : 0,
+              dayOpen:       parseFloat(q.open)  || null,
+              dayHigh:       parseFloat(q.high)  || null,
+              dayLow:        parseFloat(q.low)   || null,
+              dayVolume:     parseInt(q.volume)  || null,
+              fiftyTwoHigh:  parseFloat(q.fifty_two_week?.high) || null,
+              fiftyTwoLow:   parseFloat(q.fifty_two_week?.low)  || null,
+              source:        'twelve_data'
             };
           });
-        } catch(e) { /* skip failed batch */ }
+        } catch(e) {
+          errors.push('Batch [' + symbols + ']: ' + (e.message || 'fetch failed'));
+        }
       }));
+
+      if (errors.length) {
+        console.warn('Price fetch errors:', errors.join(' | '));
+      }
+      lastFetchErrors = errors;
 
       return prices;
     } catch(e) {
@@ -885,7 +912,22 @@
   async function refreshPrices(tickersToFetch) {
     const targets = tickersToFetch || watchlistTickers;
     if (!targets.length) return;
+
+    // Mark fetch attempt for all targets, even if it fails
+    const attemptTime = new Date().toISOString();
+    await Promise.all(targets.map(t =>
+      db.from('stocks').update({ last_fetch_attempt_at: attemptTime }).eq('ticker', t).catch(() => {})
+    ));
+
     const prices = await fetchLivePrices(targets);
+
+    // Store any errors on the tickers that failed
+    if (lastFetchErrors.length) {
+      await db.from('stocks').update({
+        last_fetch_error: lastFetchErrors.join(' | ').slice(0, 500)
+      }).in('ticker', targets).catch(() => {});
+    }
+
     if (Object.keys(prices).length === 0) return;
 
     Object.assign(priceCache, prices);
@@ -897,10 +939,17 @@
     const now = new Date().toISOString();
     await Promise.all(Object.entries(prices).map(([ticker, d]) =>
       db.from('stocks').update({
-        last_price:       d.price,
-        price_change:     d.change,
-        price_change_pct: d.changePct,
-        price_updated_at: now,
+        last_price:        d.price,
+        price_change:      d.change,
+        price_change_pct:  d.changePct,
+        price_updated_at:  now,
+        day_open:          d.dayOpen,
+        day_high:          d.dayHigh,
+        day_low:           d.dayLow,
+        day_volume:        d.dayVolume,
+        fifty_two_wk_high: d.fiftyTwoHigh,
+        fifty_two_wk_low:  d.fiftyTwoLow,
+        last_fetch_error:  null,
       }).eq('ticker', ticker).catch(() => {})
     ));
   }
@@ -1037,18 +1086,22 @@
     container.innerHTML = data.map(s => {
       const hasPrice = s.last_price !== null && s.last_price !== undefined;
       const isCryptoUnmapped = currentMode === 'crypto' && !COINGECKO_IDS[s.ticker.toUpperCase()];
+      const hasError = !hasPrice && s.last_fetch_error;
       const priceText = isCryptoUnmapped
         ? 'Not supported'
-        : hasPrice
-          ? '$' + Number(s.last_price).toFixed(2) + ' (' + (s.price_change_pct >= 0 ? '+' : '') + Number(s.price_change_pct || 0).toFixed(2) + '%)'
-          : '—';
-      const priceClass = hasPrice && !isCryptoUnmapped ? (s.price_change >= 0 ? 'up' : 'down') : '';
+        : hasError
+          ? 'Fetch failed'
+          : hasPrice
+            ? '$' + Number(s.last_price).toFixed(2) + ' (' + (s.price_change_pct >= 0 ? '+' : '') + Number(s.price_change_pct || 0).toFixed(2) + '%)'
+            : '—';
+      const priceClass = hasPrice && !isCryptoUnmapped ? (s.price_change >= 0 ? 'up' : 'down') : hasError ? 'down' : '';
+      const errorTitle = hasError ? s.last_fetch_error : '';
       return `
       <div class="watchlist-row" style="grid-template-columns:1fr 1fr 1fr auto;">
         <div class="watchlist-ticker">${s.ticker}</div>
         <div class="watchlist-company">${s.company_name || '—'}</div>
         <div class="watchlist-sector">${s.sector || '—'}</div>
-        <div class="watchlist-price ${priceClass}" id="wl-price-${s.ticker}">${priceText}</div>
+        <div class="watchlist-price ${priceClass}" id="wl-price-${s.ticker}" title="${errorTitle}">${priceText}</div>
       </div>
     `;}).join('');
 
