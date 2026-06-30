@@ -1149,7 +1149,9 @@ const parsed = JSON.parse(text.replace(/```json|```/g, '').trim());
     const sector  = document.getElementById('new-sector').value.trim();
     if (!ticker) return;
 
-    const { error } = await db.from('stocks').insert({ ticker, company_name: company, sector });
+    const modeType = activeMode === 'crypto' ? 'crypto' : 'stock';
+
+    const { error } = await db.from('stocks').insert({ ticker, company_name: company, sector, type: modeType });
     if (!error) {
       document.getElementById('stock-success').classList.add('visible');
       document.getElementById('new-ticker').value  = '';
@@ -1157,21 +1159,69 @@ const parsed = JSON.parse(text.replace(/```json|```/g, '').trim());
       document.getElementById('new-sector').value  = '';
       setTimeout(() => document.getElementById('stock-success').classList.remove('visible'), 3000);
 
-      // Fetch live price immediately for the newly added ticker
+      // Fetch live price immediately — route to correct source based on mode
       try {
-        const TWELVE_KEY = '1fbbfd6ec92c489ca009d00e7127fbe3';
-        const res = await fetch('https://api.twelvedata.com/quote?symbol=' + ticker + '&apikey=' + TWELVE_KEY);
-        if (res.ok) {
-          const q = await res.json();
-          if (q && q.close && !q.code) {
-            const price = parseFloat(q.close);
-            const prevClose = parseFloat(q.previous_close || q.close);
-            await db.from('stocks').update({
-              last_price:       price,
-              price_change:     price - prevClose,
-              price_change_pct: prevClose > 0 ? (price - prevClose) / prevClose * 100 : 0,
-              price_updated_at: new Date().toISOString(),
-            }).eq('ticker', ticker);
+        if (modeType === 'crypto') {
+          const CG_IDS = {
+            BTC:'bitcoin', ETH:'ethereum', SOL:'solana', BNB:'binancecoin', XRP:'ripple',
+            AVAX:'avalanche-2', MATIC:'matic-network', LINK:'chainlink', ADA:'cardano',
+            DOT:'polkadot', DOGE:'dogecoin', SHIB:'shiba-inu', UNI:'uniswap', ATOM:'cosmos',
+            LTC:'litecoin', TRX:'tron', HYPE:'hyperliquid'
+          };
+          const id = CG_IDS[ticker];
+          if (id) {
+            const res = await fetch('https://api.coingecko.com/api/v3/coins/' + id + '?localization=false&tickers=false&community_data=false&developer_data=false');
+            if (res.ok) {
+              const coinData = await res.json();
+              const md = coinData?.market_data;
+              if (md) {
+                const price     = md.current_price?.usd || 0;
+                const changePct = md.price_change_percentage_24h || 0;
+                await db.from('stocks').update({
+                  last_price:        price,
+                  price_change:      price * changePct / 100,
+                  price_change_pct:  changePct,
+                  price_updated_at:  new Date().toISOString(),
+                  day_high:          md.high_24h?.usd || null,
+                  day_low:           md.low_24h?.usd  || null,
+                  fifty_two_wk_high: md.ath?.usd || null,
+                  fifty_two_wk_low:  md.atl?.usd || null,
+                  market_cap:        md.market_cap?.usd ? Math.round(md.market_cap.usd) : null,
+                  last_fetch_error:  null,
+                }).eq('ticker', ticker);
+              }
+            } else {
+              await db.from('stocks').update({ last_fetch_error: 'CoinGecko fetch failed: HTTP ' + res.status }).eq('ticker', ticker);
+            }
+          } else {
+            await db.from('stocks').update({ last_fetch_error: 'No CoinGecko ID mapped for ' + ticker }).eq('ticker', ticker);
+          }
+        } else {
+          const TWELVE_KEY = '1fbbfd6ec92c489ca009d00e7127fbe3';
+          const res = await fetch('https://api.twelvedata.com/quote?symbol=' + ticker + '&apikey=' + TWELVE_KEY);
+          if (res.ok) {
+            const q = await res.json();
+            if (q && q.close && !q.code) {
+              const price = parseFloat(q.close);
+              const prevClose = parseFloat(q.previous_close || q.close);
+              await db.from('stocks').update({
+                last_price:        price,
+                price_change:      price - prevClose,
+                price_change_pct:  prevClose > 0 ? (price - prevClose) / prevClose * 100 : 0,
+                price_updated_at:  new Date().toISOString(),
+                day_open:          parseFloat(q.open) || null,
+                day_high:          parseFloat(q.high) || null,
+                day_low:           parseFloat(q.low)  || null,
+                day_volume:        parseInt(q.volume) || null,
+                fifty_two_wk_high: parseFloat(q.fifty_two_week?.high) || null,
+                fifty_two_wk_low:  parseFloat(q.fifty_two_week?.low)  || null,
+                last_fetch_error:  null,
+              }).eq('ticker', ticker);
+            } else {
+              await db.from('stocks').update({ last_fetch_error: q?.message || 'Invalid symbol or no data' }).eq('ticker', ticker);
+            }
+          } else {
+            await db.from('stocks').update({ last_fetch_error: 'Twelve Data fetch failed: HTTP ' + res.status }).eq('ticker', ticker);
           }
         }
       } catch(e) { /* price fetch is best-effort, non-blocking */ }
