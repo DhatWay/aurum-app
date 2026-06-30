@@ -1080,21 +1080,17 @@
 
     watchlistTickers = data.map(s => s.ticker);
 
-    const now = Date.now();
-    const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
-
+    // Show cached prices immediately while live fetch runs in background
     container.innerHTML = data.map(s => {
       const hasPrice = s.last_price !== null && s.last_price !== undefined;
       const isCryptoUnmapped = currentMode === 'crypto' && !COINGECKO_IDS[s.ticker.toUpperCase()];
       const hasError = !hasPrice && s.last_fetch_error;
       const priceText = isCryptoUnmapped
         ? 'Not supported'
-        : hasError
-          ? 'Fetch failed'
-          : hasPrice
-            ? '$' + Number(s.last_price).toFixed(2) + ' (' + (s.price_change_pct >= 0 ? '+' : '') + Number(s.price_change_pct || 0).toFixed(2) + '%)'
-            : '—';
-      const priceClass = hasPrice && !isCryptoUnmapped ? (s.price_change >= 0 ? 'up' : 'down') : hasError ? 'down' : '';
+        : hasPrice
+          ? '$' + Number(s.last_price).toFixed(2) + ' (' + (s.price_change_pct >= 0 ? '+' : '') + Number(s.price_change_pct || 0).toFixed(2) + '%)'
+          : '—';
+      const priceClass = hasPrice && !isCryptoUnmapped ? (s.price_change >= 0 ? 'up' : 'down') : '';
       const errorTitle = hasError ? s.last_fetch_error : '';
       return `
       <div class="watchlist-row" style="grid-template-columns:1fr 1fr 1fr auto;">
@@ -1105,16 +1101,9 @@
       </div>
     `;}).join('');
 
-    // Only fetch live prices for tickers with no cached price OR cache older than 24 hours
-    const staleTickers = data.filter(s => {
-      if (!s.price_updated_at) return true;
-      const age = now - new Date(s.price_updated_at).getTime();
-      return age > TWENTY_FOUR_HOURS;
-    }).map(s => s.ticker);
-
-    if (staleTickers.length) {
-      refreshPrices(staleTickers);
-    }
+    // Always fetch live prices for ALL tickers — both stock and crypto
+    // Runs after rendering cached data so page shows immediately
+    refreshPrices(watchlistTickers);
   }
 
   async function switchMode(mode) {
