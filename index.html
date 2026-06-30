@@ -778,15 +778,23 @@
     'SHIB':  'shiba-inu',
     'UNI':   'uniswap',
     'ATOM':  'cosmos',
-    'LTC':   'litecoin'
+    'LTC':   'litecoin',
+    'TRX':   'tron',
+    'HYPE':  'hyperliquid',
   };
 
   async function fetchCryptoPrices(tickers) {
     if (!tickers || !tickers.length) return {};
     try {
-      const ids = tickers
+      const mappedTickers = tickers.filter(t => COINGECKO_IDS[t.toUpperCase()]);
+      const unmappedTickers = tickers.filter(t => !COINGECKO_IDS[t.toUpperCase()]);
+
+      if (unmappedTickers.length) {
+        console.warn('No CoinGecko ID mapped for:', unmappedTickers.join(', '));
+      }
+
+      const ids = mappedTickers
         .map(t => COINGECKO_IDS[t.toUpperCase()])
-        .filter(Boolean)
         .join(',');
       if (!ids) return {};
 
@@ -1028,10 +1036,13 @@
 
     container.innerHTML = data.map(s => {
       const hasPrice = s.last_price !== null && s.last_price !== undefined;
-      const priceText = hasPrice
-        ? '$' + Number(s.last_price).toFixed(2) + ' (' + (s.price_change_pct >= 0 ? '+' : '') + Number(s.price_change_pct || 0).toFixed(2) + '%)'
-        : '—';
-      const priceClass = hasPrice ? (s.price_change >= 0 ? 'up' : 'down') : '';
+      const isCryptoUnmapped = currentMode === 'crypto' && !COINGECKO_IDS[s.ticker.toUpperCase()];
+      const priceText = isCryptoUnmapped
+        ? 'Not supported'
+        : hasPrice
+          ? '$' + Number(s.last_price).toFixed(2) + ' (' + (s.price_change_pct >= 0 ? '+' : '') + Number(s.price_change_pct || 0).toFixed(2) + '%)'
+          : '—';
+      const priceClass = hasPrice && !isCryptoUnmapped ? (s.price_change >= 0 ? 'up' : 'down') : '';
       return `
       <div class="watchlist-row" style="grid-template-columns:1fr 1fr 1fr auto;">
         <div class="watchlist-ticker">${s.ticker}</div>
