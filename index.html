@@ -823,30 +823,38 @@
     }
 
     try {
-      // Twelve Data batch quote — comma-separated symbols in one call
-      const symbols = tickers.slice(0, 8).join(',');
-      const res = await fetch(
-        'https://api.twelvedata.com/quote?symbol=' + symbols + '&apikey=' + TWELVE_KEY
-      );
-      if (!res.ok) return {};
+      // Twelve Data free tier limits batch quotes to 8 symbols per call
+      // Split watchlist into batches of 8 and fetch all of them
+      const batches = [];
+      for (let i = 0; i < tickers.length; i += 8) {
+        batches.push(tickers.slice(i, i + 8));
+      }
 
-      const data = await res.json();
       const prices = {};
 
-      // Twelve Data returns a single object for 1 symbol, or {symbol: {...}} for multiple
-      const quotes = tickers.length === 1 ? { [tickers[0]]: data } : data;
+      await Promise.all(batches.map(async (batch) => {
+        const symbols = batch.join(',');
+        try {
+          const res = await fetch(
+            'https://api.twelvedata.com/quote?symbol=' + symbols + '&apikey=' + TWELVE_KEY
+          );
+          if (!res.ok) return;
+          const data = await res.json();
+          const quotes = batch.length === 1 ? { [batch[0]]: data } : data;
 
-      Object.entries(quotes).forEach(([ticker, q]) => {
-        if (!q || q.code || !q.close) return; // skip error entries
-        const price = parseFloat(q.close);
-        const prevClose = parseFloat(q.previous_close || q.close);
-        prices[ticker] = {
-          price,
-          change:    price - prevClose,
-          changePct: prevClose > 0 ? (price - prevClose) / prevClose * 100 : 0,
-          source:    'twelve_data'
-        };
-      });
+          Object.entries(quotes).forEach(([ticker, q]) => {
+            if (!q || q.code || !q.close) return;
+            const price = parseFloat(q.close);
+            const prevClose = parseFloat(q.previous_close || q.close);
+            prices[ticker] = {
+              price,
+              change:    price - prevClose,
+              changePct: prevClose > 0 ? (price - prevClose) / prevClose * 100 : 0,
+              source:    'twelve_data'
+            };
+          });
+        } catch(e) { /* skip failed batch */ }
+      }));
 
       return prices;
     } catch(e) {
