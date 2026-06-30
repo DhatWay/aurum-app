@@ -711,7 +711,10 @@
 
   <div class="gold-rule"></div>
 
-  <div class="section-label">Watchlist</div>
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+    <div class="section-label" style="margin-bottom:0;">Watchlist</div>
+    <button onclick="manualRefreshAll()" id="manual-refresh-btn" style="background:transparent; border:1px solid rgba(201,168,76,0.3); color:var(--muted); font-size:0.65rem; letter-spacing:0.1em; padding:0.3rem 0.8rem; cursor:pointer; font-family:'DM Sans',sans-serif;">Refresh Prices</button>
+  </div>
   <div class="watchlist">
     <div class="watchlist-header">
       <span>Ticker</span>
@@ -862,15 +865,36 @@
     }
   }
 
-  async function refreshPrices() {
-    if (!watchlistTickers.length) return;
-    const prices = await fetchLivePrices(watchlistTickers);
+  async function manualRefreshAll() {
+    const btn = document.getElementById('manual-refresh-btn');
+    btn.disabled = true;
+    btn.textContent = 'Refreshing...';
+    await refreshPrices(watchlistTickers);
+    btn.textContent = 'Refreshed';
+    setTimeout(() => { btn.textContent = 'Refresh Prices'; btn.disabled = false; }, 2000);
+  }
+
+  async function refreshPrices(tickersToFetch) {
+    const targets = tickersToFetch || watchlistTickers;
+    if (!targets.length) return;
+    const prices = await fetchLivePrices(targets);
     if (Object.keys(prices).length === 0) return;
 
     Object.assign(priceCache, prices);
     updatePriceFeedBar(prices);
     updateWatchlistPrices(prices);
     updatePickPrices(prices);
+
+    // Persist fetched prices to database with timestamp — this is the 24hr cache
+    const now = new Date().toISOString();
+    await Promise.all(Object.entries(prices).map(([ticker, d]) =>
+      db.from('stocks').update({
+        last_price:       d.price,
+        price_change:     d.change,
+        price_change_pct: d.changePct,
+        price_updated_at: now,
+      }).eq('ticker', ticker).catch(() => {})
+    ));
   }
 
   function updatePriceFeedBar(prices) {
@@ -999,17 +1023,34 @@
 
     watchlistTickers = data.map(s => s.ticker);
 
-    container.innerHTML = data.map(s => `
+    const now = Date.now();
+    const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
+
+    container.innerHTML = data.map(s => {
+      const hasPrice = s.last_price !== null && s.last_price !== undefined;
+      const priceText = hasPrice
+        ? '$' + Number(s.last_price).toFixed(2) + ' (' + (s.price_change_pct >= 0 ? '+' : '') + Number(s.price_change_pct || 0).toFixed(2) + '%)'
+        : '—';
+      const priceClass = hasPrice ? (s.price_change >= 0 ? 'up' : 'down') : '';
+      return `
       <div class="watchlist-row" style="grid-template-columns:1fr 1fr 1fr auto;">
         <div class="watchlist-ticker">${s.ticker}</div>
         <div class="watchlist-company">${s.company_name || '—'}</div>
         <div class="watchlist-sector">${s.sector || '—'}</div>
-        <div class="watchlist-price" id="wl-price-${s.ticker}">—</div>
+        <div class="watchlist-price ${priceClass}" id="wl-price-${s.ticker}">${priceText}</div>
       </div>
-    `).join('');
+    `;}).join('');
 
-    // Fetch prices immediately after loading watchlist
-    refreshPrices();
+    // Only fetch live prices for tickers with no cached price OR cache older than 24 hours
+    const staleTickers = data.filter(s => {
+      if (!s.price_updated_at) return true;
+      const age = now - new Date(s.price_updated_at).getTime();
+      return age > TWENTY_FOUR_HOURS;
+    }).map(s => s.ticker);
+
+    if (staleTickers.length) {
+      refreshPrices(staleTickers);
+    }
   }
 
   async function switchMode(mode) {
@@ -1031,13 +1072,11 @@
     } catch(e) {}
 
     // Reload data for the new mode
-    clearInterval(priceFeedInterval);
     priceCache = {};
     watchlistTickers = [];
     await loadPicks();
     await loadAccuracy();
     await loadWatchlist();
-    priceFeedInterval = setInterval(refreshPrices, 30000);
   }
 
   async function loadRatings() {
@@ -1070,9 +1109,6 @@
     await loadWatchlist();
     await loadRatings();
     await checkPositionAlerts();
-
-    // Auto-refresh prices every 30 seconds
-    priceFeedInterval = setInterval(refreshPrices, 30000);
   }
 
   async function checkPositionAlerts() {
