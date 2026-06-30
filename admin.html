@@ -1156,6 +1156,26 @@ const parsed = JSON.parse(text.replace(/```json|```/g, '').trim());
       document.getElementById('new-company').value = '';
       document.getElementById('new-sector').value  = '';
       setTimeout(() => document.getElementById('stock-success').classList.remove('visible'), 3000);
+
+      // Fetch live price immediately for the newly added ticker
+      try {
+        const TWELVE_KEY = '1fbbfd6ec92c489ca009d00e7127fbe3';
+        const res = await fetch('https://api.twelvedata.com/quote?symbol=' + ticker + '&apikey=' + TWELVE_KEY);
+        if (res.ok) {
+          const q = await res.json();
+          if (q && q.close && !q.code) {
+            const price = parseFloat(q.close);
+            const prevClose = parseFloat(q.previous_close || q.close);
+            await db.from('stocks').update({
+              last_price:       price,
+              price_change:     price - prevClose,
+              price_change_pct: prevClose > 0 ? (price - prevClose) / prevClose * 100 : 0,
+              price_updated_at: new Date().toISOString(),
+            }).eq('ticker', ticker);
+          }
+        }
+      } catch(e) { /* price fetch is best-effort, non-blocking */ }
+
       await loadAdminWatchlist();
     }
   }
