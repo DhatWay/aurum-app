@@ -760,30 +760,36 @@
 
   async function fetchLivePrices(tickers) {
     if (!tickers || !tickers.length) return {};
+    const prices = {};
     try {
-      const symbols = tickers.slice(0, 8).join(',');
-      const res = await fetch(
-        'https://api.twelvedata.com/quote?symbol=' + symbols + '&apikey=' + TWELVE_KEY
-      );
-      if (!res.ok) return {};
-      const data = await res.json();
-      const prices = {};
-      const quotes = tickers.length === 1 ? { [tickers[0]]: data } : data;
-      Object.entries(quotes).forEach(([ticker, q]) => {
-        if (!q || q.code || !q.close) return;
-        const price = parseFloat(q.close);
-        const prevClose = parseFloat(q.previous_close || q.close);
-        prices[ticker] = {
-          price,
-          change:    price - prevClose,
-          changePct: prevClose > 0 ? (price - prevClose) / prevClose * 100 : 0,
-          source:    'twelve_data'
-        };
-      });
-      return prices;
-    } catch(e) {
-      return {};
-    }
+      // Twelve Data free tier: max 8 symbols per call
+      // Make multiple sequential calls for larger watchlists
+      for (let i = 0; i < tickers.length; i += 8) {
+        const batch   = tickers.slice(i, i + 8);
+        const symbols = batch.join(',');
+        const res = await fetch(
+          'https://api.twelvedata.com/quote?symbol=' + symbols + '&apikey=' + TWELVE_KEY
+        );
+        if (!res.ok) continue;
+        const data = await res.json();
+        if (data.code) continue; // top-level API error
+        const quotes = batch.length === 1 ? { [batch[0]]: data } : data;
+        Object.entries(quotes).forEach(([ticker, q]) => {
+          if (!q || q.code || !q.close) return;
+          const price = parseFloat(q.close);
+          const prevClose = parseFloat(q.previous_close || q.close);
+          prices[ticker] = {
+            price,
+            change:    price - prevClose,
+            changePct: prevClose > 0 ? (price - prevClose) / prevClose * 100 : 0,
+            source:    'twelve_data'
+          };
+        });
+        // Small delay between batches to avoid rate limiting
+        if (i + 8 < tickers.length) await new Promise(r => setTimeout(r, 500));
+      }
+    } catch(e) {}
+    return prices;
   }
 
   async function fetchCryptoPrices(tickers) {
