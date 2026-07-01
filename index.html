@@ -3,18 +3,21 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AURUM — Private Market Intelligence</title>
+<title>AURUM — Admin</title>
+<link rel="manifest" href="/aurum-app/manifest.json">
+<meta name="theme-color" content="#C9A84C">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="AURUM">
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;600&family=DM+Sans:wght@300;400;500&family=IBM+Plex+Mono:wght@300;400&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
   :root {
     --black: #080808;
     --gold: #C9A84C;
-    --gold-light: #E8C97A;
     --white: #F0EDE6;
     --muted: #6B6560;
-    --danger: #8B3A3A;
     --positive: #3A6B4A;
+    --danger: #8B3A3A;
     --rule: rgba(201,168,76,0.2);
   }
 
@@ -24,19 +27,10 @@
     background: var(--black);
     color: var(--white);
     font-family: 'DM Sans', sans-serif;
-    font-weight: 600;
+    font-weight: 400;
     min-height: 100vh;
     overflow-x: hidden;
-  }
-
-  body::before {
-    content: '';
-    position: fixed;
-    inset: 0;
-    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
-    pointer-events: none;
-    z-index: 999;
-    opacity: 0.4;
+    font-size: 18px;
   }
 
   header {
@@ -45,8 +39,6 @@
     align-items: center;
     padding: 2rem 2.5rem;
     border-bottom: 1px solid var(--rule);
-    animation: fadeDown 1s ease forwards;
-    opacity: 0;
   }
 
   .logo {
@@ -67,15 +59,13 @@
     margin-top: -4px;
   }
 
-  nav {
-    display: flex;
-    gap: 1.5rem;
-    align-items: center;
-  }
-
-  .mode-active {
-    background: rgba(201,168,76,0.1) !important;
-    color: #C9A84C !important;
+  .admin-badge {
+    font-size: 0.6rem;
+    letter-spacing: 0.2em;
+    color: var(--gold);
+    text-transform: uppercase;
+    border: 1px solid var(--rule);
+    padding: 0.3rem 0.8rem;
   }
 
   .hamburger {
@@ -89,7 +79,7 @@
     position: relative;
   }
 
- .nav-overlay {
+  .nav-overlay {
     position: fixed;
     inset: 0;
     background: rgba(8,8,8,0.97);
@@ -118,7 +108,7 @@
   .nav-overlay a:hover { color: var(--gold); }
   .nav-overlay a.active { color: var(--gold); }
 
- .nav-close {
+  .nav-close {
     position: fixed;
     top: 2rem;
     right: 2.5rem;
@@ -130,65 +120,18 @@
     cursor: pointer;
   }
 
-  .status-dot {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    font-size: 0.7rem;
-    letter-spacing: 0.15em;
-    color: var(--muted);
-    text-transform: uppercase;
-  }
-
-  .dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: var(--positive);
-    box-shadow: 0 0 8px var(--positive);
-    animation: pulse 2s infinite;
-  }
-
   main {
     padding: 3rem 2.5rem;
     max-width: 900px;
     margin: 0 auto;
   }
 
-  .hero {
-    margin-bottom: 4rem;
-    animation: fadeUp 1s 0.3s ease forwards;
-    opacity: 0;
-  }
-
-  .hero-label {
-    font-size: 0.65rem;
-    letter-spacing: 0.25em;
+  .section-label {
+    font-size: 0.85rem;
+    letter-spacing: 0.3em;
     color: var(--gold);
     text-transform: uppercase;
-    margin-bottom: 1rem;
-  }
-
-  .hero h1 {
-    font-family: 'Cormorant Garamond', serif;
-    font-size: clamp(2.5rem, 8vw, 5rem);
-    font-weight: 600;
-    line-height: 1.05;
-    color: var(--white);
     margin-bottom: 1.5rem;
-  }
-
-  .hero h1 em {
-    color: var(--gold);
-    font-style: normal;
-  }
-
-  .hero p {
-    font-size: 0.85rem;
-    color: var(--muted);
-    letter-spacing: 0.05em;
-    line-height: 1.8;
-    max-width: 420px;
   }
 
   .gold-rule {
@@ -198,435 +141,415 @@
     margin: 2.5rem 0;
   }
 
-.section-label {
-    font-size: 0.8rem;
-    letter-spacing: 0.3em;
-    color: var(--gold);
-    text-transform: uppercase;
-    margin-bottom: 1.5rem;
-  }
-
-  .picks-grid {
+  /* Algorithm cards */
+  .algo-grid {
     display: grid;
     gap: 1px;
     background: var(--rule);
     border: 1px solid var(--rule);
-    animation: fadeUp 1s 0.6s ease forwards;
-    opacity: 0;
+    margin-bottom: 2.5rem;
   }
 
-  .pick-card {
+  .algo-card {
     background: var(--black);
     padding: 1.5rem;
     display: grid;
-    grid-template-columns: auto 1fr auto;
-    gap: 1.5rem;
-    align-items: center;
-    transition: background 0.3s ease;
+    grid-template-columns: 1fr auto;
+    gap: 1rem;
+    align-items: start;
   }
 
-  .pick-card:hover { background: rgba(201,168,76,0.03); }
-
-  .pick-score {
-    font-family: 'Cormorant Garamond', serif;
-    font-size: 2.5rem;
-    font-weight: 600;
-    color: var(--gold);
-    line-height: 1;
-    min-width: 60px;
-  }
-
-  .pick-score.mid { color: var(--muted); }
-
-  .pick-ticker {
+  .algo-name {
     font-family: 'IBM Plex Mono', monospace;
-    font-size: 0.9rem;
+    font-size: 0.85rem;
+    color: var(--gold);
+    margin-bottom: 0.4rem;
     letter-spacing: 0.1em;
+  }
+
+  .algo-desc {
+    font-size: 0.72rem;
+    color: var(--muted);
+    line-height: 1.6;
+    margin-bottom: 0.8rem;
+  }
+
+  .algo-meta {
+    font-size: 0.6rem;
+    color: var(--muted);
+    letter-spacing: 0.1em;
+    font-family: 'IBM Plex Mono', monospace;
+  }
+
+  .algo-status {
+    font-size: 0.6rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    padding: 0.3rem 0.6rem;
+    border: 1px solid rgba(58,107,74,0.4);
+    color: var(--positive);
+    white-space: nowrap;
+    height: fit-content;
+  }
+
+  .algo-status.inactive {
+    border-color: var(--rule);
+    color: var(--muted);
+  }
+
+  /* Improvement panel */
+  .improve-panel {
+    border: 1px solid var(--rule);
+    padding: 2rem;
+  }
+
+  .improve-title {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: var(--white);
+    margin-bottom: 0.5rem;
+  }
+
+  .improve-sub {
+    font-size: 0.72rem;
+    color: var(--muted);
+    margin-bottom: 2rem;
+    line-height: 1.6;
+  }
+
+  .field-label {
+    font-size: 0.6rem;
+    letter-spacing: 0.2em;
+    color: var(--gold);
+    text-transform: uppercase;
+    margin-bottom: 0.5rem;
+  }
+
+  select, textarea {
+    width: 100%;
+    background: transparent;
+    border: 1px solid var(--rule);
+    color: var(--white);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.8rem;
+    padding: 0.8rem 1rem;
+    margin-bottom: 1.5rem;
+    outline: none;
+    transition: border 0.3s;
+    appearance: none;
+  }
+
+  select:focus, textarea:focus {
+    border-color: var(--gold);
+  }
+
+  select option {
+    background: #111;
+    color: var(--white);
+  }
+
+  textarea {
+    min-height: 100px;
+    resize: vertical;
+    line-height: 1.6;
+  }
+
+  .btn {
+    background: transparent;
+    border: 1px solid var(--gold);
+    color: var(--gold);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.7rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    padding: 0.8rem 2rem;
+    cursor: pointer;
+    transition: all 0.3s;
+    width: 100%;
+  }
+
+  .btn:hover {
+    background: var(--gold);
+    color: var(--black);
+  }
+
+  .btn:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+  }
+
+  /* Response panel */
+  .response-panel {
+    margin-top: 1.5rem;
+    border: 1px solid var(--rule);
+    padding: 1.5rem;
+    display: none;
+  }
+
+  .response-panel.visible { display: block; }
+
+  .response-label {
+    font-size: 0.6rem;
+    letter-spacing: 0.2em;
+    color: var(--gold);
+    text-transform: uppercase;
+    margin-bottom: 1rem;
+  }
+
+  .response-code {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.72rem;
+    color: var(--white);
+    line-height: 1.7;
+    white-space: pre-wrap;
+    word-break: break-all;
+    margin-bottom: 1.5rem;
+  }
+
+  .response-explanation {
+    font-size: 0.75rem;
+    color: var(--muted);
+    line-height: 1.7;
+    margin-bottom: 1.5rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--rule);
+  }
+
+  .btn-approve {
+    background: transparent;
+    border: 1px solid var(--positive);
+    color: var(--positive);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.7rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    padding: 0.8rem 2rem;
+    cursor: pointer;
+    transition: all 0.3s;
+    width: 100%;
+  }
+
+  .btn-approve:hover {
+    background: var(--positive);
+    color: var(--white);
+  }
+
+  .loading-state {
+    font-size: 0.7rem;
+    color: var(--muted);
+    letter-spacing: 0.15em;
+    text-align: center;
+    padding: 1rem;
+    display: none;
+  }
+
+  .loading-state.visible { display: block; }
+
+  .success-msg {
+    font-size: 0.7rem;
+    color: var(--positive);
+    letter-spacing: 0.1em;
+    text-align: center;
+    padding: 0.5rem;
+    display: none;
+  }
+
+  .success-msg.visible { display: block; }
+
+  /* Add stock */
+  .add-stock-panel {
+    border: 1px solid var(--rule);
+    padding: 2rem;
+    margin-bottom: 2.5rem;
+  }
+
+  .inline-fields {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 1rem;
+  }
+
+  input[type="text"],
+  input[type="number"] {
+    width: 100%;
+    background: transparent;
+    border: 1px solid var(--rule);
+    color: var(--white);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.8rem;
+    padding: 0.8rem 1rem;
+    outline: none;
+    transition: border 0.3s;
+    margin-bottom: 1rem;
+  }
+
+  input[type="text"]:focus,
+  input[type="number"]:focus { border-color: var(--gold); }
+
+  input[type="text"]::placeholder,
+  input[type="number"]::placeholder { color: var(--muted); }
+
+  .btn-danger {
+    background: transparent;
+    border: 1px solid var(--danger);
+    color: var(--danger);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.6rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    padding: 0.3rem 0.7rem;
+    cursor: pointer;
+    transition: all 0.3s;
+  }
+
+  .btn-danger:hover {
+    background: var(--danger);
+    color: var(--white);
+  }
+
+  @media (max-width: 600px) {
+    .inline-fields { grid-template-columns: 1fr; }
+    main { padding: 2rem 1.5rem; }
+    header { padding: 1.5rem; }
+  }
+
+  /* System Health Monitor */
+  .health-panel {
+    border: 1px solid var(--rule);
+    padding: 2rem;
+    margin-bottom: 2.5rem;
+  }
+
+  .health-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+  }
+
+  .health-title {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: var(--white);
+  }
+
+  .health-badge {
+    font-size: 0.6rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    font-family: 'IBM Plex Mono', monospace;
+    padding: 0.25rem 0.7rem;
+    border: 1px solid var(--rule);
+    color: var(--muted);
+  }
+
+  .health-badge.scanning { color: var(--gold); border-color: rgba(201,168,76,0.4); animation: blink 1.2s infinite; }
+  .health-badge.clear { color: var(--positive); border-color: rgba(58,107,74,0.4); }
+  .health-badge.flagged { color: var(--danger); border-color: rgba(139,58,58,0.4); }
+
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+  .health-sub {
+    font-size: 0.72rem;
+    color: var(--muted);
+    line-height: 1.6;
+    margin-bottom: 1.5rem;
+  }
+
+  .health-scan-btn {
+    background: transparent;
+    border: 1px solid var(--rule);
+    color: var(--muted);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.7rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    padding: 0.6rem 1.5rem;
+    cursor: pointer;
+    transition: all 0.3s;
+    margin-bottom: 1.5rem;
+  }
+
+  .health-scan-btn:hover { border-color: var(--gold); color: var(--gold); }
+  .health-scan-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+  .health-results {
+    display: none;
+    flex-direction: column;
+    gap: 1px;
+    background: var(--rule);
+    border: 1px solid var(--rule);
+  }
+
+  .health-results.visible { display: flex; }
+
+  .health-item {
+    background: var(--black);
+    padding: 1.2rem 1.5rem;
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 1rem;
+    align-items: start;
+  }
+
+  .health-severity {
+    font-size: 0.6rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    padding: 0.25rem 0.6rem;
+    white-space: nowrap;
+    border: 1px solid;
+    font-family: 'IBM Plex Mono', monospace;
+    margin-top: 2px;
+  }
+
+  .health-severity.critical { color: var(--danger); border-color: rgba(139,58,58,0.5); }
+  .health-severity.warning { color: var(--gold); border-color: rgba(201,168,76,0.4); }
+  .health-severity.info { color: var(--muted); border-color: var(--rule); }
+  .health-severity.ok { color: var(--positive); border-color: rgba(58,107,74,0.4); }
+
+  .health-item-content {}
+
+  .health-item-title {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.8rem;
     color: var(--white);
     margin-bottom: 0.3rem;
   }
 
-  .pick-brief {
+  .health-item-detail {
     font-size: 0.72rem;
     color: var(--muted);
     line-height: 1.6;
   }
 
-  .pick-status {
-    font-size: 0.8rem;
-    letter-spacing: 0.15em;
-    text-transform: uppercase;
-    padding: 0.3rem 0.6rem;
-    border: 1px solid var(--rule);
-    color: var(--muted);
-    white-space: nowrap;
-  }
-
-  .pick-status.monitoring {
-    border-color: rgba(201,168,76,0.3);
-    color: var(--gold);
-  }
-
-  /* Accuracy panels */
-  .accuracy-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
-    gap: 1px;
-    background: var(--rule);
-    border: 1px solid var(--rule);
-    margin-top: 2.5rem;
-    animation: fadeUp 1s 0.9s ease forwards;
-    opacity: 0;
-  }
-
-  .accuracy-cell {
-    background: var(--black);
-    padding: 1.5rem;
-  }
-
-  .accuracy-label {
-    font-size: 0.8rem;
-    letter-spacing: 0.2em;
-    text-transform: uppercase;
-    color: var(--muted);
-    margin-bottom: 0.5rem;
-  }
-
-  .accuracy-number {
-    font-family: 'Cormorant Garamond', serif;
-    font-size: 2.5rem;
-    font-weight: 600;
-    color: var(--gold);
-    line-height: 1;
-  }
-
-  .accuracy-sub {
-    font-size: 0.8rem;
-    color: var(--muted);
-    margin-top: 0.3rem;
-    font-family: 'IBM Plex Mono', monospace;
-  }
-
-  /* Watchlist */
-  .watchlist {
-    margin-top: 2.5rem;
-    border: 1px solid var(--rule);
-    animation: fadeUp 1s 1s ease forwards;
-    opacity: 0;
-  }
-
-  .watchlist-header {
-    padding: 1rem 1.5rem;
-    border-bottom: 1px solid var(--rule);
-    font-size: 0.8rem;
-    letter-spacing: 0.3em;
-    color: var(--gold);
-    text-transform: uppercase;
-    display: flex;
-    justify-content: space-between;
-  }
-
-  .watchlist-row {
-    padding: 1rem 1.5rem;
-    display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
-    align-items: center;
-    border-bottom: 1px solid var(--rule);
-    transition: background 0.3s;
-  }
-
-  .watchlist-row:last-child { border-bottom: none; }
-  .watchlist-row:hover { background: rgba(201,168,76,0.03); }
-
-  .watchlist-ticker {
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 0.85rem;
-    color: var(--white);
-  }
-
-  .watchlist-company {
-    font-size: 0.7rem;
-    color: var(--muted);
-  }
-
-  .watchlist-sector {
-    font-size: 0.8rem;
-    color: var(--muted);
-    letter-spacing: 0.1em;
-    text-align: right;
-  }
-
-  /* Self rating history */
-  .rating-history {
-    margin-top: 2.5rem;
-    border: 1px solid var(--rule);
-    animation: fadeUp 1s 1.1s ease forwards;
-    opacity: 0;
-  }
-
-  .rating-row {
-    padding: 1rem 1.5rem;
-    display: grid;
-    grid-template-columns: 1fr 1fr 1fr 1fr;
-    align-items: center;
-    border-bottom: 1px solid var(--rule);
-    font-size: 0.72rem;
-  }
-
-  .rating-row:last-child { border-bottom: none; }
-
-  .rating-ticker {
-    font-family: 'IBM Plex Mono', monospace;
-    color: var(--white);
-  }
-
-  .rating-return {
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 0.7rem;
-  }
-
-  .rating-return.positive { color: var(--positive); }
-  .rating-return.negative { color: var(--danger); }
-
-  .beat-badge {
-    font-size: 0.55rem;
-    letter-spacing: 0.1em;
-    padding: 0.2rem 0.5rem;
-    text-transform: uppercase;
-  }
-
-  .beat-badge.yes {
-    border: 1px solid rgba(58,107,74,0.4);
-    color: var(--positive);
-  }
-
-  .beat-badge.no {
-    border: 1px solid rgba(139,58,58,0.4);
-    color: var(--danger);
-  }
-
-  .empty-state {
-    padding: 2rem;
-    text-align: center;
-    font-size: 0.7rem;
-    letter-spacing: 0.15em;
-    color: var(--muted);
-    text-transform: uppercase;
-  }
-
-  footer {
-    padding: 2rem 2.5rem;
-    border-top: 1px solid var(--rule);
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-top: 4rem;
-    animation: fadeUp 1s 1.2s ease forwards;
-    opacity: 0;
-  }
-
-  footer p {
-    font-size: 0.8rem;
-    letter-spacing: 0.15em;
-    color: var(--muted);
-    text-transform: uppercase;
-  }
-
-  .footer-au {
-    font-family: 'Cormorant Garamond', serif;
-    font-size: 1rem;
-    color: var(--rule);
-    letter-spacing: 0.3em;
-  }
-
-  @keyframes fadeDown {
-    from { opacity: 0; transform: translateY(-10px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
-
-  @keyframes fadeUp {
-    from { opacity: 0; transform: translateY(15px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
-
-  @keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.3; }
-  }
-
-  @media (max-width: 600px) {
-    main { padding: 2rem 1.5rem; }
-    header { padding: 1.5rem; flex-wrap: wrap; gap: 1rem; }
-    .accuracy-grid { grid-template-columns: 1fr; }
-    .watchlist-row { grid-template-columns: 1fr 1fr; }
-    .watchlist-company { display: none; }
-    .rating-row { grid-template-columns: 1fr 1fr 1fr; }
-  }
-.signal-breakdown {
-    margin-top: 0.8rem;
-    display: grid;
-    gap: 0.4rem;
-  }
-
-  .signal-bar {
-    display: grid;
-    grid-template-columns: 80px 1fr 30px;
-    align-items: center;
-    gap: 0.5rem;
-  }
-
-  .signal-name {
-    font-size: 0.6rem;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    color: var(--muted);
-  }
-
-  .signal-track {
-    height: 2px;
-    background: var(--rule);
-    position: relative;
-  }
-
-  .signal-fill {
-    height: 100%;
-    background: var(--gold);
-    opacity: 0.6;
-  }
-
-  .signal-val {
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 0.6rem;
-    color: var(--muted);
-    text-align: right;
-  }
-.spread-display {
-    margin-top: 1rem;
-    padding-top: 0.8rem;
-    border-top: 1px solid var(--rule);
-    display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
-    gap: 0.5rem;
-  }
-
-  .spread-case {
-    text-align: center;
-    padding: 0.5rem;
-    border: 1px solid var(--rule);
-  }
-
-  .spread-case.bull { border-color: rgba(58,107,74,0.3); }
-  .spread-case.bear { border-color: rgba(139,58,58,0.3); }
-  .spread-case.base { border-color: var(--rule); }
-
-  .spread-label {
-    font-size: 0.55rem;
-    letter-spacing: 0.15em;
-    text-transform: uppercase;
-    color: var(--muted);
-    margin-bottom: 0.3rem;
-  }
-
-  .spread-return {
-    font-family: 'Cormorant Garamond', serif;
-    font-size: 1.2rem;
-    font-weight: 600;
-    line-height: 1;
-  }
-
-  .spread-return.positive { color: var(--positive); }
-  .spread-return.negative { color: var(--danger); }
-  .spread-return.neutral { color: var(--muted); }
-
-  .spread-prob {
-    font-size: 0.6rem;
-    color: var(--muted);
-    font-family: 'IBM Plex Mono', monospace;
-    margin-top: 0.2rem;
-  }
-
-  .spread-confidence {
-    margin-top: 0.8rem;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-  }
-
-  .confidence-label {
-    font-size: 0.6rem;
-    letter-spacing: 0.15em;
-    text-transform: uppercase;
-    color: var(--muted);
-  }
-
-  .confidence-value {
+  .health-item-action {
     font-size: 0.65rem;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    padding: 0.2rem 0.6rem;
+    color: var(--gold);
+    margin-top: 0.4rem;
+    letter-spacing: 0.05em;
+  }
+
+  .health-summary {
+    margin-top: 1.2rem;
+    padding: 1rem 1.2rem;
     border: 1px solid var(--rule);
-    color: var(--gold);
-  }
-
-  .confidence-value.high { border-color: rgba(58,107,74,0.4); color: var(--positive); }
-  .confidence-value.medium { border-color: rgba(201,168,76,0.4); color: var(--gold); }
-  .confidence-value.low { border-color: var(--rule); color: var(--muted); }
-  .watchlist-price {
-    font-family: 'IBM Plex Mono', monospace;
     font-size: 0.78rem;
-    color: var(--gold);
-    text-align: right;
-    white-space: nowrap;
-  }
-
-  .watchlist-price.up   { color: var(--positive); }
-  .watchlist-price.down { color: var(--danger); }
-
-  .price-feed-bar {
-    display: flex;
-    align-items: center;
-    gap: 1.5rem;
-    padding: 0.6rem 1.5rem;
-    border-bottom: 1px solid var(--rule);
-    overflow-x: auto;
-    background: rgba(201,168,76,0.01);
-    scrollbar-width: none;
-  }
-
-  .price-feed-bar::-webkit-scrollbar { display: none; }
-
-  .price-feed-item {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    flex-shrink: 0;
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 0.7rem;
-    white-space: nowrap;
-  }
-
-  .feed-ticker { color: var(--muted); letter-spacing: 0.1em; }
-  .feed-price  { color: var(--white); }
-  .feed-change { }
-  .feed-change.up   { color: var(--positive); }
-  .feed-change.down { color: var(--danger); }
-
-  .feed-dot {
-    width: 5px;
-    height: 5px;
-    border-radius: 50%;
-    background: var(--positive);
-    box-shadow: 0 0 5px var(--positive);
-    animation: pulse 2s infinite;
-    flex-shrink: 0;
-  }
-
-  .feed-label {
-    font-size: 0.55rem;
-    letter-spacing: 0.15em;
-    text-transform: uppercase;
     color: var(--muted);
-    flex-shrink: 0;
+    line-height: 1.7;
+    display: none;
+  }
+
+  .health-summary.visible { display: block; }
+
+  .health-last-scan {
+    font-size: 0.6rem;
+    color: var(--muted);
+    font-family: 'IBM Plex Mono', monospace;
+    letter-spacing: 0.1em;
+    margin-top: 0.8rem;
   }
 </style>
 </head>
@@ -637,114 +560,260 @@
     AU
     <span>PRIVATE INTELLIGENCE</span>
   </div>
-  <div style="display:flex; align-items:center; gap:0.8rem;">
-    <div style="display:flex; border:1px solid rgba(201,168,76,0.3); font-size:0.65rem; letter-spacing:0.15em; font-family:'IBM Plex Mono',monospace;">
-      <button id="mode-stock" onclick="switchMode('stock')" style="background:transparent; border:none; color:#6B6560; padding:0.4rem 0.8rem; cursor:pointer; transition:all 0.3s;" class="mode-active">STOCKS</button>
-      <button id="mode-crypto" onclick="switchMode('crypto')" style="background:transparent; border:none; color:#6B6560; padding:0.4rem 0.8rem; cursor:pointer; transition:all 0.3s;">CRYPTO</button>
-    </div>
-    <button class="hamburger" onclick="openNav()">☰</button>
-    <div id="alert-badge" style="display:none; background:var(--danger); color:#fff; font-size:0.6rem; font-family:'IBM Plex Mono',monospace; padding:0.2rem 0.5rem; border-radius:2px; cursor:pointer;" onclick="window.location.href='simulator.html'">⚠ ALERTS</div>
-  </div>
+  <button class="hamburger" onclick="openNav()">☰</button>
 </header>
 
-
-<!-- LIVE PRICE FEED BAR -->
-<div class="price-feed-bar" id="price-feed-bar">
-  <div class="feed-dot"></div>
-  <div class="feed-label">Live</div>
-  <div style="color:var(--muted);font-size:0.65rem;font-family:'IBM Plex Mono',monospace;" id="feed-status">Loading prices...</div>
-</div>
-
+<!-- Nav Overlay -->
 <div class="nav-overlay" id="nav-overlay">
   <button class="nav-close" onclick="closeNav()">✕</button>
-  <a href="index.html" class="active">Brief</a>
-   <a href="simulator.html">Simulator</a>
+  <a href="simulator.html">Simulator</a>
   <a href="sectors.html">Sectors</a>
-  <a href="admin.html">Admin</a>
- <a href="tutorial.html">Tutorial</a>
- <a href="news.html">News</a>
-<a href="help.html">Help</a>
-<a href="history.html">History</a>
-<a href="options.html">Options</a>
- <a href="report.html">Report</a>
+  <a href="history.html">History</a>
+  <a href="tutorial.html">Tutorial</a>
+  <a href="news.html">News</a>
+  <a href="help.html">Help</a>
   <a href="assistant.html">Assistant</a>
+  <a href="options.html">Options</a>
+  <a href="report.html">Report</a>
+  <a href="index.html">Brief</a>
+  <a href="admin.html" class="active">Admin</a>
   <a href="ipo.html">Ipo</a>
- <a href="trading.html">Trading</a>
-<a href="brokerage.html">Brokerage</a>
+  <a href="trading.html">Trading</a>
+  <a href="brokerage.html">Brokerage</a>
 </div>
 
 <main>
 
-  <div class="hero">
-    <div class="hero-label">Weekly Intelligence Brief</div>
-    <h1>Market signals.<br><em>Refined.</em></h1>
-    <p>Multi-source AI analysis synthesizing economic, political, and sentiment data into precise stock intelligence.</p>
+  <!-- System Health Monitor -->
+  <div class="section-label">System Health</div>
+  <div class="health-panel">
+    <div class="health-header">
+      <div class="health-title">Algorithm Monitor</div>
+      <div class="health-badge" id="health-badge">Standby</div>
+    </div>
+    <div class="health-sub">Claude scans all active algorithms, trading settings, pick history, and logic for conflicts, outdated rules, redundancies, or anything that needs revision. Runs automatically on page load.</div>
+    <button class="health-scan-btn" id="health-scan-btn" onclick="runHealthScan()">Run Manual Scan</button>
+    <div class="health-results" id="health-results"></div>
+    <div class="health-summary" id="health-summary"></div>
+    <div class="health-last-scan" id="health-last-scan"></div>
   </div>
 
   <div class="gold-rule"></div>
 
-  <div class="section-label">Current Picks</div>
-  <div class="picks-grid" id="picks-container">
-    <div class="empty-state">No picks generated yet. Analysis pending.</div>
+  <!-- Add Stock -->
+  <div class="section-label">Manage Watchlist</div>
+  <div class="add-stock-panel">
+    <div class="improve-title">Add Stock</div>
+    <div class="improve-sub">Add a new ticker to the AURUM watchlist for analysis.</div>
+    <div class="inline-fields">
+      <div>
+        <div class="field-label">Ticker</div>
+        <input type="text" id="new-ticker" placeholder="e.g. AAPL">
+      </div>
+      <div>
+        <div class="field-label">Company</div>
+        <input type="text" id="new-company" placeholder="e.g. Apple Inc">
+      </div>
+      <div>
+        <div class="field-label">Sector</div>
+        <input type="text" id="new-sector" placeholder="e.g. Technology">
+      </div>
+    </div>
+    <button class="btn" onclick="addStock()">Add to Watchlist</button>
+    <div class="success-msg" id="stock-success">Stock added successfully.</div>
+  </div>
+
+  <!-- Current Watchlist -->
+  <div class="improve-sub" style="margin-top:1.5rem; letter-spacing:0.2em; font-size:0.7rem; color:var(--gold); text-transform:uppercase;">Current Watchlist</div>
+  <div id="admin-watchlist-container" style="margin-top:0.8rem; border:1px solid var(--rule);">
+    <div style="padding:1rem; font-size:0.8rem; color:var(--muted);">Loading...</div>
+  </div>
+
+  <!-- Confirmation Dialog -->
+  <div id="remove-dialog" style="display:none; position:fixed; inset:0; background:rgba(8,8,8,0.92); z-index:2000; display:none; justify-content:center; align-items:center;">
+    <div style="border:1px solid var(--rule); background:#0d0d0d; padding:2rem; max-width:340px; width:90%; text-align:center;">
+      <div style="font-family:'Cormorant Garamond',serif; font-size:1.4rem; color:var(--white); margin-bottom:0.8rem;">Remove <span id="remove-ticker-label" style="color:var(--gold);"></span>?</div>
+      <div style="font-size:0.8rem; color:var(--muted); line-height:1.7; margin-bottom:1.5rem;">This will remove the stock from your watchlist. It will no longer appear on the Brief, Trading, or Simulator pages.</div>
+      <div style="display:flex; gap:1rem; justify-content:center;">
+        <button onclick="cancelRemove()" style="background:transparent; border:1px solid var(--rule); color:var(--muted); padding:0.7rem 1.5rem; cursor:pointer; font-family:'DM Sans',sans-serif; font-size:0.8rem; letter-spacing:0.1em;">Cancel</button>
+        <button onclick="confirmRemove()" style="background:transparent; border:1px solid var(--danger); color:var(--danger); padding:0.7rem 1.5rem; cursor:pointer; font-family:'DM Sans',sans-serif; font-size:0.8rem; letter-spacing:0.1em;">Remove</button>
+      </div>
+    </div>
   </div>
 
   <div class="gold-rule"></div>
 
-  <div class="section-label">System Accuracy</div>
-  <div class="accuracy-grid">
-    <div class="accuracy-cell">
-      <div class="accuracy-label">Total Picks</div>
-      <div class="accuracy-number" id="total-picks">—</div>
-      <div class="accuracy-sub">All time</div>
-    </div>
-    <div class="accuracy-cell">
-      <div class="accuracy-label">Beat Market</div>
-      <div class="accuracy-number" id="beat-market">—</div>
-      <div class="accuracy-sub">vs S&P 500</div>
-    </div>
-    <div class="accuracy-cell">
-      <div class="accuracy-label">Avg Accuracy</div>
-      <div class="accuracy-number" id="avg-accuracy">—</div>
-      <div class="accuracy-sub">90 day score</div>
-    </div>
+  <!-- Algorithms -->
+  <div class="section-label">Active Algorithms</div>
+  <div class="algo-grid" id="algo-container">
+    <div style="padding:1.5rem;font-size:0.7rem;color:var(--muted)">Loading algorithms...</div>
   </div>
 
   <div class="gold-rule"></div>
 
-  <div class="section-label">Watchlist</div>
-  <div class="watchlist">
-    <div class="watchlist-header">
-      <span>Ticker</span>
-      <span>Company</span>
-      <span>Sector</span>
-      <span style="text-align:right">Price</span>
+  <!-- Improvement Panel -->
+  <div class="section-label">Algorithm Improvement</div>
+  <div class="improve-panel">
+    <div class="improve-title">Request an Improvement</div>
+    <div class="improve-sub">Describe what you want changed in plain English. AURUM will rewrite the algorithm and present it for your approval before anything updates.</div>
+
+    <div class="field-label">Select Algorithm</div>
+    <select id="algo-select">
+      <option value="">— Select —</option>
+    </select>
+
+    <div class="field-label">Describe the Improvement</div>
+    <textarea id="improvement-request" placeholder="e.g. The momentum detector is flagging too many small cap stocks. I only want large cap with market cap above $10B."></textarea>
+
+    <button class="btn" id="improve-btn" onclick="requestImprovement()">Generate Improvement</button>
+
+    <div class="loading-state" id="loading-state">Analyzing algorithm — generating improvement...</div>
+
+    <div class="response-panel" id="response-panel">
+      <div class="response-label">Proposed Improvement</div>
+      <div class="response-code" id="response-code"></div>
+      <div class="response-explanation" id="response-explanation"></div>
+      <button class="btn-approve" onclick="approveImprovement()">Approve & Deploy</button>
     </div>
-    <div id="watchlist-container">
-      <div class="empty-state">Loading...</div>
-    </div>
+
+    <div class="success-msg" id="deploy-success">Algorithm updated successfully.</div>
   </div>
 
   <div class="gold-rule"></div>
 
-  <div class="section-label">Rating History</div>
-  <div class="rating-history">
-    <div class="watchlist-header">
-      <span>Ticker</span>
-      <span>30D Return</span>
-      <span>90D Return</span>
-      <span style="text-align:right">Beat Market</span>
+  <!-- Price Alerts -->
+  <div class="section-label">Price Alerts</div>
+  <div class="add-stock-panel">
+    <div class="improve-title">Set Alert</div>
+    <div class="improve-sub">AURUM will flag when a stock moves beyond your threshold. Set alerts for any stock on your watchlist.</div>
+    <div class="inline-fields">
+      <div>
+        <div class="field-label">Ticker</div>
+        <input type="text" id="alert-ticker" placeholder="e.g. AAPL" autocomplete="off">
+      </div>
+      <div>
+        <div class="field-label">Alert Type</div>
+        <select id="alert-type">
+          <option value="up">Price Up %</option>
+          <option value="down">Price Down %</option>
+        </select>
+      </div>
+      <div>
+        <div class="field-label">Threshold %</div>
+        <input type="number" id="alert-threshold" placeholder="e.g. 5">
+      </div>
     </div>
-    <div id="rating-container">
-      <div class="empty-state">No ratings yet. Accumulating track record.</div>
+    <div style="margin-bottom:1rem;">
+      <div class="field-label">Entry Price ($)</div>
+      <input type="number" id="alert-entry" placeholder="e.g. 135.50">
+    </div>
+    <button class="btn" onclick="setAlert()">Set Price Alert</button>
+    <div class="success-msg" id="alert-success">Alert set successfully.</div>
+  </div>
+
+  <div class="gold-rule"></div>
+
+  <div class="section-label">Active Alerts</div>
+  <div class="algo-grid" id="alerts-container">
+    <div style="padding:1.5rem;font-size:0.8rem;color:var(--muted)">Loading alerts...</div>
+  </div>
+
+  <div class="gold-rule"></div>
+
+  <!-- AURUM Notes — Pending Upgrades & Reminders -->
+  <div class="section-label">System Notes</div>
+  <div class="improve-sub" style="margin-bottom:1rem; font-size:0.75rem; color:var(--muted);">Pending upgrades, reminders, and development notes. The Assistant will be able to write to this section in a future update.</div>
+
+  <div id="notes-container" style="margin-bottom:1rem;"></div>
+
+  <div style="display:flex; gap:0.8rem; margin-bottom:0.5rem;">
+    <textarea id="new-note" placeholder="Add a note, reminder, or pending upgrade..." style="flex:1; background:transparent; border:1px solid var(--rule); color:var(--white); font-family:'DM Sans',sans-serif; font-size:0.85rem; padding:0.8rem; resize:vertical; min-height:80px;"></textarea>
+  </div>
+  <div style="display:flex; gap:0.8rem; align-items:center; margin-bottom:2rem;">
+    <select id="note-category" style="background:#0d0d0d; border:1px solid var(--rule); color:var(--muted); font-family:'IBM Plex Mono',monospace; font-size:0.72rem; padding:0.5rem; letter-spacing:0.1em;">
+      <option value="upgrade">PENDING UPGRADE</option>
+      <option value="reminder">REMINDER</option>
+      <option value="plug">PLUG & PLAY</option>
+      <option value="bug">BUG / FIX</option>
+      <option value="idea">IDEA</option>
+    </select>
+    <button class="btn" onclick="addNote()" style="white-space:nowrap;">Add Note</button>
+    <div class="success-msg" id="note-success" style="margin:0;">Note saved.</div>
+  </div>
+
+  <div class="gold-rule"></div>
+
+  <!-- POSITION ALERTS -->
+  <div class="section-label">Position Alerts</div>
+  <div class="improve-sub" style="margin-bottom:1rem; font-size:0.75rem; color:var(--muted);">Live intelligence alerts from the position monitor — signal changes, stop adjustments, direction reversals.</div>
+  <div id="admin-alerts-container"></div>
+  <div style="margin-bottom:2rem;">
+    <button class="btn" onclick="clearAllAlerts()" style="font-size:0.7rem; padding:0.5rem 1rem;">Clear All Alerts</button>
+  </div>
+
+  <div class="gold-rule"></div>
+
+  <!-- DATABASE LOG CLEANER -->
+  <div class="section-label">Database Cleaner</div>
+  <div class="improve-sub" style="margin-bottom:1.5rem; font-size:0.75rem; color:var(--muted);">Clear junk logs and test data from the database. All actions require confirmation and cannot be undone.</div>
+
+  <div style="display:grid; gap:0.8rem; margin-bottom:2rem;">
+
+    <div style="border:1px solid var(--rule); padding:1rem; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.8rem;">
+      <div>
+        <div style="font-size:0.78rem; color:var(--white);">Paper Trades</div>
+        <div style="font-size:0.68rem; color:var(--muted);">Clear all simulation trades (open and closed)</div>
+      </div>
+      <button onclick="confirmClear('paper_trades', 'ALL simulation trades')" style="background:transparent; border:1px solid rgba(139,58,58,0.5); color:var(--danger); font-size:0.68rem; letter-spacing:0.1em; padding:0.4rem 0.8rem; cursor:pointer; font-family:'DM Sans',sans-serif; white-space:nowrap;">Clear Trades</button>
+    </div>
+
+    <div style="border:1px solid var(--rule); padding:1rem; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.8rem;">
+      <div>
+        <div style="font-size:0.78rem; color:var(--white);">Algorithm Log</div>
+        <div style="font-size:0.68rem; color:var(--muted);">Clear Governor execution logs</div>
+      </div>
+      <button onclick="confirmClear('algorithm_log', 'algorithm execution logs')" style="background:transparent; border:1px solid rgba(139,58,58,0.5); color:var(--danger); font-size:0.68rem; letter-spacing:0.1em; padding:0.4rem 0.8rem; cursor:pointer; font-family:'DM Sans',sans-serif; white-space:nowrap;">Clear Logs</button>
+    </div>
+
+    <div style="border:1px solid var(--rule); padding:1rem; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.8rem;">
+      <div>
+        <div style="font-size:0.78rem; color:var(--white);">Auto Trade Log</div>
+        <div style="font-size:0.68rem; color:var(--muted);">Clear DEX execution history</div>
+      </div>
+      <button onclick="confirmClear('auto_trade_log', 'DEX execution history')" style="background:transparent; border:1px solid rgba(139,58,58,0.5); color:var(--danger); font-size:0.68rem; letter-spacing:0.1em; padding:0.4rem 0.8rem; cursor:pointer; font-family:'DM Sans',sans-serif; white-space:nowrap;">Clear Log</button>
+    </div>
+
+    <div style="border:1px solid var(--rule); padding:1rem; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.8rem;">
+      <div>
+        <div style="font-size:0.78rem; color:var(--white);">News Feed</div>
+        <div style="font-size:0.68rem; color:var(--muted);">Clear all fetched news articles</div>
+      </div>
+      <button onclick="confirmClear('news_feed', 'all news articles')" style="background:transparent; border:1px solid rgba(139,58,58,0.5); color:var(--danger); font-size:0.68rem; letter-spacing:0.1em; padding:0.4rem 0.8rem; cursor:pointer; font-family:'DM Sans',sans-serif; white-space:nowrap;">Clear News</button>
+    </div>
+
+    <div style="border:1px solid var(--rule); padding:1rem; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.8rem;">
+      <div>
+        <div style="font-size:0.78rem; color:var(--white);">Reset Portfolio Balance</div>
+        <div style="font-size:0.68rem; color:var(--muted);">Reset paper_portfolio to $10,000 starting balance</div>
+      </div>
+      <button onclick="confirmResetPortfolio()" style="background:transparent; border:1px solid rgba(139,58,58,0.5); color:var(--danger); font-size:0.68rem; letter-spacing:0.1em; padding:0.4rem 0.8rem; cursor:pointer; font-family:'DM Sans',sans-serif; white-space:nowrap;">Reset Balance</button>
+    </div>
+
+  </div>
+
+  <!-- Confirmation Dialog -->
+  <div id="confirm-dialog" style="display:none; position:fixed; inset:0; background:rgba(8,8,8,0.95); z-index:2000; align-items:center; justify-content:center; padding:2rem;">
+    <div style="border:1px solid rgba(139,58,58,0.5); background:#0d0d0d; padding:2rem; max-width:380px; width:100%;">
+      <div style="font-size:0.65rem; letter-spacing:0.25em; color:var(--danger); font-family:'IBM Plex Mono',monospace; margin-bottom:0.8rem;">⚠ CONFIRM DELETE</div>
+      <div id="confirm-message" style="font-size:0.9rem; color:var(--white); margin-bottom:1.5rem; line-height:1.6;"></div>
+      <div style="display:flex; gap:0.8rem;">
+        <button id="confirm-yes" style="flex:1; background:rgba(139,58,58,0.15); border:1px solid rgba(139,58,58,0.5); color:var(--danger); font-family:'DM Sans',sans-serif; font-size:0.75rem; letter-spacing:0.15em; padding:0.7rem; cursor:pointer;">YES, DELETE</button>
+        <button onclick="closeConfirmDialog()" style="flex:1; background:transparent; border:1px solid var(--rule); color:var(--muted); font-family:'DM Sans',sans-serif; font-size:0.75rem; letter-spacing:0.15em; padding:0.7rem; cursor:pointer;">CANCEL</button>
+      </div>
     </div>
   </div>
 
 </main>
-
-<footer>
-  <p>AURUM © 2026 — Private Use Only</p>
-  <div class="footer-au">AU</div>
-</footer>
 
 <script>
   const SUPABASE_URL = 'https://zpcbbwynvvyldavxzjng.supabase.co';
@@ -752,289 +821,717 @@
   const { createClient } = supabase;
   const db = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-  // ── PRICE FEED ENGINE — Twelve Data ──
-  const TWELVE_KEY = '1fbbfd6ec92c489ca009d00e7127fbe3';
-  let priceCache = {};
-  let priceFeedInterval = null;
-  let watchlistTickers = [];
-
-  async function fetchLivePrices(tickers) {
-    if (!tickers || !tickers.length) return {};
+  let activeMode = 'stock';
+  async function loadActiveMode() {
     try {
-      const symbols = tickers.slice(0, 8).join(',');
-      const res = await fetch(
-        'https://api.twelvedata.com/quote?symbol=' + symbols + '&apikey=' + TWELVE_KEY
-      );
-      if (!res.ok) return {};
-      const data = await res.json();
-      const prices = {};
-      const quotes = tickers.length === 1 ? { [tickers[0]]: data } : data;
-      Object.entries(quotes).forEach(([ticker, q]) => {
-        if (!q || q.code || !q.close) return;
-        const price = parseFloat(q.close);
-        const prevClose = parseFloat(q.previous_close || q.close);
-        prices[ticker] = {
-          price,
-          change:    price - prevClose,
-          changePct: prevClose > 0 ? (price - prevClose) / prevClose * 100 : 0,
-          source:    'twelve_data'
-        };
-      });
-      return prices;
-    } catch(e) {
-      return {};
-    }
+      const { data } = await db.from('trading_settings').select('active_mode').single();
+      if (data?.active_mode) activeMode = data.active_mode;
+    } catch(e) {}
   }
 
-  async function fetchCryptoPrices(tickers) {
-    if (!tickers || !tickers.length) return {};
+  let algorithms = [];
+  let currentAlgo = null;
+  let improvedCode = '';
+
+  /* ── System Health Monitor ── */
+  async function runHealthScan() {
+    const btn = document.getElementById('health-scan-btn');
+    const badge = document.getElementById('health-badge');
+    const results = document.getElementById('health-results');
+    const summary = document.getElementById('health-summary');
+    const lastScan = document.getElementById('health-last-scan');
+
+    btn.disabled = true;
+    badge.textContent = 'Scanning...';
+    badge.className = 'health-badge scanning';
+    results.classList.remove('visible');
+    summary.classList.remove('visible');
+
     try {
-      const mappedTickers = tickers.filter(t => COINGECKO_IDS[t.toUpperCase()]);
-      const ids = mappedTickers.map(t => COINGECKO_IDS[t.toUpperCase()]).join(',');
-      if (!ids) return {};
-      const res = await fetch(
-        'https://api.coingecko.com/api/v3/simple/price?ids=' + ids + '&vs_currencies=usd&include_24hr_change=true'
-      );
-      if (!res.ok) return {};
-      const data = await res.json();
-      const prices = {};
-      mappedTickers.forEach(ticker => {
-        const id = COINGECKO_IDS[ticker.toUpperCase()];
-        const coin = data[id];
-        if (!coin) return;
-        const price = coin.usd || 0;
-        const changePct = coin.usd_24h_change || 0;
-        prices[ticker] = {
-          price,
-          change:    price * changePct / 100,
-          changePct: changePct,
-          source:    'coingecko'
-        };
-      });
-      return prices;
-    } catch(e) {
-      return {};
+      // Pull all data for analysis
+      const { data: algos } = await db.from('algorithms').select('*').order('created_at');
+      const { data: picks } = await db.from('picks').select('*').order('picked_at', { ascending: false }).limit(20);
+      const { data: tradeLog } = await db.from('auto_trade_log').select('*').order('created_at', { ascending: false }).limit(20);
+      const { data: settings } = await db.from('trading_settings').select('*').single();
+      const { data: accuracy } = await db.from('aurum_accuracy').select('*').single();
+      const { data: ratings } = await db.from('self_ratings').select('*').order('rated_at', { ascending: false }).limit(10);
+
+      const algoSummary = algos?.map(a =>
+        `[${a.active ? 'ACTIVE' : 'INACTIVE'}] ${a.name} v${a.version} — ${a.description} | Last updated: ${new Date(a.updated_at).toLocaleDateString()}`
+      ).join('\n') || 'No algorithms loaded';
+
+      const pickSummary = picks?.map(p =>
+        `${p.ticker} score:${p.score} confidence:${p.signals?.spread?.confidence || 'unknown'} — ${p.brief}`
+      ).join('\n') || 'No picks';
+
+      const tradeSummary = tradeLog?.map(t =>
+        `${t.ticker} ${t.direction} score:${t.orchestrator_score} confidence:${t.orchestrator_confidence} status:${t.status}`
+      ).join('\n') || 'No trades';
+
+      const settingsSummary = settings ? `Mode: ${settings.mode} | Principal floor: $${settings.principal_floor} | Max position: ${settings.max_position_size_pct}% | Max daily trades: ${settings.max_daily_trades}` : 'No settings';
+
+      const accuracySummary = accuracy ? `Total picks: ${accuracy.total_picks} | Beat market: ${accuracy.beats_market} | Avg accuracy: ${accuracy.avg_accuracy}%` : 'No accuracy data';
+
+      const ratingsSummary = ratings?.map(r =>
+        `${r.ticker} 30d:${r.return_30d}% 90d:${r.return_90d}% beat_market:${r.beat_market}`
+      ).join('\n') || 'No ratings';
+
+      const prompt = `You are AURUM's internal system monitor. Your job is to vigilantly scan all algorithms, settings, trading history, and accuracy data for issues, conflicts, outdated logic, or anything that needs attention.
+
+CURRENT SYSTEM STATE:
+=== ALGORITHMS (${algos?.length || 0} total) ===
+${algoSummary}
+
+=== TRADING SETTINGS ===
+${settingsSummary}
+
+=== RECENT PICKS (last 20) ===
+${pickSummary}
+
+=== RECENT TRADE LOG (last 20) ===
+${tradeSummary}
+
+=== SYSTEM ACCURACY ===
+${accuracySummary}
+
+=== SELF-RATINGS (last 10) ===
+${ratingsSummary}
+
+YOUR TASK: Perform a thorough diagnostic scan. Look for:
+1. Algorithm conflicts — two algorithms producing opposing signals on the same condition
+2. Algorithms that haven't been updated in a long time and may have stale logic
+3. Inactive algorithms that should be activated (or removed entirely)
+4. Safety parameter issues — settings that could cause dangerous over-trading or under-protection
+5. Accuracy decay — if picks are consistently underperforming, flag which algorithms may be responsible
+6. Logic inconsistencies — e.g. if the orchestrator is generating conflicted confidence often, why
+7. Trade execution issues — patterns in the trade log that suggest a problem
+8. Anything else that needs attention to keep AURUM functioning optimally
+
+Respond ONLY in this exact JSON format, no extra text:
+{
+  "items": [
+    {
+      "severity": "critical|warning|info|ok",
+      "title": "Short title of the finding",
+      "detail": "1-2 sentence explanation of the issue or finding",
+      "action": "Recommended action (or 'No action required')"
     }
-  }
+  ],
+  "summary": "2-3 sentence overall system health assessment in AURUM tone",
+  "overall_status": "critical|warning|ok"
+}`;
 
-  async function refreshPrices() {
-    if (!watchlistTickers.length) return;
-    const prices = currentMode === 'crypto'
-      ? await fetchCryptoPrices(watchlistTickers)
-      : await fetchLivePrices(watchlistTickers);
-    if (Object.keys(prices).length === 0) return;
-    Object.assign(priceCache, prices);
-    updatePriceFeedBar(prices);
-    updateWatchlistPrices(prices);
-    updatePickPrices(prices);
-  }
+      const response = await fetch('https://zpcbbwynvvyldavxzjng.supabase.co/functions/v1/smooth-service', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + SUPABASE_KEY },
+  body: JSON.stringify({ prompt, max_tokens: 2000 })
+});
 
-    function updatePriceFeedBar(prices) {
-    const bar = document.getElementById('price-feed-bar');
-    const feedStatus = document.getElementById('feed-status');
-    if (!bar) return;
+const data = await response.json();
+if (data.error) throw new Error(data.error);
+const text = data.content?.[0]?.text || data.text || '{}';
+const parsed = JSON.parse(text.replace(/```json|```/g, '').trim());
 
-    const items = Object.entries(prices).map(([ticker, data]) => {
-      const dir = data.change >= 0 ? 'up' : 'down';
-      const arrow = data.change >= 0 ? '▲' : '▼';
-      return `
-        <div class="price-feed-item">
-          <span class="feed-ticker">${ticker}</span>
-          <span class="feed-price">$${data.price.toFixed(2)}</span>
-          <span class="feed-change ${dir}">${arrow} ${Math.abs(data.changePct).toFixed(2)}%</span>
+      const items = parsed.items || [];
+      const overallStatus = parsed.overall_status || 'ok';
+
+      // Render results
+      results.innerHTML = items.map(item => `
+        <div class="health-item">
+          <div class="health-severity ${item.severity}">${item.severity.toUpperCase()}</div>
+          <div class="health-item-content">
+            <div class="health-item-title">${item.title}</div>
+            <div class="health-item-detail">${item.detail}</div>
+            ${item.action && item.action !== 'No action required' ? `<div class="health-item-action">→ ${item.action}</div>` : ''}
+          </div>
+        </div>
+      `).join('');
+
+      summary.textContent = parsed.summary || '';
+      results.classList.add('visible');
+      summary.classList.add('visible');
+
+      // Update badge
+      badge.textContent = overallStatus === 'ok' ? 'All Clear' : overallStatus === 'critical' ? 'Issues Found' : 'Warnings';
+      badge.className = `health-badge ${overallStatus === 'ok' ? 'clear' : overallStatus === 'critical' ? 'flagged' : 'flagged'}`;
+
+      lastScan.textContent = `Last scan: ${new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}`;
+
+    } catch(e) {
+      results.innerHTML = `
+        <div class="health-item">
+          <div class="health-severity warning">Warning</div>
+          <div class="health-item-content">
+            <div class="health-item-title">Scan Unavailable</div>
+            <div class="health-item-detail">Claude API key required to run health scan. Add CLAUDE_API_KEY to Supabase secrets.</div>
+          </div>
         </div>
       `;
-    }).join('');
-
-    // Replace feed content keeping dot and label
-    bar.innerHTML = `
-      <div class="feed-dot"></div>
-      <div class="feed-label">Live</div>
-      ${items}
-      <div style="color:var(--muted);font-size:0.55rem;font-family:'IBM Plex Mono',monospace;flex-shrink:0;">Updated ${new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'})}</div>
-    `;
-  }
-
-  function updateWatchlistPrices(prices) {
-    watchlistTickers.forEach(ticker => {
-      const el = document.getElementById('wl-price-' + ticker);
-      if (!el || !prices[ticker]) return;
-      const d = prices[ticker];
-      const dir = d.change >= 0 ? 'up' : 'down';
-      el.textContent = '$' + d.price.toFixed(2) + ' (' + (d.change >= 0 ? '+' : '') + d.changePct.toFixed(2) + '%)';
-      el.className = 'watchlist-price ' + dir;
-    });
-  }
-
-  function updatePickPrices(prices) {
-    watchlistTickers.forEach(ticker => {
-      const el = document.getElementById('pick-price-' + ticker);
-      if (!el || !prices[ticker]) return;
-      el.textContent = '$' + prices[ticker].price.toFixed(2);
-    });
-  }
-
-  // ── DATA LOADERS ──
-  async function loadPicks() {
-    const modeType = currentMode === 'crypto' ? 'crypto' : 'stock';
-    const { data } = await db.from('picks').select('*')
-      .eq('type', modeType)
-      .order('picked_at', { ascending: false })
-      .limit(5);
-    const container = document.getElementById('picks-container');
-    if (!data || !data.length) {
-      container.innerHTML = '<div style="font-size:0.8rem;color:var(--muted);padding:1rem 0;">No picks yet for ' + modeType + ' mode.</div>';
-      return;
-    }
-    container.innerHTML = data.map((p, idx) => {
-      const signals  = p.signals || {};
-      const spread   = signals.spread || null;
-      const priceId  = 'pick-price-' + idx + '-' + (p.ticker || '').replace(/[^a-zA-Z0-9]/g, '');
-      const scoreClass = (p.score || 0) >= 75 ? 'high' : 'mid';
-
-      let signalHtml = '';
-      if (signals.momentum || signals.sentiment) {
-        signalHtml = '<div class="signal-breakdown">' +
-          (signals.momentum  ? '<div class="signal-bar"><span class="signal-name">Momentum</span><div class="signal-track"><div class="signal-fill" style="width:' + signals.momentum  + '%"></div></div><span class="signal-val">' + signals.momentum  + '</span></div>' : '') +
-          (signals.sentiment ? '<div class="signal-bar"><span class="signal-name">Sentiment</span><div class="signal-track"><div class="signal-fill" style="width:' + signals.sentiment + '%"></div></div><span class="signal-val">' + signals.sentiment + '</span></div>' : '') +
-          (signals.political ? '<div class="signal-bar"><span class="signal-name">Political</span><div class="signal-track"><div class="signal-fill" style="width:' + signals.political + '%"></div></div><span class="signal-val">' + signals.political + '</span></div>' : '') +
-          (signals.macro     ? '<div class="signal-bar"><span class="signal-name">Macro</span><div class="signal-track"><div class="signal-fill" style="width:'     + signals.macro     + '%"></div></div><span class="signal-val">' + signals.macro     + '</span></div>' : '') +
-          '</div>';
-      }
-
-      let spreadHtml = '';
-      if (spread) {
-        const baseClass = (spread.base_case_return || 0) >= 0 ? 'positive' : 'negative';
-        const baseSign  = (spread.base_case_return || 0) >= 0 ? '+' : '';
-        const confClass = spread.confidence ? spread.confidence.toLowerCase() : '';
-        spreadHtml = '<div class="spread-display">' +
-          '<div class="spread-case bull"><div class="spread-label">Bull Case</div><div class="spread-return positive">+' + spread.bull_case_return + '%</div><div class="spread-prob">' + spread.bull_probability + '% prob</div></div>' +
-          '<div class="spread-case base"><div class="spread-label">Base Case</div><div class="spread-return ' + baseClass + '">' + baseSign + spread.base_case_return + '%</div><div class="spread-prob">' + spread.base_probability + '% prob</div></div>' +
-          '<div class="spread-case bear"><div class="spread-label">Bear Case</div><div class="spread-return negative">' + spread.bear_case_return + '%</div><div class="spread-prob">' + spread.bear_probability + '% prob</div></div>' +
-          '</div>' +
-          '<div class="spread-confidence"><span class="confidence-label">Confidence</span><span class="confidence-value ' + confClass + '">' + (spread.confidence || '—') + '</span></div>';
-      }
-
-      return '<div class="pick-card">' +
-        '<div class="pick-score ' + scoreClass + '">' + (p.score || '—') + '</div>' +
-        '<div class="pick-info">' +
-          '<div class="pick-ticker">' + (p.ticker || '—') + ' <span id="' + priceId + '" style="font-size:0.7rem;color:var(--muted);font-family:\'IBM Plex Mono\',monospace;"></span></div>' +
-          '<div class="pick-brief">' + (p.brief || '—') + '</div>' +
-          signalHtml +
-          spreadHtml +
-        '</div>' +
-        '<div class="pick-meta"><div class="pick-status monitoring">Monitoring</div></div>' +
-      '</div>';
-    }).join('');
-  }
-
-  async function loadAccuracy() {
-    const { data } = await db.from('aurum_accuracy').select('*').single();
-    if (!data) return;
-    document.getElementById('total-picks').textContent = data.total_picks || '—';
-    document.getElementById('beat-market').textContent = data.beats_market || '—';
-    document.getElementById('avg-accuracy').textContent = data.avg_accuracy ? data.avg_accuracy + '%' : '—';
-  }
-
-  async function loadWatchlist() {
-    const { data } = await db.from('stocks')
-      .select('*')
-      .eq('type', currentMode === 'crypto' ? 'crypto' : 'stock')
-      .order('added_at', { ascending: false });
-    const container = document.getElementById('watchlist-container');
-    if (!data || !data.length) {
-      container.innerHTML = '<div class="empty-state">No ' + (currentMode === 'crypto' ? 'crypto' : 'stocks') + ' in watchlist.</div>';
-      return;
+      results.classList.add('visible');
+      badge.textContent = 'API Required';
+      badge.className = 'health-badge';
     }
 
-    watchlistTickers = data.map(s => s.ticker);
-
-    container.innerHTML = data.map(s => `
-      <div class="watchlist-row" style="grid-template-columns:1fr 1fr 1fr auto;">
-        <div class="watchlist-ticker">${s.ticker}</div>
-        <div class="watchlist-company">${s.company_name || '—'}</div>
-        <div class="watchlist-sector">${s.sector || '—'}</div>
-        <div class="watchlist-price" id="wl-price-${s.ticker}">—</div>
-      </div>
-    `).join('');
-
-    refreshPrices();
+    btn.disabled = false;
   }
 
-  async function switchMode(mode) {
-    if (mode === currentMode) return;
-    currentMode = mode;
-
-    // Update UI immediately so toggle feels responsive
-    document.getElementById('mode-stock').classList.toggle('mode-active', mode === 'stock');
-    document.getElementById('mode-crypto').classList.toggle('mode-active', mode === 'crypto');
-
-    // Persist mode — update existing row or insert if none exists
-    try {
-      const { data } = await db.from('trading_settings').select('id').single();
-      if (data?.id) {
-        await db.from('trading_settings').update({ active_mode: mode }).eq('id', data.id);
-      } else {
-        await db.from('trading_settings').insert({ active_mode: mode });
-      }
-    } catch(e) {}
-
-    // Reload data for the new mode
-    priceCache = {};
-    watchlistTickers = [];
-    await loadPicks();
-    await loadAccuracy();
-    await loadWatchlist();
-    priceFeedInterval = setInterval(refreshPrices, 30000);
-  }
-
-  async function loadRatings() {
-    const { data } = await db.from('self_ratings').select('*').order('rated_at', { ascending: false }).limit(10);
-    const container = document.getElementById('rating-container');
-    if (!data || !data.length) return;
-    container.innerHTML = data.map(r => `
-      <div class="rating-row">
-        <div class="rating-ticker">${r.ticker}</div>
-        <div class="rating-return ${r.return_30d >= 0 ? 'positive' : 'negative'}">${r.return_30d ? r.return_30d + '%' : '—'}</div>
-        <div class="rating-return ${r.return_90d >= 0 ? 'positive' : 'negative'}">${r.return_90d ? r.return_90d + '%' : '—'}</div>
-        <div><span class="beat-badge ${r.beat_market ? 'yes' : 'no'}">${r.beat_market ? 'Yes' : 'No'}</span></div>
-      </div>
-    `).join('');
-  }
-
-  async function init() {
-    // Read active mode from trading_settings first — everything else depends on it
-    try {
-      const { data: settings } = await db.from('trading_settings').select('active_mode').single();
-      if (settings?.active_mode) {
-        currentMode = settings.active_mode;
-        document.getElementById('mode-stock').classList.toggle('mode-active', currentMode === 'stock');
-        document.getElementById('mode-crypto').classList.toggle('mode-active', currentMode === 'crypto');
-      }
-    } catch(e) {}
-
-    await loadPicks();
-    await loadAccuracy();
-    await loadWatchlist();
-    await loadRatings();
-    await checkPositionAlerts();
-
-    priceFeedInterval = setInterval(refreshPrices, 30000);
-  }
-
-  async function checkPositionAlerts() {
+  /* ── Nav ── */
+  // ── POSITION ALERTS ──
+  async function loadAdminAlerts() {
     try {
       const { data } = await db.from('position_alerts')
-        .select('id').eq('read', false).limit(1);
-      const badge = document.getElementById('alert-badge');
-      if (badge) badge.style.display = data?.length ? 'block' : 'none';
+        .select('*').order('created_at', { ascending: false }).limit(20);
+      const container = document.getElementById('admin-alerts-container');
+      if (!data || !data.length) {
+        container.innerHTML = '<div style="font-size:0.8rem;color:var(--muted);padding:1rem 0;">No alerts.</div>';
+        return;
+      }
+      const colors = { direction_reversal: 'var(--danger)', stop_tightened: 'var(--gold)', target_reached: 'var(--positive)', stop_loss_triggered: 'var(--danger)', manual_close: 'var(--muted)' };
+      container.innerHTML = data.map(a => {
+        const color = colors[a.alert_type] || 'var(--muted)';
+        const time  = new Date(a.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+        return '<div style="border:1px solid var(--rule);border-left:3px solid ' + color + ';padding:0.8rem 1rem;margin-bottom:0.5rem;opacity:' + (a.read ? '0.5' : '1') + ';">' +
+          '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.3rem;">' +
+            '<span style="font-size:0.62rem;letter-spacing:0.15em;color:' + color + ';font-family:\'IBM Plex Mono\',monospace;">' + a.alert_type.toUpperCase().replace(/_/g,' ') + ' · ' + a.ticker + '</span>' +
+            '<span style="font-size:0.65rem;color:var(--muted);">' + time + '</span>' +
+          '</div>' +
+          '<div style="font-size:0.8rem;color:var(--white);line-height:1.5;">' + a.message + '</div>' +
+        '</div>';
+      }).join('');
+    } catch(e) {
+      document.getElementById('admin-alerts-container').innerHTML = '<div style="font-size:0.8rem;color:var(--muted);">Position alerts table not yet created. Run intelligent_workflow_setup.sql first.</div>';
+    }
+  }
+
+  async function clearAllAlerts() {
+    try {
+      await db.from('position_alerts').update({ read: true }).eq('read', false);
+      loadAdminAlerts();
     } catch(e) {}
   }
 
-  function openNav() { document.getElementById('nav-overlay').classList.add('open'); }
-  function closeNav() { document.getElementById('nav-overlay').classList.remove('open'); }
+  // ── DATABASE CLEANER ──
+  let pendingClearAction = null;
 
-  init();
+  function confirmClear(table, label) {
+    pendingClearAction = { type: 'clear', table };
+    document.getElementById('confirm-message').textContent = 'This will permanently delete ' + label + '. This cannot be undone. Are you sure?';
+    const dialog = document.getElementById('confirm-dialog');
+    dialog.style.display = 'flex';
+    document.getElementById('confirm-yes').onclick = executeClear;
+  }
+
+  function confirmResetPortfolio() {
+    pendingClearAction = { type: 'reset_portfolio' };
+    document.getElementById('confirm-message').textContent = 'This will reset your paper portfolio balance to $10,000 and clear all trades. Are you sure?';
+    const dialog = document.getElementById('confirm-dialog');
+    dialog.style.display = 'flex';
+    document.getElementById('confirm-yes').onclick = executeClear;
+  }
+
+  function closeConfirmDialog() {
+    document.getElementById('confirm-dialog').style.display = 'none';
+    pendingClearAction = null;
+  }
+
+  async function executeClear() {
+    if (!pendingClearAction) return;
+    closeConfirmDialog();
+    try {
+      if (pendingClearAction.type === 'clear') {
+        await db.from(pendingClearAction.table).delete().neq('id', '00000000-0000-0000-0000-000000000000');
+        alert(pendingClearAction.table + ' cleared successfully.');
+      } else if (pendingClearAction.type === 'reset_portfolio') {
+        await db.from('paper_trades').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+        const { data: port } = await db.from('paper_portfolio').select('id').single();
+        if (port?.id) {
+          await db.from('paper_portfolio').update({
+            current_balance: 10000, starting_balance: 10000,
+            realized_gl: 0, unrealized_gl: 0,
+            total_return: 0, total_return_pct: 0,
+            updated_at: new Date().toISOString()
+          }).eq('id', port.id);
+        } else {
+          await db.from('paper_portfolio').insert({
+            starting_balance: 10000, current_balance: 10000,
+            realized_gl: 0, unrealized_gl: 0,
+            total_return: 0, total_return_pct: 0,
+          });
+        }
+        alert('Portfolio reset to $10,000 successfully.');
+      }
+    } catch(e) {
+      alert('Error: ' + (e?.message || 'Delete failed.'));
+    }
+  }
+
+  function openNav() {
+    document.getElementById('nav-overlay').classList.add('open');
+  }
+  function closeNav() {
+    document.getElementById('nav-overlay').classList.remove('open');
+  }
+
+  /* ── Algorithms ── */
+  async function loadAlgorithms() {
+    const { data } = await db.from('algorithms').select('*').order('created_at');
+    if (!data) return;
+    algorithms = data;
+
+    document.getElementById('algo-container').innerHTML = data.map(a => `
+      <div class="algo-card">
+        <div>
+          <div class="algo-name">${a.name}</div>
+          <div class="algo-desc">${a.description}</div>
+          <div class="algo-meta">v${a.version} — Last updated: ${new Date(a.updated_at).toLocaleDateString()}</div>
+        </div>
+        <div class="algo-status ${a.active ? '' : 'inactive'}">${a.active ? 'Active' : 'Inactive'}</div>
+      </div>
+    `).join('');
+
+    const select = document.getElementById('algo-select');
+    select.innerHTML = '<option value="">— Select —</option>' +
+      data.map(a => `<option value="${a.id}">${a.name}</option>`).join('');
+  }
+
+  /* ── Add Stock ── */
+  async function loadAdminWatchlist() {
+    const container = document.getElementById('admin-watchlist-container');
+    try {
+      const { data } = await db.from('stocks').select('*').eq('type', activeMode === 'crypto' ? 'crypto' : 'stock').order('added_at', { ascending: false });
+      if (!data || !data.length) {
+        container.innerHTML = '<div style="padding:1rem; font-size:0.8rem; color:var(--muted);">No stocks in watchlist.</div>';
+        return;
+      }
+      container.innerHTML = data.map(s => `
+        <div style="display:grid; grid-template-columns:80px 1fr 1fr auto; gap:1rem; align-items:center; padding:0.8rem 1rem; border-bottom:1px solid var(--rule);">
+          <div style="font-family:'IBM Plex Mono',monospace; color:var(--gold); font-size:0.85rem;">${s.ticker}</div>
+          <div style="font-size:0.78rem; color:var(--white);">${s.company_name || '—'}</div>
+          <div style="font-size:0.72rem; color:var(--muted);">${s.sector || '—'}</div>
+          <button onclick="removeStock('${s.id}', '${s.ticker}')" style="background:transparent; border:1px solid rgba(139,58,58,0.4); color:var(--danger); padding:0.3rem 0.7rem; cursor:pointer; font-size:0.65rem; letter-spacing:0.1em; font-family:'DM Sans',sans-serif;">Remove</button>
+        </div>
+      `).join('');
+    } catch(e) {
+      container.innerHTML = '<div style="padding:1rem; font-size:0.8rem; color:var(--muted);">Error loading watchlist.</div>';
+    }
+  }
+
+  let pendingRemoveId   = null;
+  let pendingRemoveTicker = null;
+
+  function removeStock(id, ticker) {
+    pendingRemoveId     = id;
+    pendingRemoveTicker = ticker;
+    document.getElementById('remove-ticker-label').textContent = ticker;
+    document.getElementById('remove-dialog').style.display = 'flex';
+  }
+
+  function cancelRemove() {
+    pendingRemoveId     = null;
+    pendingRemoveTicker = null;
+    document.getElementById('remove-dialog').style.display = 'none';
+  }
+
+  async function confirmRemove() {
+    if (!pendingRemoveId) return;
+    document.getElementById('remove-dialog').style.display = 'none';
+    try {
+      await db.from('stocks').delete().eq('id', pendingRemoveId);
+      await loadAdminWatchlist();
+    } catch(e) {}
+    pendingRemoveId     = null;
+    pendingRemoveTicker = null;
+  }
+
+  async function addStock() {
+    const ticker  = document.getElementById('new-ticker').value.toUpperCase().trim();
+    const company = document.getElementById('new-company').value.trim();
+    const sector  = document.getElementById('new-sector').value.trim();
+    if (!ticker) return;
+
+    const modeType = activeMode === 'crypto' ? 'crypto' : 'stock';
+
+    const { error } = await db.from('stocks').insert({ ticker, company_name: company, sector, type: modeType });
+    if (!error) {
+      document.getElementById('stock-success').classList.add('visible');
+      document.getElementById('new-ticker').value  = '';
+      document.getElementById('new-company').value = '';
+      document.getElementById('new-sector').value  = '';
+      setTimeout(() => document.getElementById('stock-success').classList.remove('visible'), 3000);
+
+      // Fetch live price immediately — route to correct source based on mode
+      try {
+        if (modeType === 'crypto') {
+          const CG_IDS = {
+            BTC:'bitcoin', ETH:'ethereum', SOL:'solana', BNB:'binancecoin', XRP:'ripple',
+            AVAX:'avalanche-2', MATIC:'matic-network', LINK:'chainlink', ADA:'cardano',
+            DOT:'polkadot', DOGE:'dogecoin', SHIB:'shiba-inu', UNI:'uniswap', ATOM:'cosmos',
+            LTC:'litecoin', TRX:'tron', HYPE:'hyperliquid'
+          };
+          const id = CG_IDS[ticker];
+          if (id) {
+            const res = await fetch('https://api.coingecko.com/api/v3/coins/' + id + '?localization=false&tickers=false&community_data=false&developer_data=false');
+            if (res.ok) {
+              const coinData = await res.json();
+              const md = coinData?.market_data;
+              if (md) {
+                const price     = md.current_price?.usd || 0;
+                const changePct = md.price_change_percentage_24h || 0;
+                await db.from('stocks').update({
+                  last_price:        price,
+                  price_change:      price * changePct / 100,
+                  price_change_pct:  changePct,
+                  price_updated_at:  new Date().toISOString(),
+                  day_high:          md.high_24h?.usd || null,
+                  day_low:           md.low_24h?.usd  || null,
+                  fifty_two_wk_high: md.ath?.usd || null,
+                  fifty_two_wk_low:  md.atl?.usd || null,
+                  market_cap:        md.market_cap?.usd ? Math.round(md.market_cap.usd) : null,
+                  last_fetch_error:  null,
+                }).eq('ticker', ticker);
+              }
+            } else {
+              await db.from('stocks').update({ last_fetch_error: 'CoinGecko fetch failed: HTTP ' + res.status }).eq('ticker', ticker);
+            }
+          } else {
+            await db.from('stocks').update({ last_fetch_error: 'No CoinGecko ID mapped for ' + ticker }).eq('ticker', ticker);
+          }
+        } else {
+          const TWELVE_KEY = '1fbbfd6ec92c489ca009d00e7127fbe3';
+          const res = await fetch('https://api.twelvedata.com/quote?symbol=' + ticker + '&apikey=' + TWELVE_KEY);
+          if (res.ok) {
+            const q = await res.json();
+            if (q && q.close && !q.code) {
+              const price = parseFloat(q.close);
+              const prevClose = parseFloat(q.previous_close || q.close);
+              await db.from('stocks').update({
+                last_price:        price,
+                price_change:      price - prevClose,
+                price_change_pct:  prevClose > 0 ? (price - prevClose) / prevClose * 100 : 0,
+                price_updated_at:  new Date().toISOString(),
+                day_open:          parseFloat(q.open) || null,
+                day_high:          parseFloat(q.high) || null,
+                day_low:           parseFloat(q.low)  || null,
+                day_volume:        parseInt(q.volume) || null,
+                fifty_two_wk_high: parseFloat(q.fifty_two_week?.high) || null,
+                fifty_two_wk_low:  parseFloat(q.fifty_two_week?.low)  || null,
+                last_fetch_error:  null,
+              }).eq('ticker', ticker);
+            } else {
+              await db.from('stocks').update({ last_fetch_error: q?.message || 'Invalid symbol or no data' }).eq('ticker', ticker);
+            }
+          } else {
+            await db.from('stocks').update({ last_fetch_error: 'Twelve Data fetch failed: HTTP ' + res.status }).eq('ticker', ticker);
+          }
+        }
+      } catch(e) { /* price fetch is best-effort, non-blocking */ }
+
+      await loadAdminWatchlist();
+    }
+  }
+
+  /* ── Algorithm Improvement ── */
+  async function requestImprovement() {
+    const algoId = document.getElementById('algo-select').value;
+    const request = document.getElementById('improvement-request').value.trim();
+    if (!algoId || !request) return;
+
+    currentAlgo = algorithms.find(a => a.id === algoId);
+    if (!currentAlgo) return;
+
+    document.getElementById('improve-btn').disabled = true;
+    document.getElementById('loading-state').classList.add('visible');
+    document.getElementById('response-panel').classList.remove('visible');
+
+    try {
+      const prompt = `You are improving a financial algorithm for a private stock intelligence system called AURUM.
+
+Current algorithm name: ${currentAlgo.name}
+Current description: ${currentAlgo.description}
+Current code:
+${currentAlgo.code}
+
+Improvement requested by user:
+${request}
+
+Respond in this exact JSON format with no extra text:
+{
+  "improved_code": "the full improved function code here",
+  "explanation": "plain english explanation of what changed and why"
+}`;
+
+const response = await fetch('https://zpcbbwynvvyldavxzjng.supabase.co/functions/v1/smooth-service', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + SUPABASE_KEY },
+  body: JSON.stringify({ prompt, max_tokens: 1500 })
+});
+
+const data = await response.json();
+if (data.error) throw new Error(data.error);
+const text = data.content?.[0]?.text || data.text || '{}';
+const parsed = JSON.parse(text.replace(/```json|```/g, '').trim());
+
+      improvedCode = parsed.improved_code;
+      document.getElementById('response-code').textContent = parsed.improved_code;
+      document.getElementById('response-explanation').textContent = parsed.explanation;
+      document.getElementById('response-panel').classList.add('visible');
+
+    } catch(e) {
+      document.getElementById('response-explanation').textContent = 'Error generating improvement. Claude API key required.';
+      document.getElementById('response-panel').classList.add('visible');
+    }
+
+    document.getElementById('loading-state').classList.remove('visible');
+    document.getElementById('improve-btn').disabled = false;
+  }
+
+  async function approveImprovement() {
+    if (!currentAlgo || !improvedCode) return;
+
+    const { error } = await db.from('algorithms').update({
+      code: improvedCode,
+      version: currentAlgo.version + 1,
+      updated_at: new Date().toISOString()
+    }).eq('id', currentAlgo.id);
+
+    if (!error) {
+      document.getElementById('response-panel').classList.remove('visible');
+      document.getElementById('deploy-success').classList.add('visible');
+      setTimeout(() => {
+        document.getElementById('deploy-success').classList.remove('visible');
+        loadAlgorithms();
+      }, 3000);
+    }
+  }
+
+  /* ── Price Alerts ── */
+  async function setAlert() {
+    const ticker = document.getElementById('alert-ticker').value.toUpperCase().trim();
+    const alertType = document.getElementById('alert-type').value;
+    const threshold = parseFloat(document.getElementById('alert-threshold').value);
+    const entryPrice = parseFloat(document.getElementById('alert-entry').value);
+    if (!ticker || !threshold || !entryPrice) return;
+
+    const { error } = await db.from('price_alerts').insert({
+      ticker,
+      alert_type: alertType,
+      threshold_pct: threshold,
+      entry_price: entryPrice
+    });
+
+    if (!error) {
+      document.getElementById('alert-success').classList.add('visible');
+      setTimeout(() => document.getElementById('alert-success').classList.remove('visible'), 3000);
+      loadAlerts();
+    }
+  }
+
+  async function loadAlerts() {
+    const { data } = await db.from('price_alerts').select('*').eq('triggered', false).order('created_at', { ascending: false });
+    const container = document.getElementById('alerts-container');
+    if (!data || !data.length) {
+      container.innerHTML = '<div style="padding:1.5rem;font-size:0.8rem;color:var(--muted)">No active alerts.</div>';
+      return;
+    }
+    container.innerHTML = data.map(a => `
+      <div class="algo-card">
+        <div>
+          <div class="algo-name">${a.ticker}</div>
+          <div class="algo-desc">Alert when price moves ${a.alert_type === 'up' ? 'up' : 'down'} ${a.threshold_pct}% from $${a.entry_price}</div>
+          <div class="algo-meta">Set: ${new Date(a.created_at).toLocaleDateString()}</div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:0.5rem;align-items:flex-end;">
+          <div class="algo-status">${a.alert_type === 'up' ? '▲' : '▼'} ${a.threshold_pct}%</div>
+          <button class="btn-danger" onclick="deleteAlert('${a.id}')">Delete</button>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  async function deleteAlert(id) {
+    const { error } = await db.from('price_alerts').delete().eq('id', id);
+    if (!error) loadAlerts();
+  }
+
+  /* ── SYSTEM NOTES ── */
+  const NOTE_CATEGORY_COLORS = {
+    upgrade:  '#C9A84C',
+    reminder: '#6B9FD4',
+    plug:     '#3A6B4A',
+    bug:      '#8B3A3A',
+    idea:     '#7B6B9D'
+  };
+  const NOTE_CATEGORY_LABELS = {
+    upgrade:  'PENDING UPGRADE',
+    reminder: 'REMINDER',
+    plug:     'PLUG & PLAY',
+    bug:      'BUG / FIX',
+    idea:     'IDEA'
+  };
+
+  async function loadNotes() {
+    try {
+      const { data } = await db.from('system_notes')
+        .select('*').eq('resolved', false)
+        .order('created_at', { ascending: false });
+      const container = document.getElementById('notes-container');
+      if (!data || !data.length) {
+        container.innerHTML = '<div style="font-size:0.8rem; color:var(--muted); padding:1rem 0;">No pending notes.</div>';
+        return;
+      }
+      container.innerHTML = data.map(n => {
+        const color = NOTE_CATEGORY_COLORS[n.category] || '#C9A84C';
+        const label = NOTE_CATEGORY_LABELS[n.category] || n.category.toUpperCase();
+        const date  = new Date(n.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        return `<div style="border:1px solid var(--rule); padding:1rem; margin-bottom:0.8rem;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem;">
+            <span style="font-size:0.62rem; letter-spacing:0.15em; color:${color}; font-family:'IBM Plex Mono',monospace;">${label}</span>
+            <div style="display:flex; gap:0.8rem; align-items:center;">
+              <span style="font-size:0.65rem; color:var(--muted);">${date}</span>
+              <button onclick="resolveNote('${n.id}')" style="background:transparent; border:1px solid rgba(201,168,76,0.3); color:var(--muted); font-size:0.6rem; letter-spacing:0.1em; padding:0.2rem 0.6rem; cursor:pointer; font-family:'DM Sans',sans-serif;">DONE</button>
+            </div>
+          </div>
+          <div style="font-size:0.82rem; color:var(--white); line-height:1.6;">${n.note}</div>
+        </div>`;
+      }).join('');
+    } catch(e) {}
+  }
+
+  async function addNote() {
+    const note     = document.getElementById('new-note').value.trim();
+    const category = document.getElementById('note-category').value;
+    if (!note) return;
+    const { error } = await db.from('system_notes').insert({ note, category });
+    if (!error) {
+      document.getElementById('new-note').value = '';
+      document.getElementById('note-success').classList.add('visible');
+      setTimeout(() => document.getElementById('note-success').classList.remove('visible'), 3000);
+      await loadNotes();
+    }
+  }
+
+  async function resolveNote(id) {
+    await db.from('system_notes').update({ resolved: true, resolved_at: new Date().toISOString() }).eq('id', id);
+    await loadNotes();
+  }
+
+  /* ── AUTO-RATE PICKS — populates self_ratings for picks 30+ days old ── */
+  const TWELVE_KEY_RATING = '1fbbfd6ec92c489ca009d00e7127fbe3';
+
+  async function getPriceOnDate(ticker, dateStr) {
+    try {
+      const res = await fetch(
+        'https://api.twelvedata.com/time_series?symbol=' + ticker +
+        '&interval=1day&start_date=' + dateStr + '&end_date=' + dateStr +
+        '&outputsize=1&apikey=' + TWELVE_KEY_RATING
+      );
+      if (!res.ok) return null;
+      const data = await res.json();
+      const bar = data?.values?.[0];
+      return bar ? parseFloat(bar.close) : null;
+    } catch(e) { return null; }
+  }
+
+  async function getPriceNear(ticker, targetDate) {
+    // Try the exact date, then walk forward up to 5 days (covers weekends/holidays)
+    for (let i = 0; i < 5; i++) {
+      const d = new Date(targetDate);
+      d.setDate(d.getDate() + i);
+      const dateStr = d.toISOString().split('T')[0];
+      const price = await getPriceOnDate(ticker, dateStr);
+      if (price) return price;
+    }
+    return null;
+  }
+
+  async function autoRatePicks() {
+    try {
+      const cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - 30);
+      const cutoffStr = cutoff.toISOString();
+
+      // Picks older than 30 days
+      const { data: eligiblePicks } = await db.from('picks')
+        .select('ticker, score, picked_at')
+        .lt('picked_at', cutoffStr)
+        .order('picked_at', { ascending: false })
+        .limit(50);
+
+      if (!eligiblePicks || !eligiblePicks.length) return;
+
+      // Already-rated tickers+dates — skip duplicates
+      const { data: existingRatings } = await db.from('self_ratings').select('ticker, rated_at');
+      const ratedSet = new Set((existingRatings || []).map(r => r.ticker + '|' + r.rated_at?.slice(0, 10)));
+
+      const toRate = eligiblePicks.filter(p => {
+        const pickDateKey = p.ticker + '|' + p.picked_at?.slice(0, 10);
+        return !ratedSet.has(pickDateKey);
+      });
+
+      if (!toRate.length) return;
+
+      // Rate up to 5 per load to stay within API rate limits (Twelve Data free tier: 8 req/min)
+      const batch = toRate.slice(0, 5);
+
+      for (const pick of batch) {
+        const pickDate = new Date(pick.picked_at);
+        const targetDate = new Date(pickDate);
+        targetDate.setDate(targetDate.getDate() + 30);
+
+        // Skip if target date is in the future (shouldn't happen given cutoff filter, but safe)
+        if (targetDate > new Date()) continue;
+
+        const pickDateStr = pickDate.toISOString().split('T')[0];
+
+        const [entryPrice, exitPrice, spyEntry, spyExit] = await Promise.all([
+          getPriceNear(pick.ticker, pickDate),
+          getPriceNear(pick.ticker, targetDate),
+          getPriceNear('SPY', pickDate),
+          getPriceNear('SPY', targetDate),
+        ]);
+
+        if (!entryPrice || !exitPrice || !spyEntry || !spyExit) continue;
+
+        const return30d = ((exitPrice - entryPrice) / entryPrice) * 100;
+        const spyReturn30d = ((spyExit - spyEntry) / spyEntry) * 100;
+        const beatMarket = return30d > spyReturn30d;
+
+        await db.from('self_ratings').insert({
+          ticker: pick.ticker,
+          rated_at: pick.picked_at,
+          return_30d: Math.round(return30d * 100) / 100,
+          spy_return_30d: Math.round(spyReturn30d * 100) / 100,
+          beat_market: beatMarket,
+          original_score: pick.score,
+        });
+      }
+    } catch(e) {
+      // Silent — auto-rating is a background enhancement, never blocks page load
+    }
+  }
+
+  /* ── Init ── */
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/aurum-app/sw.js');
+  }
+
+  loadActiveMode().then(() => {
+    loadAlgorithms();
+    loadAlerts();
+    runHealthScan();
+    autoRatePicks();
+    loadAdminWatchlist();
+    loadNotes();
+    loadAdminAlerts();
+  });
+</script>
+
+<script src="tickers.js"></script>
+<script>
+  if (typeof initTickerAutocomplete === 'function') {
+    initTickerAutocomplete('new-ticker');
+    initTickerAutocomplete('alert-ticker');
+  }
 </script>
 
 </body>
