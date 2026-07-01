@@ -1926,6 +1926,53 @@ async function loadActiveStrategy() {
   } catch(e) {}
 }
 
+  async function loadPositionAlerts() {
+    try {
+      const { data } = await db.from('position_alerts')
+        .select('*').eq('read', false)
+        .order('created_at', { ascending: false }).limit(10);
+
+      const container = document.getElementById('position-alerts-container');
+      if (!container) return;
+
+      if (!data || !data.length) {
+        container.style.display = 'none';
+        return;
+      }
+
+      container.style.display = 'block';
+      const colors = {
+        stop_tightened:      'rgba(201,168,76,0.8)',
+        direction_reversal:  'var(--danger)',
+        target_reached:      'var(--positive)',
+        stop_loss_triggered: 'var(--danger)',
+        manual_close:        'var(--muted)',
+      };
+
+      container.innerHTML = '<div style="font-size:0.65rem;letter-spacing:0.2em;color:var(--gold);font-family:\'IBM Plex Mono\',monospace;margin-bottom:0.5rem;">⚠ POSITION ALERTS</div>' +
+        data.map(a => {
+          const color = colors[a.alert_type] || 'var(--muted)';
+          const time  = new Date(a.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+          return '<div style="border-left:3px solid ' + color + ';padding:0.6rem 0.8rem;margin-bottom:0.4rem;background:rgba(0,0,0,0.3);display:flex;justify-content:space-between;align-items:flex-start;gap:0.5rem;">' +
+            '<div style="flex:1;">' +
+              '<div style="font-size:0.65rem;color:' + color + ';font-family:\'IBM Plex Mono\',monospace;letter-spacing:0.1em;margin-bottom:0.2rem;">' + a.alert_type.toUpperCase().replace(/_/g,' ') + ' · ' + a.ticker + ' · ' + time + '</div>' +
+              '<div style="font-size:0.78rem;color:var(--white);line-height:1.5;">' + a.message + '</div>' +
+            '</div>' +
+            '<button onclick="dismissAlert(\'' + a.id + '\')" style="background:transparent;border:none;color:var(--muted);cursor:pointer;font-size:0.8rem;padding:0;flex-shrink:0;">✕</button>' +
+          '</div>';
+        }).join('');
+    } catch(e) {
+      // position_alerts table may not exist yet — silently skip
+    }
+  }
+
+  async function dismissAlert(id) {
+    try {
+      await db.from('position_alerts').update({ read: true }).eq('id', id);
+      loadPositionAlerts();
+    } catch(e) {}
+  }
+
 function openNav() { document.getElementById('nav-overlay').classList.add('open'); }
 function closeNav() { document.getElementById('nav-overlay').classList.remove('open'); }
 
@@ -1938,6 +1985,7 @@ loadActiveStrategy();
 loadPortfolio();
 loadTrades();
 loadHistory();
+loadPositionAlerts();
 </script>
 
 <script src="tickers.js"></script>
