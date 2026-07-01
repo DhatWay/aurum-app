@@ -711,10 +711,7 @@
 
   <div class="gold-rule"></div>
 
-  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
-    <div class="section-label" style="margin-bottom:0;">Watchlist</div>
-    <button onclick="manualRefreshAll()" id="manual-refresh-btn" style="background:transparent; border:1px solid rgba(201,168,76,0.3); color:var(--muted); font-size:0.65rem; letter-spacing:0.1em; padding:0.3rem 0.8rem; cursor:pointer; font-family:'DM Sans',sans-serif;">Refresh Prices</button>
-  </div>
+  <div class="section-label">Watchlist</div>
   <div class="watchlist">
     <div class="watchlist-header">
       <span>Ticker</span>
@@ -759,58 +756,52 @@
   const TWELVE_KEY = '1fbbfd6ec92c489ca009d00e7127fbe3';
   let priceCache = {};
   let priceFeedInterval = null;
-  let lastFetchErrors = [];
   let watchlistTickers = [];
-  let currentMode = 'stock'; // 'stock' or 'crypto' — loaded from trading_settings on init
 
-  // CoinGecko symbol map — maps ticker to CoinGecko coin id
-  const COINGECKO_IDS = {
-    'BTC':   'bitcoin',
-    'ETH':   'ethereum',
-    'SOL':   'solana',
-    'BNB':   'binancecoin',
-    'XRP':   'ripple',
-    'AVAX':  'avalanche-2',
-    'MATIC': 'matic-network',
-    'LINK':  'chainlink',
-    'ADA':   'cardano',
-    'DOT':   'polkadot',
-    'DOGE':  'dogecoin',
-    'SHIB':  'shiba-inu',
-    'UNI':   'uniswap',
-    'ATOM':  'cosmos',
-    'LTC':   'litecoin',
-    'TRX':   'tron',
-    'HYPE':  'hyperliquid',
-  };
+  async function fetchLivePrices(tickers) {
+    if (!tickers || !tickers.length) return {};
+    try {
+      const symbols = tickers.slice(0, 8).join(',');
+      const res = await fetch(
+        'https://api.twelvedata.com/quote?symbol=' + symbols + '&apikey=' + TWELVE_KEY
+      );
+      if (!res.ok) return {};
+      const data = await res.json();
+      const prices = {};
+      const quotes = tickers.length === 1 ? { [tickers[0]]: data } : data;
+      Object.entries(quotes).forEach(([ticker, q]) => {
+        if (!q || q.code || !q.close) return;
+        const price = parseFloat(q.close);
+        const prevClose = parseFloat(q.previous_close || q.close);
+        prices[ticker] = {
+          price,
+          change:    price - prevClose,
+          changePct: prevClose > 0 ? (price - prevClose) / prevClose * 100 : 0,
+          source:    'twelve_data'
+        };
+      });
+      return prices;
+    } catch(e) {
+      return {};
+    }
+  }
 
   async function fetchCryptoPrices(tickers) {
     if (!tickers || !tickers.length) return {};
     try {
       const mappedTickers = tickers.filter(t => COINGECKO_IDS[t.toUpperCase()]);
-      const unmappedTickers = tickers.filter(t => !COINGECKO_IDS[t.toUpperCase()]);
-
-      if (unmappedTickers.length) {
-        console.warn('No CoinGecko ID mapped for:', unmappedTickers.join(', '));
-      }
-
-      const ids = mappedTickers
-        .map(t => COINGECKO_IDS[t.toUpperCase()])
-        .join(',');
+      const ids = mappedTickers.map(t => COINGECKO_IDS[t.toUpperCase()]).join(',');
       if (!ids) return {};
-
       const res = await fetch(
-        'https://api.coingecko.com/api/v3/simple/price?ids=' + ids +
-        '&vs_currencies=usd&include_24hr_change=true&include_24hr_vol=true'
+        'https://api.coingecko.com/api/v3/simple/price?ids=' + ids + '&vs_currencies=usd&include_24hr_change=true'
       );
       if (!res.ok) return {};
       const data = await res.json();
-
       const prices = {};
-      tickers.forEach(ticker => {
+      mappedTickers.forEach(ticker => {
         const id = COINGECKO_IDS[ticker.toUpperCase()];
-        if (!id || !data[id]) return;
         const coin = data[id];
+        if (!coin) return;
         const price = coin.usd || 0;
         const changePct = coin.usd_24h_change || 0;
         prices[ticker] = {
@@ -826,135 +817,19 @@
     }
   }
 
-  async function fetchLivePrices(tickers) {
-    if (!tickers || !tickers.length) return {};
-
-    // Route to correct price source based on active mode
-    if (currentMode === 'crypto') {
-      return fetchCryptoPrices(tickers);
-    }
-
-    try {
-      // Twelve Data free tier limits batch quotes to 8 symbols per call
-      const batches = [];
-      for (let i = 0; i < tickers.length; i += 8) {
-        batches.push(tickers.slice(i, i + 8));
-      }
-
-      const prices = {};
-      const errors = [];
-
-      await Promise.all(batches.map(async (batch) => {
-        const symbols = batch.join(',');
-        try {
-          const res = await fetch(
-            'https://api.twelvedata.com/quote?symbol=' + symbols + '&apikey=' + TWELVE_KEY
-          );
-          if (!res.ok) {
-            errors.push('Batch [' + symbols + ']: HTTP ' + res.status);
-            return;
-          }
-          const data = await res.json();
-
-          // Check for top-level error (rate limit, invalid key, etc.)
-          if (data.code && data.code !== 200) {
-            errors.push('Batch [' + symbols + ']: ' + (data.message || 'API error ' + data.code));
-            return;
-          }
-
-          const quotes = batch.length === 1 ? { [batch[0]]: data } : data;
-
-          Object.entries(quotes).forEach(([ticker, q]) => {
-            if (!q || q.code || !q.close) {
-              if (q?.code) errors.push(ticker + ': ' + (q.message || 'error ' + q.code));
-              return;
-            }
-            const price = parseFloat(q.close);
-            const prevClose = parseFloat(q.previous_close || q.close);
-            prices[ticker] = {
-              price,
-              change:        price - prevClose,
-              changePct:     prevClose > 0 ? (price - prevClose) / prevClose * 100 : 0,
-              dayOpen:       parseFloat(q.open)  || null,
-              dayHigh:       parseFloat(q.high)  || null,
-              dayLow:        parseFloat(q.low)   || null,
-              dayVolume:     parseInt(q.volume)  || null,
-              fiftyTwoHigh:  parseFloat(q.fifty_two_week?.high) || null,
-              fiftyTwoLow:   parseFloat(q.fifty_two_week?.low)  || null,
-              source:        'twelve_data'
-            };
-          });
-        } catch(e) {
-          errors.push('Batch [' + symbols + ']: ' + (e.message || 'fetch failed'));
-        }
-      }));
-
-      if (errors.length) {
-        console.warn('Price fetch errors:', errors.join(' | '));
-      }
-      lastFetchErrors = errors;
-
-      return prices;
-    } catch(e) {
-      return {};
-    }
-  }
-
-  async function manualRefreshAll() {
-    const btn = document.getElementById('manual-refresh-btn');
-    btn.disabled = true;
-    btn.textContent = 'Refreshing...';
-    await refreshPrices(watchlistTickers);
-    btn.textContent = 'Refreshed';
-    setTimeout(() => { btn.textContent = 'Refresh Prices'; btn.disabled = false; }, 2000);
-  }
-
-  async function refreshPrices(tickersToFetch) {
-    const targets = tickersToFetch || watchlistTickers;
-    if (!targets.length) return;
-
-    // Mark fetch attempt for all targets, even if it fails
-    const attemptTime = new Date().toISOString();
-    await Promise.all(targets.map(t =>
-      db.from('stocks').update({ last_fetch_attempt_at: attemptTime }).eq('ticker', t).catch(() => {})
-    ));
-
-    const prices = await fetchLivePrices(targets);
-
-    // Store any errors on the tickers that failed
-    if (lastFetchErrors.length) {
-      await db.from('stocks').update({
-        last_fetch_error: lastFetchErrors.join(' | ').slice(0, 500)
-      }).in('ticker', targets).catch(() => {});
-    }
-
+  async function refreshPrices() {
+    if (!watchlistTickers.length) return;
+    const prices = currentMode === 'crypto'
+      ? await fetchCryptoPrices(watchlistTickers)
+      : await fetchLivePrices(watchlistTickers);
     if (Object.keys(prices).length === 0) return;
-
     Object.assign(priceCache, prices);
     updatePriceFeedBar(prices);
     updateWatchlistPrices(prices);
     updatePickPrices(prices);
-
-    // Persist fetched prices to database with timestamp — this is the 24hr cache
-    const now = new Date().toISOString();
-    await Promise.all(Object.entries(prices).map(([ticker, d]) =>
-      db.from('stocks').update({
-        last_price:        d.price,
-        price_change:      d.change,
-        price_change_pct:  d.changePct,
-        price_updated_at:  now,
-        day_open:          d.dayOpen,
-        day_high:          d.dayHigh,
-        day_low:           d.dayLow,
-        day_volume:        d.dayVolume,
-        fifty_two_wk_high: d.fiftyTwoHigh,
-        fifty_two_wk_low:  d.fiftyTwoLow,
-        last_fetch_error:  null,
-      }).eq('ticker', ticker).catch(() => {})
-    ));
   }
 
-  function updatePriceFeedBar(prices) {
+    function updatePriceFeedBar(prices) {
     const bar = document.getElementById('price-feed-bar');
     const feedStatus = document.getElementById('feed-status');
     if (!bar) return;
@@ -1074,30 +949,16 @@
 
     watchlistTickers = data.map(s => s.ticker);
 
-    // Show cached prices immediately while live fetch runs in background
-    container.innerHTML = data.map(s => {
-      const hasPrice = s.last_price !== null && s.last_price !== undefined;
-      const isCryptoUnmapped = currentMode === 'crypto' && !COINGECKO_IDS[s.ticker.toUpperCase()];
-      const hasError = !hasPrice && s.last_fetch_error;
-      const priceText = isCryptoUnmapped
-        ? 'Not supported'
-        : hasPrice
-          ? '$' + Number(s.last_price).toFixed(2) + ' (' + (s.price_change_pct >= 0 ? '+' : '') + Number(s.price_change_pct || 0).toFixed(2) + '%)'
-          : '—';
-      const priceClass = hasPrice && !isCryptoUnmapped ? (s.price_change >= 0 ? 'up' : 'down') : '';
-      const errorTitle = hasError ? s.last_fetch_error : '';
-      return `
+    container.innerHTML = data.map(s => `
       <div class="watchlist-row" style="grid-template-columns:1fr 1fr 1fr auto;">
         <div class="watchlist-ticker">${s.ticker}</div>
         <div class="watchlist-company">${s.company_name || '—'}</div>
         <div class="watchlist-sector">${s.sector || '—'}</div>
-        <div class="watchlist-price ${priceClass}" id="wl-price-${s.ticker}" title="${errorTitle}">${priceText}</div>
+        <div class="watchlist-price" id="wl-price-${s.ticker}">—</div>
       </div>
-    `;}).join('');
+    `).join('');
 
-    // Always fetch live prices for ALL tickers — both stock and crypto
-    // Runs after rendering cached data so page shows immediately
-    refreshPrices(watchlistTickers);
+    refreshPrices();
   }
 
   async function switchMode(mode) {
@@ -1124,6 +985,7 @@
     await loadPicks();
     await loadAccuracy();
     await loadWatchlist();
+    priceFeedInterval = setInterval(refreshPrices, 30000);
   }
 
   async function loadRatings() {
@@ -1156,6 +1018,8 @@
     await loadWatchlist();
     await loadRatings();
     await checkPositionAlerts();
+
+    priceFeedInterval = setInterval(refreshPrices, 30000);
   }
 
   async function checkPositionAlerts() {
