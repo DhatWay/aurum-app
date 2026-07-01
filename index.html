@@ -1012,51 +1012,45 @@
       return;
     }
     container.innerHTML = data.map((p, idx) => {
-      const signals = p.signals || {};
-      const spread  = signals.spread || null;
-      // Use idx to make IDs unique even if same ticker appears twice
-      const priceId = 'pick-price-' + idx + '-' + (p.ticker || '').replace(/[^a-zA-Z0-9]/g, '');
-      return `
-      <div class="pick-card">
-        <div class="pick-score ${(p.score || 0) >= 75 ? 'high' : 'mid'}">${p.score || '—'}</div>
-        <div class="pick-info">
-          <div class="pick-ticker">${p.ticker || '—'} <span id="${priceId}" style="font-size:0.7rem;color:var(--muted);font-family:'IBM Plex Mono',monospace;"></span></div>
-          <div class="pick-brief">${p.brief || '—'}</div>
-          ${signals.momentum || signals.sentiment ? `
-          <div class="signal-breakdown">
-            ${signals.momentum  ? `<div class="signal-bar"><span class="signal-name">Momentum</span><div class="signal-track"><div class="signal-fill" style="width:${signals.momentum}%"></div></div><span class="signal-val">${signals.momentum}</span></div>` : ''}
-            ${signals.sentiment ? `<div class="signal-bar"><span class="signal-name">Sentiment</span><div class="signal-track"><div class="signal-fill" style="width:${signals.sentiment}%"></div></div><span class="signal-val">${signals.sentiment}</span></div>` : ''}
-            ${signals.political ? `<div class="signal-bar"><span class="signal-name">Political</span><div class="signal-track"><div class="signal-fill" style="width:${signals.political}%"></div></div><span class="signal-val">${signals.political}</span></div>` : ''}
-            ${signals.macro     ? `<div class="signal-bar"><span class="signal-name">Macro</span><div class="signal-track"><div class="signal-fill" style="width:${signals.macro}%"></div></div><span class="signal-val">${signals.macro}</span></div>` : ''}
-          </div>` : ''}
-          ${spread ? `
-          <div class="spread-display">
-            <div class="spread-case bull">
-              <div class="spread-label">Bull Case</div>
-              <div class="spread-return positive">+${spread.bull_case_return}%</div>
-              <div class="spread-prob">${spread.bull_probability}% prob</div>
-            </div>
-            <div class="spread-case base">
-              <div class="spread-label">Base Case</div>
-              <div class="spread-return ${(spread.base_case_return || 0) >= 0 ? 'positive' : 'negative'}">${(spread.base_case_return || 0) >= 0 ? '+' : ''}${spread.base_case_return}%</div>
-              <div class="spread-prob">${spread.base_probability}% prob</div>
-            </div>
-            <div class="spread-case bear">
-              <div class="spread-label">Bear Case</div>
-              <div class="spread-return negative">${spread.bear_case_return}%</div>
-              <div class="spread-prob">${spread.bear_probability}% prob</div>
-            </div>
-          </div>
-          <div class="spread-confidence">
-            <span class="confidence-label">Confidence</span>
-            <span class="confidence-value ${spread.confidence ? spread.confidence.toLowerCase() : ''}">${spread.confidence || '—'}</span>
-          </div>` : ''}
-        </div>
-        <div class="pick-meta">
-          <div class="pick-status monitoring">Monitoring</div>
-        </div>
-      </div>
-    `;}).join('');
+      const signals  = p.signals || {};
+      const spread   = signals.spread || null;
+      const priceId  = 'pick-price-' + idx + '-' + (p.ticker || '').replace(/[^a-zA-Z0-9]/g, '');
+      const scoreClass = (p.score || 0) >= 75 ? 'high' : 'mid';
+
+      let signalHtml = '';
+      if (signals.momentum || signals.sentiment) {
+        signalHtml = '<div class="signal-breakdown">' +
+          (signals.momentum  ? '<div class="signal-bar"><span class="signal-name">Momentum</span><div class="signal-track"><div class="signal-fill" style="width:' + signals.momentum  + '%"></div></div><span class="signal-val">' + signals.momentum  + '</span></div>' : '') +
+          (signals.sentiment ? '<div class="signal-bar"><span class="signal-name">Sentiment</span><div class="signal-track"><div class="signal-fill" style="width:' + signals.sentiment + '%"></div></div><span class="signal-val">' + signals.sentiment + '</span></div>' : '') +
+          (signals.political ? '<div class="signal-bar"><span class="signal-name">Political</span><div class="signal-track"><div class="signal-fill" style="width:' + signals.political + '%"></div></div><span class="signal-val">' + signals.political + '</span></div>' : '') +
+          (signals.macro     ? '<div class="signal-bar"><span class="signal-name">Macro</span><div class="signal-track"><div class="signal-fill" style="width:'     + signals.macro     + '%"></div></div><span class="signal-val">' + signals.macro     + '</span></div>' : '') +
+          '</div>';
+      }
+
+      let spreadHtml = '';
+      if (spread) {
+        const baseClass = (spread.base_case_return || 0) >= 0 ? 'positive' : 'negative';
+        const baseSign  = (spread.base_case_return || 0) >= 0 ? '+' : '';
+        const confClass = spread.confidence ? spread.confidence.toLowerCase() : '';
+        spreadHtml = '<div class="spread-display">' +
+          '<div class="spread-case bull"><div class="spread-label">Bull Case</div><div class="spread-return positive">+' + spread.bull_case_return + '%</div><div class="spread-prob">' + spread.bull_probability + '% prob</div></div>' +
+          '<div class="spread-case base"><div class="spread-label">Base Case</div><div class="spread-return ' + baseClass + '">' + baseSign + spread.base_case_return + '%</div><div class="spread-prob">' + spread.base_probability + '% prob</div></div>' +
+          '<div class="spread-case bear"><div class="spread-label">Bear Case</div><div class="spread-return negative">' + spread.bear_case_return + '%</div><div class="spread-prob">' + spread.bear_probability + '% prob</div></div>' +
+          '</div>' +
+          '<div class="spread-confidence"><span class="confidence-label">Confidence</span><span class="confidence-value ' + confClass + '">' + (spread.confidence || '—') + '</span></div>';
+      }
+
+      return '<div class="pick-card">' +
+        '<div class="pick-score ' + scoreClass + '">' + (p.score || '—') + '</div>' +
+        '<div class="pick-info">' +
+          '<div class="pick-ticker">' + (p.ticker || '—') + ' <span id="' + priceId + '" style="font-size:0.7rem;color:var(--muted);font-family:\'IBM Plex Mono\',monospace;"></span></div>' +
+          '<div class="pick-brief">' + (p.brief || '—') + '</div>' +
+          signalHtml +
+          spreadHtml +
+        '</div>' +
+        '<div class="pick-meta"><div class="pick-status monitoring">Monitoring</div></div>' +
+      '</div>';
+    }).join('');
   }
 
   async function loadAccuracy() {
