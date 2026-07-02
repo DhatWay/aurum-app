@@ -753,7 +753,7 @@
   const db = createClient(SUPABASE_URL, SUPABASE_KEY);
 
   // ── PRICE FEED ENGINE — Twelve Data ──
-  const TWELVE_KEY = '1fbbfd6ec92c489ca009d00e7127fbe3';
+  const FINNHUB_KEY = 'd8ipl11r01qtcvnt331gd8ipl11r01qtcvnt3320';
   let priceCache = {};
   let priceFeedInterval = null;
   let watchlistTickers = [];
@@ -761,38 +761,27 @@
   async function fetchLivePrices(tickers) {
     if (!tickers || !tickers.length) return {};
     const prices = {};
-    try {
-      // Twelve Data free tier: max 8 symbols per call
-      // Make multiple sequential calls for larger watchlists
-      for (let i = 0; i < tickers.length; i += 8) {
-        const batch   = tickers.slice(i, i + 8);
-        const symbols = batch.join(',');
+    // Finnhub free tier: 60 requests/minute — one call per ticker, all in parallel
+    await Promise.all(tickers.map(async (ticker) => {
+      try {
         const res = await fetch(
-          'https://api.twelvedata.com/quote?symbol=' + symbols + '&apikey=' + TWELVE_KEY
+          'https://finnhub.io/api/v1/quote?symbol=' + ticker + '&token=' + FINNHUB_KEY
         );
-        if (!res.ok) continue;
-        const data = await res.json();
-        if (data.code) continue; // top-level API error
-        const quotes = batch.length === 1 ? { [batch[0]]: data } : data;
-        Object.entries(quotes).forEach(([ticker, q]) => {
-          if (!q || q.code || !q.close) return;
-          const price = parseFloat(q.close);
-          const prevClose = parseFloat(q.previous_close || q.close);
-          prices[ticker] = {
-            price,
-            change:    price - prevClose,
-            changePct: prevClose > 0 ? (price - prevClose) / prevClose * 100 : 0,
-            source:    'twelve_data'
-          };
-        });
-        // Small delay between batches to avoid rate limiting
-        if (i + 8 < tickers.length) await new Promise(r => setTimeout(r, 500));
-      }
-    } catch(e) {}
+        if (!res.ok) return;
+        const q = await res.json();
+        if (!q || !q.c || q.c === 0) return;
+        prices[ticker] = {
+          price:     q.c,
+          change:    q.d  || 0,
+          changePct: q.dp || 0,
+          source:    'finnhub'
+        };
+      } catch(e) {}
+    }));
     return prices;
   }
 
-  async function fetchCryptoPrices(tickers) {
+    async function fetchCryptoPrices(tickers) {
     if (!tickers || !tickers.length) return {};
     try {
       const mappedTickers = tickers.filter(t => COINGECKO_IDS[t.toUpperCase()]);
@@ -828,7 +817,15 @@
     const prices = currentMode === 'crypto'
       ? await fetchCryptoPrices(watchlistTickers)
       : await fetchLivePrices(watchlistTickers);
-    if (Object.keys(prices).length === 0) return;
+
+    const feedStatus = document.getElementById('feed-status');
+
+    if (Object.keys(prices).length === 0) {
+      if (feedStatus) feedStatus.textContent = 'Price feed unavailable — API may be rate limited. Retrying in 30s.';
+      return;
+    }
+
+    if (feedStatus) feedStatus.textContent = '';
     Object.assign(priceCache, prices);
     updatePriceFeedBar(prices);
     updateWatchlistPrices(prices);
