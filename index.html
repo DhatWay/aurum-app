@@ -790,17 +790,9 @@
       const res = await fetch(
         'https://api.coingecko.com/api/v3/simple/price?ids=' + ids + '&vs_currencies=usd&include_24hr_change=true'
       );
-      if (!res.ok) {
-        const feedStatus = document.getElementById('feed-status');
-        if (feedStatus) feedStatus.textContent = 'CoinGecko error ' + res.status + '. Retrying in 30s.';
-        return {};
-      }
+      if (!res.ok) return {};
       const data = await res.json();
-      if (!data || Object.keys(data).length === 0) {
-        const feedStatus = document.getElementById('feed-status');
-        if (feedStatus) feedStatus.textContent = 'CoinGecko returned no data. Retrying in 30s.';
-        return {};
-      }
+      if (!data || Object.keys(data).length === 0) return {};
       const prices = {};
       mappedTickers.forEach(ticker => {
         const id = COINGECKO_IDS[ticker.toUpperCase()];
@@ -827,13 +819,8 @@
       ? await fetchCryptoPrices(watchlistTickers)
       : await fetchLivePrices(watchlistTickers);
 
+    if (Object.keys(prices).length === 0) return;
     const feedStatus = document.getElementById('feed-status');
-
-    if (Object.keys(prices).length === 0) {
-      if (feedStatus) feedStatus.textContent = 'Price feed unavailable — API may be rate limited. Retrying in 30s.';
-      return;
-    }
-
     if (feedStatus) feedStatus.textContent = '';
     Object.assign(priceCache, prices);
     updatePriceFeedBar(prices);
