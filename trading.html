@@ -8,6 +8,7 @@
 <meta name="theme-color" content="#C9A84C">
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;600&family=DM+Sans:wght@300;400;500&family=IBM+Plex+Mono:wght@300;400&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.13.0/ethers.umd.min.js"></script>
 <style>
 :root {
   --black: #080808;
@@ -368,13 +369,12 @@ const SUPABASE_KEY = 'sb_publishable_K80lcfk8LsQNqo5enznRRA_lrzf2U9K';
 const { createClient } = supabase;
 const db = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-let activeMode = 'stock'; // 'stock' or 'crypto' — loaded from trading_settings
+let activeMode = 'stock';
 
 async function loadActiveMode() {
   try {
     const { data } = await db.from('trading_settings').select('active_mode, wallet_address').single();
     if (data?.active_mode) activeMode = data.active_mode;
-    // Auto-restore wallet address if previously connected
     if (data?.wallet_address && window.ethereum) {
       try {
         const accounts = await window.ethereum.request({ method: 'eth_accounts' });
@@ -385,7 +385,7 @@ async function loadActiveMode() {
           if (btn) {
             btn.textContent = short + ' Connected';
             btn.style.borderColor = 'var(--positive)';
-            btn.style.color       = 'var(--positive)';
+            btn.style.color = 'var(--positive)';
           }
         }
       } catch(e) {}
@@ -405,35 +405,32 @@ let priceCache = {};
 let watchlistTickers = [];
 let selectedFeedTicker = null;
 let priceRefreshInterval = null;
+let connectedWallet = null;
 
-// ── PRICE FEED ENGINE — Twelve Data ──
+// ── PRICE FEED ENGINE ──
 const TWELVE_KEY = '1fbbfd6ec92c489ca009d00e7127fbe3';
 
 async function fetchLivePrices(tickers) {
   if (!tickers || !tickers.length) return {};
-
   try {
     const symbols = tickers.slice(0, 8).join(',');
     const res = await fetch('https://api.twelvedata.com/quote?symbol=' + symbols + '&apikey=' + TWELVE_KEY);
     if (!res.ok) return {};
     const data = await res.json();
-
     const prices = {};
     const quotes = tickers.length === 1 ? { [tickers[0]]: data } : data;
-
     Object.entries(quotes).forEach(([ticker, q]) => {
       if (!q || q.code || !q.close) return;
       const price = parseFloat(q.close);
       const prevClose = parseFloat(q.previous_close || q.close);
       prices[ticker] = {
         price,
-        bid: parseFloat(q.close), // Twelve Data quote endpoint has no separate bid/ask
+        bid: parseFloat(q.close),
         ask: parseFloat(q.close),
         change: price - prevClose,
         changePct: prevClose > 0 ? (price - prevClose) / prevClose * 100 : 0
       };
     });
-
     return prices;
   } catch(e) { return {}; }
 }
@@ -442,16 +439,11 @@ async function refreshPrices() {
   if (!watchlistTickers.length) return;
   const prices = await fetchLivePrices(watchlistTickers);
   if (!Object.keys(prices).length) return;
-
   Object.assign(priceCache, prices);
   renderFeedBar(prices);
-
-  // Update selected ticker display
   if (selectedFeedTicker && prices[selectedFeedTicker]) {
     updateLivePriceDisplay(selectedFeedTicker, prices[selectedFeedTicker]);
   }
-
-  // Update trade list live prices
   watchlistTickers.forEach(ticker => {
     const el = document.getElementById('live-' + ticker);
     if (el && prices[ticker]) {
@@ -460,8 +452,6 @@ async function refreshPrices() {
       el.className = 'trade-list-live ' + (d.change >= 0 ? '' : 'neg');
     }
   });
-
-  // Update result live price if showing
   if (currentInstruction && prices[currentInstruction.ticker]) {
     const d = prices[currentInstruction.ticker];
     const el = document.getElementById('result-live-price');
@@ -473,9 +463,8 @@ function renderFeedBar(prices) {
   const bar = document.getElementById('price-feed-bar');
   if (!bar) return;
   const time = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-
   const items = Object.entries(prices).map(([ticker, d]) => {
-    const dir   = d.change >= 0 ? 'up' : 'down';
+    const dir = d.change >= 0 ? 'up' : 'down';
     const arrow = d.change >= 0 ? '\u25b2' : '\u25bc';
     const isSel = ticker === selectedFeedTicker;
     return `<div class="price-feed-item ${isSel ? 'selected' : ''}" onclick="selectFeedTicker('${ticker}')">
@@ -484,7 +473,6 @@ function renderFeedBar(prices) {
       <span class="feed-change ${dir}">${arrow} ${Math.abs(d.changePct).toFixed(2)}%</span>
     </div>`;
   }).join('');
-
   bar.innerHTML = `<div class="feed-dot"></div><div class="feed-label">Live</div>${items}<div style="color:var(--muted);font-size:0.55rem;font-family:'IBM Plex Mono',monospace;flex-shrink:0;margin-left:auto;">${time}</div>`;
 }
 
@@ -498,7 +486,7 @@ function selectFeedTicker(ticker) {
 function updateLivePriceDisplay(ticker, d) {
   const display = document.getElementById('live-price-display');
   document.getElementById('lpd-ticker').textContent = ticker;
-  document.getElementById('lpd-price').textContent  = '$' + d.price.toFixed(2);
+  document.getElementById('lpd-price').textContent = '$' + d.price.toFixed(2);
   const changeEl = document.getElementById('lpd-change');
   changeEl.textContent = (d.change >= 0 ? '+' : '') + d.change.toFixed(2) + ' (' + (d.changePct >= 0 ? '+' : '') + d.changePct.toFixed(2) + '%)';
   changeEl.className = 'lpd-change ' + (d.change >= 0 ? 'up' : 'down');
@@ -511,10 +499,8 @@ function updateLivePriceDisplay(ticker, d) {
 function useCurrentPrice() {
   if (!selectedFeedTicker || !priceCache[selectedFeedTicker]) return;
   const price = priceCache[selectedFeedTicker].price;
-  // Set entry price in any visible form or autofill field
   const entryEl = document.getElementById('a-entry') || document.getElementById('m-entry');
   if (entryEl) entryEl.textContent = '$' + price.toFixed(2);
-  // Also update current instruction entry if applicable
   if (currentInstruction && currentInstruction.ticker === selectedFeedTicker) {
     currentInstruction.entry_price = price;
     if (currentMode === 'auto') autofillAutoPanel(currentInstruction);
@@ -531,8 +517,6 @@ async function init() {
   updateModeUI('manual');
   renderManualOrderFields();
   renderAutoOrderFields();
-
-  // Start price feed
   await refreshPrices();
   priceRefreshInterval = setInterval(refreshPrices, 30000);
 }
@@ -550,8 +534,6 @@ async function loadSettings() {
     settings = data || {};
     currentMode = settings.mode || 'manual';
     updateModeUI(currentMode);
-
-    // Apply auto-switched strategy from the hourly Governor strategy monitor
     if (settings.active_strategy && settings.active_strategy !== currentStrategy) {
       currentStrategy = settings.active_strategy;
       document.querySelectorAll('.strategy-tab').forEach(t => t.classList.remove('active'));
@@ -561,7 +543,7 @@ async function loadSettings() {
     }
     if (settings.active_strategy) {
       const note = document.getElementById('auto-switch-note');
-      note.textContent = '\u26A1 Strategy auto-set by performance monitor \u2014 view history on Report page';
+      note.textContent = '\u26a1 Strategy auto-set by performance monitor \u2014 view history on Report page';
       note.style.display = 'block';
     }
   } catch(e) { settings = {}; }
@@ -580,19 +562,19 @@ async function loadAlpacaConfig() {
 }
 
 function updateBrokerageBar(connected, paper, buyingPower) {
-  const dot   = document.getElementById('conn-dot');
+  const dot = document.getElementById('conn-dot');
   const label = document.getElementById('conn-label');
-  const bp    = document.getElementById('buying-power-display');
+  const bp = document.getElementById('buying-power-display');
   if (connected) {
-    dot.className     = 'conn-dot ' + (paper ? 'paper' : 'live');
-    label.className   = 'conn-label connected';
+    dot.className = 'conn-dot ' + (paper ? 'paper' : 'live');
+    label.className = 'conn-label connected';
     label.textContent = 'Alpaca ' + (paper ? 'Paper' : 'Live') + ' \u2014 Connected';
     if (buyingPower) bp.textContent = '$' + Number(buyingPower).toLocaleString() + ' buying power';
   } else {
-    dot.className  = 'conn-dot';
+    dot.className = 'conn-dot';
     label.className = 'conn-label';
     label.innerHTML = 'No brokerage connected \u2014 <a href="brokerage.html" style="color:var(--gold)">Connect Alpaca</a>';
-    bp.textContent  = '';
+    bp.textContent = '';
   }
 }
 
@@ -619,8 +601,8 @@ function setInstrument(inst) {
 function updateInstructionSub() {
   const sub = document.getElementById('instruction-sub');
   const stratLabel = currentStrategy === 'day' ? 'intraday' : 'swing';
-  const instLabel  = currentInstrument === 'options' ? 'options contracts' : 'stocks (long and short)';
-  sub.textContent  = 'Claude synthesizes all 25 algorithms for ' + stratLabel + ' ' + instLabel + '. ' +
+  const instLabel = currentInstrument === 'options' ? 'options contracts' : 'stocks (long and short)';
+  sub.textContent = 'Claude synthesizes all 25 algorithms for ' + stratLabel + ' ' + instLabel + '. ' +
     (currentMode === 'manual' ? 'Returns a ranked list \u2014 select one to autofill all fields.' : 'Returns the top pick and autofills all fields automatically.');
 }
 
@@ -637,33 +619,33 @@ function toggleMode() {
 
 function updateModeUI(mode) {
   const toggle = document.getElementById('mode-toggle');
-  const label  = document.getElementById('toggle-label');
+  const label = document.getElementById('toggle-label');
   const status = document.getElementById('mode-status');
-  const desc   = document.getElementById('mode-desc');
-  const panel  = document.getElementById('mode-panel');
+  const desc = document.getElementById('mode-desc');
+  const panel = document.getElementById('mode-panel');
   const warning = document.getElementById('warning-box');
   const manualPanel = document.getElementById('manual-panel');
-  const autoPanel   = document.getElementById('auto-order-panel');
+  const autoPanel = document.getElementById('auto-order-panel');
 
   if (mode === 'auto') {
     toggle.classList.add('on');
-    label.textContent  = 'AUTO';
-    label.className    = 'toggle-label on';
+    label.textContent = 'AUTO';
+    label.className = 'toggle-label on';
     status.textContent = 'Auto Mode Active';
-    status.className   = 'mode-status auto';
-    desc.textContent   = 'Claude selects the top trade, all fields autofill, order executes through Alpaca.';
-    panel.className    = 'mode-panel auto-active';
+    status.className = 'mode-status auto';
+    desc.textContent = 'Claude selects the top trade, all fields autofill, order executes through Alpaca.';
+    panel.className = 'mode-panel auto-active';
     warning.classList.add('visible');
     if (manualPanel) manualPanel.classList.remove('visible');
     if (currentInstruction) autofillAutoPanel(currentInstruction);
   } else {
     toggle.classList.remove('on');
-    label.textContent  = 'MANUAL';
-    label.className    = 'toggle-label';
+    label.textContent = 'MANUAL';
+    label.className = 'toggle-label';
     status.textContent = 'Manual Mode';
-    status.className   = 'mode-status manual';
-    desc.textContent   = 'Claude returns a ranked list. Select one, all fields autofill, press Enter to submit.';
-    panel.className    = 'mode-panel manual-active';
+    status.className = 'mode-status manual';
+    desc.textContent = 'Claude returns a ranked list. Select one, all fields autofill, press Enter to submit.';
+    panel.className = 'mode-panel manual-active';
     warning.classList.remove('visible');
     if (autoPanel) autoPanel.classList.remove('visible');
     if (manualTradeList.length) manualPanel.classList.add('visible');
@@ -673,32 +655,32 @@ function updateModeUI(mode) {
 
 function getStockFields() {
   return [
-    { id: 'ticker',     label: 'Ticker',       cls: 'gold' },
-    { id: 'direction',  label: 'Direction',    cls: '' },
-    { id: 'order-type', label: 'Order Type',   cls: '' },
-    { id: 'entry',      label: 'Entry Price',  cls: '' },
-    { id: 'exit',       label: 'Exit Target',  cls: 'positive' },
-    { id: 'stop',       label: 'Stop Loss',    cls: 'danger' },
-    { id: 'size',       label: 'Position Size',cls: '' },
-    { id: 'dollars',    label: 'Est. Amount',  cls: 'gold' },
-    { id: 'tif',        label: 'Time in Force',cls: '' }
+    { id: 'ticker', label: 'Ticker', cls: 'gold' },
+    { id: 'direction', label: 'Direction', cls: '' },
+    { id: 'order-type', label: 'Order Type', cls: '' },
+    { id: 'entry', label: 'Entry Price', cls: '' },
+    { id: 'exit', label: 'Exit Target', cls: 'positive' },
+    { id: 'stop', label: 'Stop Loss', cls: 'danger' },
+    { id: 'size', label: 'Position Size', cls: '' },
+    { id: 'dollars', label: 'Est. Amount', cls: 'gold' },
+    { id: 'tif', label: 'Time in Force', cls: '' }
   ];
 }
 
 function getOptionsFields() {
   return [
-    { id: 'ticker',   label: 'Underlying',    cls: 'gold' },
-    { id: 'direction',label: 'Direction',     cls: '' },
+    { id: 'ticker', label: 'Underlying', cls: 'gold' },
+    { id: 'direction', label: 'Direction', cls: '' },
     { id: 'contract', label: 'Contract Type', cls: '' },
-    { id: 'strike',   label: 'Strike Price',  cls: '' },
-    { id: 'expiry',   label: 'Expiration',    cls: '' },
-    { id: 'premium',  label: 'Premium (ask)', cls: 'gold' },
-    { id: 'contracts',label: 'Contracts',     cls: '' },
-    { id: 'dollars',  label: 'Est. Cost',     cls: 'gold' },
-    { id: 'stop',     label: 'Stop Loss',     cls: 'danger' },
-    { id: 'exit',     label: 'Target Premium',cls: 'positive' },
-    { id: 'delta',    label: 'Delta (est.)',  cls: '' },
-    { id: 'tif',      label: 'Time in Force', cls: '' }
+    { id: 'strike', label: 'Strike Price', cls: '' },
+    { id: 'expiry', label: 'Expiration', cls: '' },
+    { id: 'premium', label: 'Premium (ask)', cls: 'gold' },
+    { id: 'contracts', label: 'Contracts', cls: '' },
+    { id: 'dollars', label: 'Est. Cost', cls: 'gold' },
+    { id: 'stop', label: 'Stop Loss', cls: 'danger' },
+    { id: 'exit', label: 'Target Premium', cls: 'positive' },
+    { id: 'delta', label: 'Delta (est.)', cls: '' },
+    { id: 'tif', label: 'Time in Force', cls: '' }
   ];
 }
 
@@ -720,55 +702,53 @@ function renderAutoOrderFields() {
 }
 
 function autofillAutoPanel(r) {
-  const panel  = document.getElementById('auto-order-panel');
-  const pf     = settings.principal_floor || 5000;
+  const panel = document.getElementById('auto-order-panel');
+  const pf = settings.principal_floor || 5000;
   const maxPct = settings.max_position_size_pct || 10;
-
-  // Use live price if available
-  const livePrice  = priceCache[r.ticker]?.price;
+  const livePrice = priceCache[r.ticker]?.price;
   const entryPrice = livePrice || r.entry_price;
 
   if (activeMode === 'crypto') {
     const dollars = ((r.position_size_pct || maxPct) / 100) * pf;
-    setField('a-ticker',    r.ticker, 'gold');
+    setField('a-ticker', r.ticker, 'gold');
     setField('a-direction', r.direction, r.direction === 'SHORT' ? 'danger' : 'positive');
     setField('a-order-type', r.dex || 'DEX');
-    setField('a-entry',     entryPrice ? '$' + Number(entryPrice).toFixed(2) + (livePrice ? ' (live)' : '') : 'Market');
-    setField('a-exit',      r.exit_target ? '$' + r.exit_target : '—', 'positive');
-    setField('a-stop',      r.stop_loss   ? '$' + r.stop_loss   : '—', 'danger');
-    setField('a-size',      (r.position_size_pct || maxPct) + '%');
-    setField('a-dollars',   '~$' + Math.round(dollars).toLocaleString(), 'gold');
-    setField('a-tif',       r.pair || '—');
+    setField('a-entry', entryPrice ? '$' + Number(entryPrice).toFixed(2) + (livePrice ? ' (live)' : '') : 'Market');
+    setField('a-exit', r.exit_target ? '$' + r.exit_target : '—', 'positive');
+    setField('a-stop', r.stop_loss ? '$' + r.stop_loss : '—', 'danger');
+    setField('a-size', (r.position_size_pct || maxPct) + '%');
+    setField('a-dollars', '~$' + Math.round(dollars).toLocaleString(), 'gold');
+    setField('a-tif', r.pair || '—');
     document.getElementById('auto-order-status').textContent = (r.execution_note || 'Execute on DEX — no broker required.') + (livePrice ? ' (live price used)' : '');
   } else if (currentInstrument === 'stock') {
     const hasLimit = entryPrice > 0;
-    const dollars  = ((r.position_size_pct || maxPct) / 100) * pf;
-    setField('a-ticker',     r.ticker, 'gold');
-    setField('a-direction',  r.direction, r.direction === 'SHORT' ? 'danger' : 'positive');
+    const dollars = ((r.position_size_pct || maxPct) / 100) * pf;
+    setField('a-ticker', r.ticker, 'gold');
+    setField('a-direction', r.direction, r.direction === 'SHORT' ? 'danger' : 'positive');
     setField('a-order-type', hasLimit ? 'Limit' : 'Market');
-    setField('a-entry',      hasLimit ? '$' + entryPrice.toFixed(2) + (livePrice ? ' (live)' : '') : 'Market Price');
-    setField('a-exit',       r.exit_target ? '$' + r.exit_target : '—', 'positive');
-    setField('a-stop',       r.stop_loss   ? '$' + r.stop_loss   : '—', 'danger');
-    setField('a-size',       (r.position_size_pct || maxPct) + '%');
-    setField('a-dollars',    '~$' + Math.round(dollars).toLocaleString(), 'gold');
-    setField('a-tif',        currentStrategy === 'day' ? 'IOC' : 'Day');
+    setField('a-entry', hasLimit ? '$' + entryPrice.toFixed(2) + (livePrice ? ' (live)' : '') : 'Market Price');
+    setField('a-exit', r.exit_target ? '$' + r.exit_target : '—', 'positive');
+    setField('a-stop', r.stop_loss ? '$' + r.stop_loss : '—', 'danger');
+    setField('a-size', (r.position_size_pct || maxPct) + '%');
+    setField('a-dollars', '~$' + Math.round(dollars).toLocaleString(), 'gold');
+    setField('a-tif', currentStrategy === 'day' ? 'IOC' : 'Day');
     document.getElementById('auto-order-status').textContent = 'All fields auto-populated' + (livePrice ? ' with live price' : '') + ' \u2014 confirm to execute.';
   } else {
     const contracts = r.contracts || 1;
-    const premium   = r.premium   || 0;
-    const dollars   = contracts * premium * 100;
-    setField('a-ticker',    r.ticker, 'gold');
+    const premium = r.premium || 0;
+    const dollars = contracts * premium * 100;
+    setField('a-ticker', r.ticker, 'gold');
     setField('a-direction', r.direction || '—');
-    setField('a-contract',  r.contract_type || '—');
-    setField('a-strike',    r.strike ? '$' + r.strike : '—');
-    setField('a-expiry',    r.expiration || '—');
-    setField('a-premium',   premium ? '$' + premium : '—', 'gold');
+    setField('a-contract', r.contract_type || '—');
+    setField('a-strike', r.strike ? '$' + r.strike : '—');
+    setField('a-expiry', r.expiration || '—');
+    setField('a-premium', premium ? '$' + premium : '—', 'gold');
     setField('a-contracts', contracts + ' contract' + (contracts !== 1 ? 's' : ''));
-    setField('a-dollars',   dollars ? '~$' + Math.round(dollars).toLocaleString() : '—', 'gold');
-    setField('a-stop',      r.stop_premium   ? '$' + r.stop_premium   : '—', 'danger');
-    setField('a-exit',      r.target_premium ? '$' + r.target_premium : '—', 'positive');
-    setField('a-delta',     r.delta || '—');
-    setField('a-tif',       'Day');
+    setField('a-dollars', dollars ? '~$' + Math.round(dollars).toLocaleString() : '—', 'gold');
+    setField('a-stop', r.stop_premium ? '$' + r.stop_premium : '—', 'danger');
+    setField('a-exit', r.target_premium ? '$' + r.target_premium : '—', 'positive');
+    setField('a-delta', r.delta || '—');
+    setField('a-tif', 'Day');
     document.getElementById('auto-order-status').textContent = 'All fields auto-populated' + (livePrice ? ' with live price' : '') + ' \u2014 confirm to execute.';
   }
 
@@ -781,7 +761,7 @@ function autofillAutoPanel(r) {
 }
 
 function autofillManualPanel(trade) {
-  const pf     = settings.principal_floor || 5000;
+  const pf = settings.principal_floor || 5000;
   const maxPct = settings.max_position_size_pct || 10;
   const livePrice = priceCache[trade.ticker]?.price;
   const entryPrice = livePrice || trade.entry_price;
@@ -790,43 +770,43 @@ function autofillManualPanel(trade) {
 
   if (currentInstrument === 'stock') {
     const hasLimit = entryPrice > 0;
-    const dollars  = ((trade.position_size_pct || maxPct) / 100) * pf;
-    setField('m-ticker',     trade.ticker, 'gold');
-    setField('m-direction',  trade.direction, trade.direction === 'SHORT' ? 'danger' : 'positive');
+    const dollars = ((trade.position_size_pct || maxPct) / 100) * pf;
+    setField('m-ticker', trade.ticker, 'gold');
+    setField('m-direction', trade.direction, trade.direction === 'SHORT' ? 'danger' : 'positive');
     setField('m-order-type', trade.order_type || (hasLimit ? 'Limit' : 'Market'));
-    setField('m-entry',      hasLimit ? '$' + entryPrice.toFixed(2) + (livePrice ? ' (live)' : '') : 'Market Price');
-    setField('m-exit',       trade.exit_target ? '$' + trade.exit_target : '—', 'positive');
-    setField('m-stop',       trade.stop_loss   ? '$' + trade.stop_loss   : '—', 'danger');
-    setField('m-size',       (trade.position_size_pct || maxPct) + '%');
-    setField('m-dollars',    '~$' + Math.round(dollars).toLocaleString(), 'gold');
-    setField('m-tif',        currentStrategy === 'day' ? 'IOC' : 'Day');
+    setField('m-entry', hasLimit ? '$' + entryPrice.toFixed(2) + (livePrice ? ' (live)' : '') : 'Market Price');
+    setField('m-exit', trade.exit_target ? '$' + trade.exit_target : '—', 'positive');
+    setField('m-stop', trade.stop_loss ? '$' + trade.stop_loss : '—', 'danger');
+    setField('m-size', (trade.position_size_pct || maxPct) + '%');
+    setField('m-dollars', '~$' + Math.round(dollars).toLocaleString(), 'gold');
+    setField('m-tif', currentStrategy === 'day' ? 'IOC' : 'Day');
   } else {
     const contracts = trade.contracts || 1;
-    const premium   = trade.premium   || 0;
-    const dollars   = contracts * premium * 100;
-    setField('m-ticker',    trade.ticker, 'gold');
+    const premium = trade.premium || 0;
+    const dollars = contracts * premium * 100;
+    setField('m-ticker', trade.ticker, 'gold');
     setField('m-direction', trade.direction || '—');
-    setField('m-contract',  trade.contract_type || '—');
-    setField('m-strike',    trade.strike ? '$' + trade.strike : '—');
-    setField('m-expiry',    trade.expiration || '—');
-    setField('m-premium',   premium ? '$' + premium : '—', 'gold');
+    setField('m-contract', trade.contract_type || '—');
+    setField('m-strike', trade.strike ? '$' + trade.strike : '—');
+    setField('m-expiry', trade.expiration || '—');
+    setField('m-premium', premium ? '$' + premium : '—', 'gold');
     setField('m-contracts', contracts + ' contract' + (contracts !== 1 ? 's' : ''));
-    setField('m-dollars',   dollars ? '~$' + Math.round(dollars).toLocaleString() : '—', 'gold');
-    setField('m-stop',      trade.stop_premium   ? '$' + trade.stop_premium   : '—', 'danger');
-    setField('m-exit',      trade.target_premium ? '$' + trade.target_premium : '—', 'positive');
-    setField('m-delta',     trade.delta || '—');
-    setField('m-tif',       'Day');
+    setField('m-dollars', dollars ? '~$' + Math.round(dollars).toLocaleString() : '—', 'gold');
+    setField('m-stop', trade.stop_premium ? '$' + trade.stop_premium : '—', 'danger');
+    setField('m-exit', trade.target_premium ? '$' + trade.target_premium : '—', 'positive');
+    setField('m-delta', trade.delta || '—');
+    setField('m-tif', 'Day');
   }
 
   document.getElementById('m-confidence').textContent = trade.confidence || '—';
-  document.getElementById('m-score').textContent      = trade.orchestrator_score || '—';
-  document.getElementById('m-signals').textContent    = trade.algo_signals || '—';
+  document.getElementById('m-score').textContent = trade.orchestrator_score || '—';
+  document.getElementById('m-signals').textContent = trade.algo_signals || '—';
 
   const panel = document.getElementById('manual-order-panel');
-  document.getElementById('manual-submit-btn').disabled  = false;
+  document.getElementById('manual-submit-btn').disabled = false;
   document.getElementById('manual-submit-btn').textContent = 'Submit Order';
-  document.getElementById('manual-status').textContent   = 'Review all fields above, then submit.';
-  document.getElementById('manual-status').className     = 'order-status';
+  document.getElementById('manual-status').textContent = 'Review all fields above, then submit.';
+  document.getElementById('manual-status').className = 'order-status';
   panel.classList.add('visible');
   panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
@@ -835,110 +815,85 @@ function setField(id, value, cls) {
   const el = document.getElementById(id);
   if (!el) return;
   el.textContent = value || '—';
-  el.className   = 'order-field-value' + (cls ? ' ' + cls : '');
+  el.className = 'order-field-value' + (cls ? ' ' + cls : '');
 }
 
-// ── GOVERNOR — calls Supabase Edge Function to execute all 25 algorithms ──
-// Edge function fetches real market data, executes each algorithm in phase order,
-// runs the orchestrator, and returns a structured brief for Claude.
-// If the edge function is unavailable, falls back to lightweight mode (descriptions only).
-
+// ── GOVERNOR ──
 const GOVERNOR_EDGE_URL = 'https://zpcbbwynvvyldavxzjng.supabase.co/functions/v1/clever-responder';
 const GOVERNOR_ANON_KEY = 'sb_publishable_K80lcfk8LsQNqo5enznRRA_lrzf2U9K';
 
 async function runGovernor() {
-  // Show execution status in loading state
   const loadingEl = document.getElementById('loading-state');
   if (loadingEl) loadingEl.textContent = 'Governor executing 25 algorithms with live market data...';
-
   try {
-    // Pass Alpaca credentials so the edge function can fetch price data
     const payload = {
-      ticker:        selectedFeedTicker || watchlistTickers[0] || (activeMode === 'crypto' ? 'BTC' : 'SPY'),
-      strategy:      currentStrategy,
-      instrument:    currentInstrument,
-      mode:          activeMode,
-      alpaca_key:    alpacaConfig?.apiKey    || '',
+      ticker: selectedFeedTicker || watchlistTickers[0] || (activeMode === 'crypto' ? 'BTC' : 'SPY'),
+      strategy: currentStrategy,
+      instrument: currentInstrument,
+      mode: activeMode,
+      alpaca_key: alpacaConfig?.apiKey || '',
       alpaca_secret: alpacaConfig?.secretKey || '',
-      alpaca_paper:  alpacaConfig?.paper     !== false,
+      alpaca_paper: alpacaConfig?.paper !== false,
     };
-
     const res = await fetch(GOVERNOR_EDGE_URL, {
-      method:  'POST',
-      headers: {
-        'Content-Type':  'application/json',
-        'Authorization': 'Bearer ' + GOVERNOR_ANON_KEY,
-      },
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + GOVERNOR_ANON_KEY },
       body: JSON.stringify(payload),
     });
-
     if (!res.ok) throw new Error('Edge function returned ' + res.status);
     const gov = await res.json();
-
     if (gov.error && !gov.claude_brief) throw new Error(gov.error);
-
-    // Update loading message with real results
     if (loadingEl) {
-      loadingEl.textContent =
-        'Governor complete — ' + (gov.algorithms_succeeded || '?') + '/25 algorithms ran. ' +
-        'Signal quality: ' + (gov.signal_quality || '?') + '/100. Sending to Claude...';
+      loadingEl.textContent = 'Governor complete — ' + (gov.algorithms_succeeded || '?') + '/25 algorithms ran. Signal quality: ' + (gov.signal_quality || '?') + '/100. Sending to Claude...';
     }
-
-    // Return in the format buildGovernorHeader expects
     return {
-      algoContext:      gov.claude_brief || 'Governor ran but returned no brief.',
-      algoCount:        gov.algorithms_succeeded || 0,
-      totalCount:       25,
-      signalQuality:    gov.signal_quality || 0,
-      signalLabel:      gov.signal_quality_label || 'unknown',
-      compositeScore:   gov.composite_score || null,
-      verdict:          gov.verdict || null,
-      direction:        gov.direction || null,
-      confidence:       gov.confidence || null,
-      coveragePct:      gov.coverage_pct || 0,
-      failedAlgos:      gov.failed_algo_names || [],
-      skippedAlgos:     gov.skipped_algo_names || [],
-      dataSourcesUsed:  gov.data_sources_used || [],
+      algoContext: gov.claude_brief || 'Governor ran but returned no brief.',
+      algoCount: gov.algorithms_succeeded || 0,
+      totalCount: 25,
+      signalQuality: gov.signal_quality || 0,
+      signalLabel: gov.signal_quality_label || 'unknown',
+      compositeScore: gov.composite_score || null,
+      verdict: gov.verdict || null,
+      direction: gov.direction || null,
+      confidence: gov.confidence || null,
+      coveragePct: gov.coverage_pct || 0,
+      failedAlgos: gov.failed_algo_names || [],
+      skippedAlgos: gov.skipped_algo_names || [],
+      dataSourcesUsed: gov.data_sources_used || [],
       orchestratorOutput: gov.orchestrator_output || null,
       fromEdgeFunction: true,
     };
-
   } catch(e) {
-    // ── Fallback: lightweight mode — read descriptions from Supabase ──
-    // This runs when the edge function is not yet deployed or unavailable
     if (loadingEl) loadingEl.textContent = 'Edge function unavailable — running in description mode...';
-
     try {
       const { data: algos } = await db.from('algorithms').select('name, description, active').order('created_at');
       if (!algos || !algos.length) return {
         algoContext: 'No algorithms found. Deploy the aurum-governor edge function for full execution.',
         algoCount: 0, totalCount: 25, fromEdgeFunction: false, fallbackReason: e.message,
       };
-
       const active = algos.filter(a => a.active);
       const context = active.map((a, i) => {
         const phase = i < 6 ? 'P1' : i < 13 ? 'P2' : i < 19 ? 'P3' : i < 25 ? 'P4' : 'P5';
         return `[${phase}] ${a.name}: ${a.description}`;
       }).join('\n');
-
       return {
-        algoContext:      context + '\n\nNOTE: Running in description-only mode. Edge function unavailable (' + e.message + '). Claude is reasoning from algorithm definitions, not live execution scores.',
-        algoCount:        active.length,
-        totalCount:       25,
-        signalQuality:    40,
-        signalLabel:      'low',
+        algoContext: context + '\n\nNOTE: Running in description-only mode. Edge function unavailable (' + e.message + '). Claude is reasoning from algorithm definitions, not live execution scores.',
+        algoCount: active.length,
+        totalCount: 25,
+        signalQuality: 40,
+        signalLabel: 'low',
         fromEdgeFunction: false,
-        fallbackReason:   e.message,
+        fallbackReason: e.message,
       };
     } catch(e2) {
       return {
-        algoContext:      'Governor completely unavailable. Error: ' + e2.message + '. Claude proceeding without algorithm data.',
-        algoCount:        0,
-        totalCount:       25,
-        signalQuality:    0,
-        signalLabel:      'unreliable',
+        algoContext: 'Governor completely unavailable. Error: ' + e2.message + '. Claude proceeding without algorithm data.',
+        algoCount: 0,
+        totalCount: 25,
+        signalQuality: 0,
+        signalLabel: 'unreliable',
         fromEdgeFunction: false,
-        fallbackReason:   e2.message,
+        fallbackReason: e2.message,
       };
     }
   }
@@ -952,10 +907,7 @@ async function generateInstruction() {
   document.getElementById('manual-order-panel').classList.remove('visible');
 
   try {
-    // Governor runs first — reads all algorithms in phase order
     const governorOutput = await runGovernor();
-
-    // Then load market context in parallel — filtered by active mode (stock or crypto)
     const modeType = activeMode === 'crypto' ? 'crypto' : 'stock';
     const [picksRes, stocksRes, newsRes] = await Promise.all([
       db.from('picks').select('ticker, score, brief').eq('type', modeType).order('picked_at', { ascending: false }).limit(5),
@@ -964,15 +916,13 @@ async function generateInstruction() {
     ]);
 
     const watchlist = stocksRes.data?.map(s => s.ticker + '(' + s.sector + ')').join(', ') || 'None';
-    const pickSum   = picksRes.data?.map(p => p.ticker + ':' + p.score + ' ' + p.brief).join(' | ') || 'None';
-    const newsSum   = newsRes.data?.map(n => n.ticker + ':' + (n.algorithm_alignment?.sentiment || 'neutral')).join(' | ') || 'None';
-
-    // Live prices from price cache
+    const pickSum = picksRes.data?.map(p => p.ticker + ':' + p.score + ' ' + p.brief).join(' | ') || 'None';
+    const newsSum = newsRes.data?.map(n => n.ticker + ':' + (n.algorithm_alignment?.sentiment || 'neutral')).join(' | ') || 'None';
     const livePriceContext = Object.entries(priceCache).slice(0, 10)
       .map(([t, d]) => t + ':$' + d.price.toFixed(2)).join(', ');
 
     const modeNote = activeMode === 'crypto'
-      ? 'CRYPTO MODE: Trading cryptocurrency. Use DEX execution (Uniswap, dYdX). No broker required. Prices are 24/7. Both LONG and SHORT directions valid.'
+      ? 'CRYPTO MODE: Trading cryptocurrency. Use DEX execution (Uniswap, dYdX, Jupiter). No broker required. Prices are 24/7. Both LONG and SHORT directions valid.'
       : 'STOCK MODE: Trading equities on traditional markets.';
 
     const stratNote = currentStrategy === 'day'
@@ -981,15 +931,14 @@ async function generateInstruction() {
 
     if (activeMode === 'crypto') {
       if (currentMode === 'manual') await generateManualCrypto(watchlist, pickSum, newsSum, stratNote, livePriceContext, governorOutput);
-      else                          await generateAutoCrypto(watchlist, pickSum, newsSum, stratNote, livePriceContext, governorOutput);
+      else await generateAutoCrypto(watchlist, pickSum, newsSum, stratNote, livePriceContext, governorOutput);
     } else if (currentInstrument === 'stock') {
       if (currentMode === 'manual') await generateManualStocks(watchlist, pickSum, newsSum, stratNote, livePriceContext, governorOutput);
-      else                          await generateAutoStock(watchlist, pickSum, newsSum, stratNote, livePriceContext, governorOutput);
+      else await generateAutoStock(watchlist, pickSum, newsSum, stratNote, livePriceContext, governorOutput);
     } else {
       if (currentMode === 'manual') await generateManualOptions(watchlist, pickSum, newsSum, stratNote, governorOutput);
-      else                          await generateAutoOption(watchlist, pickSum, newsSum, stratNote, governorOutput);
+      else await generateAutoOption(watchlist, pickSum, newsSum, stratNote, governorOutput);
     }
-
   } catch(e) {
     showResult({ ticker: 'ERROR', direction: '—', reasoning: 'Failed to generate instruction. Check API key.' }, {});
   }
@@ -1014,23 +963,18 @@ function buildGovernorHeader(gov, stratNote) {
   const executionMode = gov.fromEdgeFunction
     ? `LIVE EXECUTION — ${gov.algoCount}/${gov.totalCount || 25} algorithms ran with real market data.`
     : `DESCRIPTION MODE — Edge function unavailable. Reasoning from algorithm definitions only.`;
-
   const qualityLine = gov.signalQuality !== undefined
     ? `Signal quality: ${gov.signalQuality}/100 (${gov.signalLabel || 'unknown'}).`
     : '';
-
   const orchestratorLine = gov.compositeScore !== null && gov.compositeScore !== undefined
     ? `Orchestrator composite: ${gov.compositeScore} | Verdict: ${gov.verdict} | Direction: ${gov.direction} | Confidence: ${gov.confidence}.`
     : '';
-
   const degradationLine = (gov.failedAlgos?.length || gov.skippedAlgos?.length)
     ? `DEGRADATION: ${gov.failedAlgos?.length || 0} failed, ${gov.skippedAlgos?.length || 0} skipped — these contributed neutral scores. Your decision is based on ${gov.algoCount} of ${gov.totalCount || 25} algorithms.`
     : '';
-
   const dataLine = gov.dataSourcesUsed?.length
     ? `Data sources: ${gov.dataSourcesUsed.join(', ')}.`
     : '';
-
   return `You are AURUM — private market intelligence system.
 ${executionMode}
 ${qualityLine}
@@ -1049,107 +993,246 @@ ${gov.algoContext}
 ${stratNote}`;
 }
 
-async function generateAutoStock(watchlist, picks, news, stratNote, livePrices, gov) {
-  const result = await callClaude(`${buildGovernorHeader(gov, stratNote)}
-Watchlist: ${watchlist} | Picks: ${picks} | News: ${news}
-Live prices: ${livePrices}
-Principal floor: $${settings.principal_floor || 5000} | Max position: ${settings.max_position_size_pct || 10}%
-Use live prices for entry_price where available.
-JSON only: {"ticker":"NVDA","direction":"LONG","entry_price":875.50,"exit_target":920.00,"stop_loss":850.00,"position_size_pct":8,"orchestrator_score":87,"confidence":"High","reasoning":"2-3 sentence AURUM-tone instruction citing which algorithms drove this","algo_signals":"Specific algorithm names that generated the signal"}`, 1200);
-  currentInstruction = result;
-  showResult(result, {});
-  if (currentMode === 'auto') autofillAutoPanel(result);
-  if (result.ticker) { selectFeedTicker(result.ticker); }
-}
-
-async function generateManualStocks(watchlist, picks, news, stratNote, livePrices, gov) {
-  const result = await callClaude(`${buildGovernorHeader(gov, stratNote)}
-Watchlist: ${watchlist} | Picks: ${picks} | News: ${news}
-Live prices: ${livePrices}
-Use live prices for entry_price. Return 5 ranked STOCK trades. Rank by Governor composite conviction across all ${gov.algoCount} algorithms.
-JSON only: {"trades":[{"rank":1,"ticker":"NVDA","direction":"LONG","entry_price":875.50,"exit_target":920.00,"stop_loss":850.00,"position_size_pct":8,"orchestrator_score":87,"confidence":"High","reasoning":"2-3 sentence instruction citing algorithm signals","algo_signals":"Algorithm names that drove this","order_type":"Limit"}]}`, 2500);
-  manualTradeList = result.trades || [];
-  renderTradeList(manualTradeList);
-  document.getElementById('manual-panel').classList.add('visible');
-  document.getElementById('manual-panel-sub').textContent = manualTradeList.length + ' trades ranked by Governor conviction across ' + gov.algoCount + ' algorithms. Select one \u2014 all fields autofill with live prices. Press Enter to submit.';
-}
-
-async function generateAutoOption(watchlist, picks, news, stratNote, gov) {
-  const result = await callClaude(`${buildGovernorHeader(gov, stratNote)}
-Watchlist: ${watchlist} | Picks: ${picks} | News: ${news}
-Return ONE highest-conviction OPTIONS trade based on Governor algorithm output. Can be BUY_CALL, BUY_PUT, SELL_CALL, or SELL_PUT.
-JSON only: {"ticker":"NVDA","direction":"BUY_CALL","contract_type":"Call","strike":880,"expiration":"2026-06-20","premium":12.50,"contracts":2,"target_premium":22.00,"stop_premium":6.00,"delta":0.55,"orchestrator_score":84,"confidence":"High","reasoning":"2-3 sentence instruction citing algorithm signals","algo_signals":"Algorithm names that drove this"}`, 1200);
-  currentInstruction = result;
-  showResult(result, {});
-  if (currentMode === 'auto') autofillAutoPanel(result);
-}
-
-async function generateManualOptions(watchlist, picks, news, stratNote, gov) {
-  const result = await callClaude(`${buildGovernorHeader(gov, stratNote)}
-Watchlist: ${watchlist} | Picks: ${picks} | News: ${news}
-Return 5 ranked OPTIONS trades based on Governor algorithm output. Mix of BUY_CALL, BUY_PUT, SELL_CALL, SELL_PUT.
-JSON only: {"trades":[{"rank":1,"ticker":"NVDA","direction":"BUY_CALL","contract_type":"Call","strike":880,"expiration":"2026-06-20","premium":12.50,"contracts":2,"target_premium":22.00,"stop_premium":6.00,"delta":0.55,"orchestrator_score":84,"confidence":"High","reasoning":"2-3 sentence instruction citing algorithm signals","algo_signals":"Algorithm names that drove this"}]}`, 3000);
-  manualTradeList = result.trades || [];
-  renderTradeList(manualTradeList);
-  document.getElementById('manual-panel').classList.add('visible');
-  document.getElementById('manual-panel-sub').textContent = manualTradeList.length + ' options trades ranked by Governor. Select one to autofill.';
+function roundPositionToUnits(price, dollars, maxPct) {
+  // Round to nearest 10 shares (or whole units for crypto)
+  const rawQty = dollars / price;
+  const rounded = Math.round(rawQty / 10) * 10;
+  const actual = Math.max(rounded, 1);
+  const actualDollars = actual * price;
+  const actualPct = (actualDollars / (settings.principal_floor || 5000)) * 100;
+  return { qty: actual, pct: Math.min(actualPct, maxPct) };
 }
 
 async function generateAutoCrypto(watchlist, picks, news, stratNote, livePrices, gov) {
-  const result = await callClaude(`${buildGovernorHeader(gov, stratNote)}
-Watchlist: ${watchlist} | Picks: ${picks} | News: ${news}
-Live prices: ${livePrices}
-CRYPTO MODE: Generate ONE highest-conviction crypto trade. Both LONG and SHORT are valid based on Governor signal.
-DEX execution — no broker required. Suggest appropriate DEX (Uniswap for ERC-20, dYdX for perpetuals, Jupiter for Solana).
-Use live prices for entry. Position sizing should reflect crypto volatility (tighter than stocks).
-JSON only: {"ticker":"ETH","direction":"LONG","entry_price":3250.00,"exit_target":3650.00,"stop_loss":3050.00,"position_size_pct":5,"orchestrator_score":84,"confidence":"High","reasoning":"2-3 sentence AURUM-tone instruction citing which crypto algorithms drove this","algo_signals":"Specific algorithm names","dex":"Uniswap v3","pair":"ETH/USDC","execution_note":"Market buy ETH against USDC on Uniswap. Set limit sell at $3650, stop at $3050."}`, 1200);
+  const prompt = `You are AURUM's trade execution engine. Your sole output is a valid JSON object.
+Use the Governor brief below. Do not add any explanatory text, markdown, or reasoning outside the JSON.
+
+Governor brief:
+${gov.algoContext}
+
+Instructions:
+- Direction: LONG if composite_score >= 55, SHORT if <= 45, else NEUTRAL (but still produce a trade with reduced position_size_pct).
+- entry_price: use the live price if available (provided in livePrices), otherwise use Governor's recommended entry.
+- exit_target and stop_loss: derive from Governor's recommended levels.
+- position_size_pct: will be rounded to nearest 10 units automatically — just provide a reasonable percentage.
+- Confidence: "High", "Medium", or "Low".
+- orchestrator_score: composite_score.
+- algo_signals: top 3 algorithms from Governor's top_bullish_signals/top_bearish_signals.
+
+Return ONLY this JSON:
+{
+  "ticker": "string",
+  "direction": "LONG" or "SHORT",
+  "entry_price": number,
+  "exit_target": number,
+  "stop_loss": number,
+  "position_size_pct": number,
+  "orchestrator_score": number,
+  "confidence": "High"|"Medium"|"Low",
+  "algo_signals": "string",
+  "dex": "Uniswap v3" or "dYdX" or "Jupiter",
+  "pair": "ETH/USDC" etc,
+  "execution_note": "brief execution instruction"
+}`;
+
+  let result = await callClaude(prompt, 1200);
+  // Live price override
+  const livePrice = priceCache[result.ticker]?.price;
+  if (livePrice) result.entry_price = livePrice;
+  // Round position size
+  const pf = settings.principal_floor || 5000;
+  const maxPct = settings.max_position_size_pct || 10;
+  const rawPct = Math.min(result.position_size_pct || 5, maxPct);
+  const dollars = (rawPct / 100) * pf;
+  const rounded = roundPositionToUnits(result.entry_price, dollars, maxPct);
+  result.position_size_pct = parseFloat(rounded.pct.toFixed(1));
+  if (rounded.pct < 0.5) result.position_size_pct = maxPct * 0.1;
+
   currentInstruction = result;
   showResult(result, {});
   if (currentMode === 'auto') autofillAutoPanel(result);
   if (result.ticker) selectFeedTicker(result.ticker);
 }
 
+async function generateAutoStock(watchlist, picks, news, stratNote, livePrices, gov) {
+  const prompt = `You are AURUM's trade execution engine. Your sole output is a valid JSON object.
+Use the Governor brief below. Do not add any explanatory text, markdown, or reasoning outside the JSON.
+
+Governor brief:
+${gov.algoContext}
+
+Instructions:
+- Direction: LONG if composite_score >= 55, SHORT if <= 45, else NEUTRAL (but still produce a trade with reduced position_size_pct).
+- entry_price: use the live price if available (provided in livePrices), otherwise use Governor's recommended entry.
+- exit_target and stop_loss: derive from Governor's recommended levels.
+- position_size_pct: will be rounded to nearest 10 shares automatically — just provide a reasonable percentage.
+- Confidence: "High", "Medium", or "Low".
+- orchestrator_score: composite_score.
+- algo_signals: top 3 algorithms from Governor's top_bullish_signals/top_bearish_signals.
+
+Return ONLY this JSON:
+{
+  "ticker": "string",
+  "direction": "LONG" or "SHORT",
+  "entry_price": number,
+  "exit_target": number,
+  "stop_loss": number,
+  "position_size_pct": number,
+  "orchestrator_score": number,
+  "confidence": "High"|"Medium"|"Low",
+  "algo_signals": "string"
+}`;
+
+  let result = await callClaude(prompt, 1200);
+  const livePrice = priceCache[result.ticker]?.price;
+  if (livePrice) result.entry_price = livePrice;
+  const pf = settings.principal_floor || 5000;
+  const maxPct = settings.max_position_size_pct || 10;
+  const rawPct = Math.min(result.position_size_pct || 5, maxPct);
+  const dollars = (rawPct / 100) * pf;
+  const rounded = roundPositionToUnits(result.entry_price, dollars, maxPct);
+  result.position_size_pct = parseFloat(rounded.pct.toFixed(1));
+  if (rounded.pct < 0.5) result.position_size_pct = maxPct * 0.1;
+
+  currentInstruction = result;
+  showResult(result, {});
+  if (currentMode === 'auto') autofillAutoPanel(result);
+  if (result.ticker) selectFeedTicker(result.ticker);
+}
+
+async function generateManualStocks(watchlist, picks, news, stratNote, livePrices, gov) {
+  const prompt = `You are AURUM's trade execution engine. Return a JSON object with 5 ranked STOCK trades.
+Use the Governor brief below. Do not add any explanatory text, markdown, or reasoning outside the JSON.
+
+Governor brief:
+${gov.algoContext}
+
+Instructions:
+- Rank by composite_score.
+- entry_price: use live price if available.
+- position_size_pct: will be rounded to nearest 10 shares automatically.
+- Confidence, orchestrator_score, algo_signals as per Governor.
+
+Return ONLY this JSON:
+{"trades":[{"rank":1,"ticker":"string","direction":"LONG"|"SHORT","entry_price":number,"exit_target":number,"stop_loss":number,"position_size_pct":number,"orchestrator_score":number,"confidence":"High"|"Medium"|"Low","algo_signals":"string","order_type":"Limit"}]}`;
+
+  let result = await callClaude(prompt, 2500);
+  const pf = settings.principal_floor || 5000;
+  const maxPct = settings.max_position_size_pct || 10;
+  for (const trade of (result.trades || [])) {
+    const livePrice = priceCache[trade.ticker]?.price;
+    if (livePrice) trade.entry_price = livePrice;
+    const rawPct = Math.min(trade.position_size_pct || 5, maxPct);
+    const dollars = (rawPct / 100) * pf;
+    const rounded = roundPositionToUnits(trade.entry_price, dollars, maxPct);
+    trade.position_size_pct = parseFloat(rounded.pct.toFixed(1));
+    if (rounded.pct < 0.5) trade.position_size_pct = maxPct * 0.1;
+  }
+
+  manualTradeList = result.trades || [];
+  renderTradeList(manualTradeList);
+  document.getElementById('manual-panel').classList.add('visible');
+  document.getElementById('manual-panel-sub').textContent = manualTradeList.length + ' trades ranked by Governor conviction across ' + gov.algoCount + ' algorithms. Select one \u2014 all fields autofill with live prices. Press Enter to submit.';
+}
+
 async function generateManualCrypto(watchlist, picks, news, stratNote, livePrices, gov) {
-  const result = await callClaude(`${buildGovernorHeader(gov, stratNote)}
-Watchlist: ${watchlist} | Picks: ${picks} | News: ${news}
-Live prices: ${livePrices}
-CRYPTO MODE: Return 5 ranked crypto trades. Mix of LONG and SHORT based on Governor signals for each asset.
-DEX execution — no broker required. Include appropriate DEX per trade.
-JSON only: {"trades":[{"rank":1,"ticker":"ETH","direction":"LONG","entry_price":3250.00,"exit_target":3650.00,"stop_loss":3050.00,"position_size_pct":5,"orchestrator_score":84,"confidence":"High","reasoning":"2-3 sentence instruction citing crypto algorithm signals","algo_signals":"Algorithm names that drove this","dex":"Uniswap v3","pair":"ETH/USDC","execution_note":"Market buy ETH/USDC on Uniswap"},{"rank":2,"ticker":"BTC","direction":"SHORT","entry_price":67000,"exit_target":62000,"stop_loss":69500,"position_size_pct":4,"orchestrator_score":38,"confidence":"Medium","reasoning":"Derivatives flow showing extreme long crowding — contrarian short setup","algo_signals":"crypto_derivatives_flow, crypto_whale_tracker","dex":"dYdX","pair":"BTC-USD","execution_note":"Open short perpetual on dYdX with 2x leverage max"}]}`, 3000);
+  const prompt = `You are AURUM's trade execution engine. Return a JSON object with 5 ranked CRYPTO trades.
+Use the Governor brief below. Do not add any explanatory text, markdown, or reasoning outside the JSON.
+
+Governor brief:
+${gov.algoContext}
+
+Instructions:
+- Rank by composite_score.
+- Both LONG and SHORT allowed.
+- entry_price: use live price if available.
+- position_size_pct: will be rounded to nearest whole unit automatically.
+- Include dex, pair, execution_note.
+
+Return ONLY this JSON:
+{"trades":[{"rank":1,"ticker":"string","direction":"LONG"|"SHORT","entry_price":number,"exit_target":number,"stop_loss":number,"position_size_pct":number,"orchestrator_score":number,"confidence":"High"|"Medium"|"Low","algo_signals":"string","dex":"Uniswap v3"|"dYdX"|"Jupiter","pair":"string","execution_note":"string"}]}`;
+
+  let result = await callClaude(prompt, 3000);
+  const pf = settings.principal_floor || 5000;
+  const maxPct = settings.max_position_size_pct || 10;
+  for (const trade of (result.trades || [])) {
+    const livePrice = priceCache[trade.ticker]?.price;
+    if (livePrice) trade.entry_price = livePrice;
+    const rawPct = Math.min(trade.position_size_pct || 5, maxPct);
+    const dollars = (rawPct / 100) * pf;
+    const rounded = roundPositionToUnits(trade.entry_price, dollars, maxPct);
+    trade.position_size_pct = parseFloat(rounded.pct.toFixed(1));
+    if (rounded.pct < 0.5) trade.position_size_pct = maxPct * 0.1;
+  }
+
   manualTradeList = result.trades || [];
   renderTradeList(manualTradeList);
   document.getElementById('manual-panel').classList.add('visible');
   document.getElementById('manual-panel-sub').textContent = manualTradeList.length + ' crypto trades ranked by Governor — both LONG and SHORT. Select one to autofill.';
 }
 
+async function generateAutoOption(watchlist, picks, news, stratNote, gov) {
+  const prompt = `You are AURUM's trade execution engine. Return a single OPTIONS trade JSON.
+Use the Governor brief below. Do not add any explanatory text, markdown, or reasoning outside the JSON.
+
+Governor brief:
+${gov.algoContext}
+
+Return ONLY this JSON:
+{"ticker":"string","direction":"BUY_CALL"|"BUY_PUT"|"SELL_CALL"|"SELL_PUT","contract_type":"Call"|"Put","strike":number,"expiration":"YYYY-MM-DD","premium":number,"contracts":number,"target_premium":number,"stop_premium":number,"delta":number,"orchestrator_score":number,"confidence":"High"|"Medium"|"Low","algo_signals":"string"}`;
+
+  let result = await callClaude(prompt, 1200);
+  const livePrice = priceCache[result.ticker]?.price;
+  if (livePrice) result.entry_price = livePrice; // options still use premium
+  currentInstruction = result;
+  showResult(result, {});
+  if (currentMode === 'auto') autofillAutoPanel(result);
+}
+
+async function generateManualOptions(watchlist, picks, news, stratNote, gov) {
+  const prompt = `You are AURUM's trade execution engine. Return a JSON object with 5 ranked OPTIONS trades.
+Use the Governor brief below. Do not add any explanatory text, markdown, or reasoning outside the JSON.
+
+Governor brief:
+${gov.algoContext}
+
+Return ONLY this JSON:
+{"trades":[{"rank":1,"ticker":"string","direction":"BUY_CALL"|"BUY_PUT"|"SELL_CALL"|"SELL_PUT","contract_type":"Call"|"Put","strike":number,"expiration":"YYYY-MM-DD","premium":number,"contracts":number,"target_premium":number,"stop_premium":number,"delta":number,"orchestrator_score":number,"confidence":"High"|"Medium"|"Low","algo_signals":"string"}]}`;
+
+  let result = await callClaude(prompt, 3000);
+  manualTradeList = result.trades || [];
+  renderTradeList(manualTradeList);
+  document.getElementById('manual-panel').classList.add('visible');
+  document.getElementById('manual-panel-sub').textContent = manualTradeList.length + ' options trades ranked by Governor. Select one to autofill.';
+}
+
 function showResult(r, params) {
-  document.getElementById('result-ticker').textContent   = r.ticker || '—';
+  document.getElementById('result-ticker').textContent = r.ticker || '—';
   const dirEl = document.getElementById('result-direction');
   dirEl.textContent = (r.direction || '—').replace('_', ' ');
-  dirEl.className   = 'result-direction ' + (r.direction || '').toLowerCase();
+  dirEl.className = 'result-direction ' + (r.direction || '').toLowerCase();
   document.getElementById('result-reasoning').textContent = r.reasoning || '—';
 
-  // Show live price in result header
   if (r.ticker && priceCache[r.ticker]) {
-    const d  = priceCache[r.ticker];
+    const d = priceCache[r.ticker];
     const el = document.getElementById('result-live-price');
     if (el) el.textContent = 'Live: $' + d.price.toFixed(2) + ' (' + (d.change >= 0 ? '+' : '') + d.changePct.toFixed(2) + '%)';
   }
 
   const fields = currentInstrument === 'stock' ? [
-    { label: 'Entry',         value: r.entry_price ? '$' + r.entry_price : 'Market' },
-    { label: 'Exit Target',   value: r.exit_target ? '$' + r.exit_target : '—' },
-    { label: 'Stop Loss',     value: r.stop_loss   ? '$' + r.stop_loss   : '—' },
+    { label: 'Entry', value: r.entry_price ? '$' + r.entry_price : 'Market' },
+    { label: 'Exit Target', value: r.exit_target ? '$' + r.exit_target : '—' },
+    { label: 'Stop Loss', value: r.stop_loss ? '$' + r.stop_loss : '—' },
     { label: 'Position Size', value: r.position_size_pct ? r.position_size_pct + '%' : '—' },
-    { label: 'Confidence',    value: r.confidence || '—' },
-    { label: 'Score',         value: r.orchestrator_score || '—' }
+    { label: 'Confidence', value: r.confidence || '—' },
+    { label: 'Score', value: r.orchestrator_score || '—' }
   ] : [
-    { label: 'Contract',    value: r.contract_type || '—' },
-    { label: 'Strike',      value: r.strike ? '$' + r.strike : '—' },
-    { label: 'Expiration',  value: r.expiration || '—' },
-    { label: 'Premium',     value: r.premium ? '$' + r.premium : '—' },
-    { label: 'Contracts',   value: r.contracts || '—' },
-    { label: 'Score',       value: r.orchestrator_score || '—' }
+    { label: 'Contract', value: r.contract_type || '—' },
+    { label: 'Strike', value: r.strike ? '$' + r.strike : '—' },
+    { label: 'Expiration', value: r.expiration || '—' },
+    { label: 'Premium', value: r.premium ? '$' + r.premium : '—' },
+    { label: 'Contracts', value: r.contracts || '—' },
+    { label: 'Score', value: r.orchestrator_score || '—' }
   ];
 
   document.getElementById('result-params').innerHTML = fields.map(f =>
@@ -1164,7 +1247,7 @@ function renderTradeList(trades) {
   const container = document.getElementById('trade-list');
   if (!trades || !trades.length) { container.innerHTML = '<div class="empty-state" style="border:none;">No trades returned.</div>'; return; }
   container.innerHTML = trades.map((t, i) => {
-    const dir   = (t.direction || '').toLowerCase();
+    const dir = (t.direction || '').toLowerCase();
     const label = (t.direction || '').replace('_', ' ');
     const livePrice = priceCache[t.ticker];
     return `
@@ -1185,130 +1268,90 @@ function selectTrade(i) {
   document.querySelectorAll('.trade-list-row').forEach(r => r.classList.remove('selected'));
   const row = document.getElementById('tr-' + i);
   if (row) row.classList.add('selected');
-  selectedTrade      = manualTradeList[i];
+  selectedTrade = manualTradeList[i];
   currentInstruction = selectedTrade;
   autofillManualPanel(selectedTrade);
   if (selectedTrade?.ticker) selectFeedTicker(selectedTrade.ticker);
 }
 
-// ── WALLET & DEX EXECUTION ──
-let connectedWallet = null;
-let walletProvider  = null;
-
+// ── WALLET CONNECT ──
 async function connectWallet() {
-  const btn    = document.getElementById('wallet-connect-btn');
-  const status = document.getElementById('wallet-status');
+  const btn = document.getElementById('wallet-connect-btn');
   if (!btn) return;
-
   try {
-    // Try MetaMask first
     if (window.ethereum) {
       const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
       if (accounts && accounts.length > 0) {
         connectedWallet = accounts[0];
-        walletProvider  = window.ethereum;
         const short = connectedWallet.slice(0, 6) + '...' + connectedWallet.slice(-4);
         btn.textContent = short + ' Connected';
         btn.style.borderColor = 'var(--positive)';
-        btn.style.color       = 'var(--positive)';
-        if (status) { status.textContent = 'Wallet connected — ready for DEX execution.'; status.className = 'order-status done'; }
+        btn.style.color = 'var(--positive)';
+        // Persist
+        const { data: s } = await db.from('trading_settings').select('id').single();
+        if (s?.id) {
+          await db.from('trading_settings').update({ wallet_address: connectedWallet, wallet_type: 'metamask' }).eq('id', s.id);
+        } else {
+          await db.from('trading_settings').insert({ wallet_address: connectedWallet, wallet_type: 'metamask' });
+        }
         return true;
       }
     } else {
-      if (status) { status.textContent = 'No wallet detected. Install MetaMask or Coinbase Wallet.'; status.className = 'order-status error'; }
+      alert('No wallet detected. Install MetaMask or Coinbase Wallet.');
       return false;
     }
   } catch(e) {
-    if (status) { status.textContent = 'Wallet connection cancelled.'; status.className = 'order-status error'; }
+    alert('Connection cancelled or failed.');
     return false;
   }
 }
 
-async function executeDEXTrade(instruction) {
-  // DEX execution — routes to correct protocol based on instruction.dex
-  // Auto mode: executes autonomously once wallet connected
-  // Manual mode: opens DEX in browser with pre-filled parameters
-
-  const { ticker, direction, entry_price, stop_loss, exit_target,
-          dex, pair, execution_note, position_size_pct } = instruction;
-
-  const settings    = await db.from('trading_settings').select('*').single().then(r => r.data || {});
-  const principal   = settings.principal_floor || 5000;
-  const positionUSD = ((position_size_pct || 5) / 100) * principal;
-  const livePrice   = priceCache[ticker]?.price || entry_price;
-
-  // ── Auto mode — attempt autonomous execution via MetaMask ──
-  if (currentMode === 'auto') {
-    if (!connectedWallet) {
-      const connected = await connectWallet();
-      if (!connected) return { ok: false, error: 'Wallet not connected. Connect MetaMask or Coinbase Wallet to execute autonomously.' };
-    }
-
-    // For now: autonomous execution opens the DEX with a deep link
-    // Full on-chain signing requires ethers.js/viem — flagged for next build phase
-    // Current: opens DEX URL pre-configured, user confirms one tap in wallet
-    const dexUrl = buildDEXUrl(ticker, direction, livePrice, pair, dex, positionUSD);
-    if (dexUrl) {
-      window.open(dexUrl, '_blank');
-      return { ok: true, orderId: null, note: 'DEX opened — confirm transaction in your wallet app.' };
-    }
-    return { ok: false, error: 'Could not build DEX URL for ' + dex };
+// ── DEX EXECUTION ──
+async function executeDEXTradeAuto(instruction) {
+  if (!connectedWallet) {
+    const ok = await connectWallet();
+    if (!ok) return { ok: false, error: 'Wallet not connected.' };
   }
+  try {
+    const provider = new ethers.BrowserProvider(window.ethereum);
+    const signer = await provider.getSigner();
+    const livePrice = priceCache[instruction.ticker]?.price || instruction.entry_price;
+    const pf = settings.principal_floor || 5000;
+    const amountUSD = (instruction.position_size_pct / 100) * pf;
+    const amountIn = ethers.parseUnits(Math.round(amountUSD).toString(), 6); // USDC decimals 6
 
-  // ── Manual mode — open DEX with pre-filled parameters ──
-  const dexUrl = buildDEXUrl(ticker, direction, livePrice, pair, dex, positionUSD);
-  if (dexUrl) {
-    window.open(dexUrl, '_blank');
-    return { ok: true, orderId: null, note: 'DEX opened in new tab. Follow Claude\'s execution note.' };
+    // Uniswap V3 Router
+    const routerAddress = '0xE592427A0AEce92De3Edee1F18E0157C05861564';
+    const usdcAddress = '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48';
+    const wethAddress = '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2';
+
+    const tokenIn = instruction.direction === 'LONG' ? usdcAddress : wethAddress;
+    const tokenOut = instruction.direction === 'LONG' ? wethAddress : usdcAddress;
+
+    const router = new ethers.Contract(routerAddress, [
+      'function exactInputSingle((address tokenIn, address tokenOut, uint24 fee, address recipient, uint256 deadline, uint256 amountIn, uint256 amountOutMinimum, uint160 sqrtPriceLimitX96)) external payable returns (uint256 amountOut)'
+    ], signer);
+
+    const params = {
+      tokenIn,
+      tokenOut,
+      fee: 3000,
+      recipient: connectedWallet,
+      deadline: Math.floor(Date.now() / 1000) + 60 * 20,
+      amountIn,
+      amountOutMinimum: 0,
+      sqrtPriceLimitX96: 0
+    };
+
+    const tx = await router.exactInputSingle(params, { gasLimit: 300000 });
+    const receipt = await tx.wait();
+    return { ok: true, txHash: receipt.hash, note: `Swap executed. Hash: ${receipt.hash}` };
+  } catch(e) {
+    return { ok: false, error: e.message };
   }
-  return { ok: false, error: 'Could not open DEX.' };
 }
 
-function buildDEXUrl(ticker, direction, price, pair, dex, amountUSD) {
-  // CoinGecko ID map for token addresses on major networks
-  const tokenAddresses = {
-    'ETH':   '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee', // native ETH
-    'WETH':  '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2',
-    'USDC':  '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
-    'LINK':  '0x514910771AF9Ca656af840dff83E8264EcF986CA',
-    'UNI':   '0x1f9840a85d5aF5bf1D1762F925BDADdC4201F984',
-    'MATIC': '0x7D1AfA7B718fb893dB30A3aBc0Cfc608AaCfeBB0',
-    'AVAX':  '0x85f138bfEE4ef8e540890CFb48F620571d67Eda',
-    'BNB':   '0xB8c77482e45F1F44dE1745F52C74426C631bDD52',
-  };
-
-  const dexName = (dex || '').toLowerCase();
-
-  if (dexName.includes('uniswap')) {
-    // Uniswap v3 deep link
-    const inputToken  = direction === 'long' ? 'USDC' : (ticker === 'ETH' ? 'ETH' : ticker);
-    const outputToken = direction === 'long' ? ticker : 'USDC';
-    const inputAddr   = tokenAddresses[inputToken]  || inputToken;
-    const outputAddr  = tokenAddresses[outputToken] || outputToken;
-    return `https://app.uniswap.org/swap?inputCurrency=${inputAddr}&outputCurrency=${outputAddr}&exactAmount=${Math.round(amountUSD)}`;
-
-  } else if (dexName.includes('dydx')) {
-    // dYdX v4 perpetuals
-    const market = ticker + '-USD';
-    const side   = direction === 'long' ? 'BUY' : 'SELL';
-    return `https://dydx.trade/trade/${market}?side=${side}`;
-
-  } else if (dexName.includes('jupiter')) {
-    // Jupiter (Solana)
-    const inputMint  = direction === 'long' ? 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v' : ticker; // USDC mint
-    const outputMint = direction === 'long' ? ticker : 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
-    return `https://jup.ag/swap/${inputMint}-${outputMint}?inAmount=${Math.round(amountUSD)}`;
-  }
-
-  // Generic fallback — just open the DEX homepage
-  const dexUrls = {
-    'uniswap': 'https://app.uniswap.org',
-    'dydx':    'https://dydx.trade',
-    'jupiter': 'https://jup.ag',
-  };
-  return dexUrls[dexName] || null;
-}
-
+// ── ALPACA ORDER ──
 async function sendAlpacaOrder(order) {
   if (!alpacaConfig?.apiKey) return { ok: false, error: 'No Alpaca credentials. Connect Alpaca in Brokerage page.' };
   const baseUrl = alpacaConfig.paper ? 'https://paper-api.alpaca.markets' : 'https://api.alpaca.markets';
@@ -1327,12 +1370,13 @@ async function sendAlpacaOrder(order) {
 function buildAlpacaOrder(instruction) {
   const livePrice = priceCache[instruction.ticker]?.price;
   const entryPrice = livePrice || instruction.entry_price;
-  const qty = instruction.position_size_pct
-    ? Math.max(1, Math.floor(((instruction.position_size_pct / 100) * (settings.principal_floor || 5000)) / (entryPrice || 100)))
-    : 1;
+  const pf = settings.principal_floor || 5000;
+  const rawPct = (instruction.position_size_pct || 5) / 100;
+  const dollars = rawPct * pf;
+  const qty = Math.max(1, Math.floor(dollars / (entryPrice || 100)));
 
   if (currentInstrument === 'stock') {
-    const side  = instruction.direction === 'SHORT' ? 'sell_short' : 'buy';
+    const side = instruction.direction === 'SHORT' ? 'sell_short' : 'buy';
     const hasLimit = entryPrice > 0;
     const order = { symbol: instruction.ticker, qty, side, type: hasLimit ? 'limit' : 'market', time_in_force: currentStrategy === 'day' ? 'ioc' : 'day' };
     if (hasLimit) order.limit_price = parseFloat(entryPrice.toFixed(2));
@@ -1340,99 +1384,105 @@ function buildAlpacaOrder(instruction) {
   } else {
     const contractAction = (instruction.direction || '').toLowerCase();
     const side = contractAction.startsWith('buy') ? 'buy' : 'sell';
-    return { symbol: instruction.ticker + (instruction.expiration || '').replace(/-/g, '') + (instruction.contract_type === 'Call' ? 'C' : 'P') + String(Math.round((instruction.strike || 0) * 1000)).padStart(8, '0'), qty: instruction.contracts || 1, side, type: 'limit', time_in_force: 'day', limit_price: instruction.premium };
+    return {
+      symbol: instruction.ticker + (instruction.expiration || '').replace(/-/g, '') + (instruction.contract_type === 'Call' ? 'C' : 'P') + String(Math.round((instruction.strike || 0) * 1000)).padStart(8, '0'),
+      qty: instruction.contracts || 1,
+      side,
+      type: 'limit',
+      time_in_force: 'day',
+      limit_price: instruction.premium
+    };
   }
 }
 
+// ── EXECUTE AUTO ORDER ──
 async function executeAutoOrder() {
   if (!currentInstruction) return;
-  const btn    = document.getElementById('auto-execute-btn');
+  const btn = document.getElementById('auto-execute-btn');
   const status = document.getElementById('auto-order-status');
   btn.disabled = true;
 
   if (activeMode === 'crypto') {
-    // ── Crypto — DEX execution ──
-    btn.textContent    = 'Executing...';
+    btn.textContent = 'Executing...';
     status.textContent = 'Opening DEX — confirm transaction in your wallet...';
-    status.className   = 'order-status firing';
+    status.className = 'order-status firing';
 
-    const result    = await executeDEXTrade(currentInstruction);
+    const result = await executeDEXTradeAuto(currentInstruction);
     const livePrice = priceCache[currentInstruction.ticker]?.price;
 
     await db.from('auto_trade_log').insert({
-      ticker:                  currentInstruction.ticker,
-      direction:               currentInstruction.direction,
-      instruction:             JSON.stringify(currentInstruction),
-      claude_reasoning:        currentInstruction.reasoning,
-      orchestrator_score:      currentInstruction.orchestrator_score,
+      ticker: currentInstruction.ticker,
+      direction: currentInstruction.direction,
+      instruction: JSON.stringify(currentInstruction),
+      claude_reasoning: currentInstruction.reasoning,
+      orchestrator_score: currentInstruction.orchestrator_score,
       orchestrator_confidence: currentInstruction.confidence,
-      position_size:           currentInstruction.position_size_pct,
-      entry_price:             livePrice || currentInstruction.entry_price,
-      exit_target:             currentInstruction.exit_target,
-      stop_loss:               currentInstruction.stop_loss,
-      status:                  result.ok ? 'dex_opened' : 'execution_failed',
-      strategy:                currentStrategy,
-      instrument:              'crypto',
-      brokerage:               currentInstruction.dex || 'dex',
-      executed_at:             new Date().toISOString(),
-      type:                    'crypto',
-      entry_signal_quality:    currentInstruction.signal_quality || 50,
+      position_size: currentInstruction.position_size_pct,
+      entry_price: livePrice || currentInstruction.entry_price,
+      exit_target: currentInstruction.exit_target,
+      stop_loss: currentInstruction.stop_loss,
+      status: result.ok ? 'dex_opened' : 'execution_failed',
+      strategy: currentStrategy,
+      instrument: 'crypto',
+      brokerage: currentInstruction.dex || 'dex',
+      executed_at: new Date().toISOString(),
+      type: 'crypto',
+      entry_signal_quality: currentInstruction.signal_quality || 50,
     });
 
     await loadLog();
 
     if (result.ok) {
-      btn.textContent    = 'DEX Opened ✓';
+      btn.textContent = 'DEX Opened ✓';
       status.textContent = result.note || 'DEX opened — confirm transaction in your wallet.';
-      status.className   = 'order-status done';
+      status.className = 'order-status done';
     } else {
-      btn.textContent    = 'Execution Failed';
+      btn.textContent = 'Execution Failed';
       status.textContent = result.error;
-      status.className   = 'order-status error';
+      status.className = 'order-status error';
       btn.disabled = false;
     }
 
   } else {
-    // ── Stock — Alpaca execution (unchanged) ──
-    btn.textContent    = 'Executing...';
+    btn.textContent = 'Executing...';
     status.textContent = 'Sending order to Alpaca...';
-    status.className   = 'order-status firing';
+    status.className = 'order-status firing';
 
     const alpacaOrder = buildAlpacaOrder(currentInstruction);
-    const result      = await sendAlpacaOrder(alpacaOrder);
-    const livePrice   = priceCache[currentInstruction.ticker]?.price;
+    const result = await sendAlpacaOrder(alpacaOrder);
+    const livePrice = priceCache[currentInstruction.ticker]?.price;
 
     await db.from('auto_trade_log').insert({
-      ticker:                  currentInstruction.ticker,
-      direction:               currentInstruction.direction,
-      instruction:             JSON.stringify(currentInstruction),
-      claude_reasoning:        currentInstruction.reasoning,
-      orchestrator_score:      currentInstruction.orchestrator_score,
+      ticker: currentInstruction.ticker,
+      direction: currentInstruction.direction,
+      instruction: JSON.stringify(currentInstruction),
+      claude_reasoning: currentInstruction.reasoning,
+      orchestrator_score: currentInstruction.orchestrator_score,
       orchestrator_confidence: currentInstruction.confidence,
-      position_size:           currentInstruction.position_size_pct,
-      entry_price:             livePrice || currentInstruction.entry_price,
-      exit_target:             currentInstruction.exit_target || currentInstruction.target_premium,
-      stop_loss:               currentInstruction.stop_loss   || currentInstruction.stop_premium,
-      status:                  result.ok ? 'executed' : 'execution_failed',
-      strategy:                currentStrategy,
-      instrument:              currentInstrument,
-      alpaca_order_id:         result.orderId || null,
-      brokerage:               'alpaca',
-      executed_at:             new Date().toISOString(),
-      type:                    'stock',
-      entry_signal_quality:    currentInstruction.signal_quality || 50,
+      position_size: currentInstruction.position_size_pct,
+      entry_price: livePrice || currentInstruction.entry_price,
+      exit_target: currentInstruction.exit_target || currentInstruction.target_premium,
+      stop_loss: currentInstruction.stop_loss || currentInstruction.stop_premium,
+      status: result.ok ? 'executed' : 'execution_failed',
+      strategy: currentStrategy,
+      instrument: currentInstrument,
+      alpaca_order_id: result.orderId || null,
+      brokerage: 'alpaca',
+      executed_at: new Date().toISOString(),
+      type: 'stock',
+      entry_signal_quality: currentInstruction.signal_quality || 50,
     });
 
     await loadLog();
 
     if (result.ok) {
-      btn.textContent    = 'Order Sent ✓';
+      btn.textContent = 'Order Sent ✓';
       status.textContent = currentInstruction.ticker + ' order sent. ID: ' + result.orderId;
-      status.className   = 'order-status done';
+      status.className = 'order-status done';
     } else {
-      btn.textContent    = 'Execution Failed';
+      btn.textContent = 'Execution Failed';
       status.textContent = result.error;
-      status.className   = 'order-status error';
+      status.className = 'order-status error';
       btn.disabled = false;
     }
   }
@@ -1440,89 +1490,89 @@ async function executeAutoOrder() {
 
 async function submitManualOrder() {
   if (!selectedTrade) return;
-  const btn    = document.getElementById('manual-submit-btn');
+  const btn = document.getElementById('manual-submit-btn');
   const status = document.getElementById('manual-status');
   btn.disabled = true;
 
   if (activeMode === 'crypto') {
-    btn.textContent    = 'Opening DEX...';
+    btn.textContent = 'Opening DEX...';
     status.textContent = 'Opening DEX — confirm in your wallet...';
-    status.className   = 'order-status firing';
+    status.className = 'order-status firing';
 
-    const result    = await executeDEXTrade(selectedTrade);
+    const result = await executeDEXTradeAuto(selectedTrade);
     const livePrice = priceCache[selectedTrade.ticker]?.price;
 
     await db.from('auto_trade_log').insert({
-      ticker:                  selectedTrade.ticker,
-      direction:               selectedTrade.direction,
-      instruction:             JSON.stringify(selectedTrade),
-      claude_reasoning:        selectedTrade.reasoning,
-      orchestrator_score:      selectedTrade.orchestrator_score,
+      ticker: selectedTrade.ticker,
+      direction: selectedTrade.direction,
+      instruction: JSON.stringify(selectedTrade),
+      claude_reasoning: selectedTrade.reasoning,
+      orchestrator_score: selectedTrade.orchestrator_score,
       orchestrator_confidence: selectedTrade.confidence,
-      position_size:           selectedTrade.position_size_pct,
-      entry_price:             livePrice || selectedTrade.entry_price,
-      exit_target:             selectedTrade.exit_target,
-      stop_loss:               selectedTrade.stop_loss,
-      status:                  result.ok ? 'dex_opened' : 'execution_failed',
-      strategy:                currentStrategy,
-      instrument:              'crypto',
-      brokerage:               selectedTrade.dex || 'dex',
-      executed_at:             new Date().toISOString(),
-      type:                    'crypto'
+      position_size: selectedTrade.position_size_pct,
+      entry_price: livePrice || selectedTrade.entry_price,
+      exit_target: selectedTrade.exit_target,
+      stop_loss: selectedTrade.stop_loss,
+      status: result.ok ? 'dex_opened' : 'execution_failed',
+      strategy: currentStrategy,
+      instrument: 'crypto',
+      brokerage: selectedTrade.dex || 'dex',
+      executed_at: new Date().toISOString(),
+      type: 'crypto'
     });
 
     await loadLog();
 
     if (result.ok) {
-      btn.textContent    = 'DEX Opened ✓';
+      btn.textContent = 'DEX Opened ✓';
       status.textContent = result.note || 'DEX opened — confirm in your wallet.';
-      status.className   = 'order-status done';
+      status.className = 'order-status done';
     } else {
-      btn.textContent    = 'Failed';
+      btn.textContent = 'Failed';
       status.textContent = result.error;
-      status.className   = 'order-status error';
+      status.className = 'order-status error';
       btn.disabled = false;
     }
 
   } else {
-    btn.textContent    = 'Submitting...';
+    btn.textContent = 'Submitting...';
     status.textContent = 'Sending order to Alpaca...';
-    status.className   = 'order-status firing';
+    status.className = 'order-status firing';
 
     const alpacaOrder = buildAlpacaOrder(selectedTrade);
-    const result      = await sendAlpacaOrder(alpacaOrder);
-    const livePrice   = priceCache[selectedTrade.ticker]?.price;
+    const result = await sendAlpacaOrder(alpacaOrder);
+    const livePrice = priceCache[selectedTrade.ticker]?.price;
 
     await db.from('auto_trade_log').insert({
-      ticker:                  selectedTrade.ticker,
-      direction:               selectedTrade.direction,
-      instruction:             JSON.stringify(selectedTrade),
-      claude_reasoning:        selectedTrade.reasoning,
-      orchestrator_score:      selectedTrade.orchestrator_score,
+      ticker: selectedTrade.ticker,
+      direction: selectedTrade.direction,
+      instruction: JSON.stringify(selectedTrade),
+      claude_reasoning: selectedTrade.reasoning,
+      orchestrator_score: selectedTrade.orchestrator_score,
       orchestrator_confidence: selectedTrade.confidence,
-      position_size:           selectedTrade.position_size_pct,
-      entry_price:             livePrice || selectedTrade.entry_price,
-      exit_target:             selectedTrade.exit_target || selectedTrade.target_premium,
-      stop_loss:               selectedTrade.stop_loss   || selectedTrade.stop_premium,
-      status:                  result.ok ? 'executed' : 'logged_manual',
-      strategy:                currentStrategy,
-      instrument:              currentInstrument,
-      alpaca_order_id:         result.orderId || null,
-      brokerage:               result.ok ? 'alpaca' : 'manual_submitted',
-      executed_at:             new Date().toISOString(),
-      type:                    'stock'
+      position_size: selectedTrade.position_size_pct,
+      entry_price: livePrice || selectedTrade.entry_price,
+      exit_target: selectedTrade.exit_target || selectedTrade.target_premium,
+      stop_loss: selectedTrade.stop_loss || selectedTrade.stop_premium,
+      status: result.ok ? 'executed' : 'logged_manual',
+      strategy: currentStrategy,
+      instrument: currentInstrument,
+      alpaca_order_id: result.orderId || null,
+      brokerage: result.ok ? 'alpaca' : 'manual_submitted',
+      executed_at: new Date().toISOString(),
+      type: 'stock'
     });
 
     await loadLog();
 
     if (result.ok) {
-      btn.textContent    = 'Order Sent ✓';
+      btn.textContent = 'Order Sent ✓';
       status.textContent = selectedTrade.ticker + ' order sent. ID: ' + result.orderId;
-      status.className   = 'order-status done';
+      status.className = 'order-status done';
     } else {
-      btn.textContent    = 'Submitted';
+      btn.textContent = 'Submitted';
       status.textContent = 'Logged for manual execution.';
-      status.className   = 'order-status done';
+      status.className = 'order-status done';
     }
   }
 }
@@ -1539,8 +1589,8 @@ async function loadLog() {
   const container = document.getElementById('log-container');
   if (!data || !data.length) { container.innerHTML = '<div class="empty-state">No instructions generated yet.</div>'; return; }
   container.innerHTML = data.map(t => {
-    const dir         = (t.direction || '').toLowerCase();
-    const dirLabel    = (t.direction || '—').replace('_', ' ');
+    const dir = (t.direction || '').toLowerCase();
+    const dirLabel = (t.direction || '—').replace('_', ' ');
     const statusClass = t.status === 'executed' ? 'executed' : t.status === 'pending_execution' ? 'pending' : t.status === 'execution_failed' ? 'cancelled' : 'logged';
     return `<div class="log-row">
       <div class="log-ticker">${t.ticker || '—'}</div>
