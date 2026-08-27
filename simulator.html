@@ -682,7 +682,7 @@ footer p { font-size: 0.6rem; letter-spacing: 0.12em; color: var(--muted); text-
 <main>
 
   <div class="page-title">AURUM <em>Simulator.</em></div>
-  <div class="page-sub">Paper trade stocks and options — swing and intraday — with slippage, commission, and stop-loss simulation. Validate strategies before going live.</div>
+  <div class="page-sub">Paper trade stocks and crypto — swing and intraday — with slippage, commission, and stop-loss simulation. Validate strategies before going live.</div>
 
   <!-- STRATEGY / INSTRUMENT TABS -->
   <div class="section-label">Strategy</div>
@@ -964,7 +964,7 @@ const SUPABASE_KEY = 'sb_publishable_K80lcfk8LsQNqo5enznRRA_lrzf2U9K';
 const { createClient } = supabase;
 const db = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-let activeMode = 'stock'; // 'stock' or 'crypto'
+let activeMode = 'stock';
 
 async function loadActiveMode() {
   try {
@@ -972,7 +972,6 @@ async function loadActiveMode() {
     if (data?.active_mode) activeMode = data.active_mode;
   } catch(e) {}
 
-  // Update UI for active mode
   const sharesLabel = document.getElementById('shares-label');
   const sharesInput = document.getElementById('num-shares');
   const openBtn     = document.getElementById('open-trade-btn');
@@ -1091,7 +1090,6 @@ async function loadTrades() {
     return;
   }
 
-  // Check stop-loss triggers
   container.innerHTML = data.map(t => {
     const gl    = Number(t.gain_loss);
     const glPct = Number(t.gain_loss_pct);
@@ -1166,7 +1164,6 @@ function computeAnalytics(trades) {
     return;
   }
 
-  // Filter corrupted rows from analytics
   trades = (trades || []).filter(t =>
     t.gain_loss !== null &&
     Number(t.entry_price) > 0 &&
@@ -1181,7 +1178,6 @@ function computeAnalytics(trades) {
   const std       = Math.sqrt(returns.reduce((s, v) => s + (v - mean) ** 2, 0) / returns.length);
   const sharpe    = std > 0 ? (mean / std) * Math.sqrt(252) : 0;
 
-  // Max drawdown from equity curve
   const equity    = [10000];
   trades.forEach(t => { equity.push(equity[equity.length-1] + Number(t.gain_loss)); });
   let peak = equity[0], maxDD = 0;
@@ -1239,8 +1235,6 @@ function drawEquityCurve(trades) {
   const h = 120;
   const pad = { top: 10, bottom: 20, left: 8, right: 8 };
 
-  // Build equity points
-  // Filter out corrupted trades (zero entry, null gain_loss)
   const validTrades = (trades || []).filter(t =>
     t.gain_loss !== null &&
     t.gain_loss !== undefined &&
@@ -1253,7 +1247,6 @@ function drawEquityCurve(trades) {
     return;
   }
 
-  // Build equity from oldest to newest (reverse since ordered newest-first)
   let eq = 10000;
   const points = [{ x: 0, y: eq }];
   validTrades.slice().reverse().forEach((t, i) => {
@@ -1270,11 +1263,9 @@ function drawEquityCurve(trades) {
   const toX = (i) => pad.left + i * scaleX;
   const toY = (v) => h - pad.bottom - (v - minY) * scaleY;
 
-  // Background
   ctx.fillStyle = '#080808';
   ctx.fillRect(0, 0, w, h);
 
-  // Baseline
   const baseY = toY(10000);
   ctx.beginPath();
   ctx.moveTo(pad.left, baseY);
@@ -1285,7 +1276,6 @@ function drawEquityCurve(trades) {
   ctx.stroke();
   ctx.setLineDash([]);
 
-  // Fill area
   const gradient = ctx.createLinearGradient(0, pad.top, 0, h - pad.bottom);
   const lastY = points[points.length - 1].y;
   const isPositive = lastY >= 10000;
@@ -1301,7 +1291,6 @@ function drawEquityCurve(trades) {
   ctx.fillStyle = gradient;
   ctx.fill();
 
-  // Line
   ctx.beginPath();
   ctx.moveTo(toX(0), toY(points[0].y));
   points.forEach((p, i) => { ctx.lineTo(toX(i), toY(p.y)); });
@@ -1309,7 +1298,6 @@ function drawEquityCurve(trades) {
   ctx.lineWidth = 2;
   ctx.stroke();
 
-  // Start/end labels
   ctx.fillStyle = '#6B6560';
   ctx.font = '10px IBM Plex Mono';
   ctx.fillText('$' + points[0].y.toLocaleString(), pad.left, h - 4);
@@ -1319,6 +1307,57 @@ function drawEquityCurve(trades) {
 // ── CLAUDE SUGGESTION ──
 const GOVERNOR_EDGE_URL = 'https://zpcbbwynvvyldavxzjng.supabase.co/functions/v1/clever-responder';
 const GOVERNOR_ANON_KEY = 'sb_publishable_K80lcfk8LsQNqo5enznRRA_lrzf2U9K';
+let priceCache = {};
+let watchlistTickers = [];
+
+// ── PRICE FEED ──
+const TWELVE_KEY = '1fbbfd6ec92c489ca009d00e7127fbe3';
+
+async function fetchLivePrices(tickers) {
+  if (!tickers || !tickers.length) return {};
+  try {
+    const symbols = tickers.slice(0, 8).join(',');
+    const res = await fetch('https://api.twelvedata.com/quote?symbol=' + symbols + '&apikey=' + TWELVE_KEY);
+    if (!res.ok) return {};
+    const data = await res.json();
+    const prices = {};
+    const quotes = tickers.length === 1 ? { [tickers[0]]: data } : data;
+    Object.entries(quotes).forEach(([ticker, q]) => {
+      if (!q || q.code || !q.close) return;
+      const price = parseFloat(q.close);
+      const prevClose = parseFloat(q.previous_close || q.close);
+      prices[ticker] = {
+        price,
+        change: price - prevClose,
+        changePct: prevClose > 0 ? (price - prevClose) / prevClose * 100 : 0
+      };
+    });
+    return prices;
+  } catch(e) { return {}; }
+}
+
+async function refreshPrices() {
+  if (!watchlistTickers.length) return;
+  const prices = await fetchLivePrices(watchlistTickers);
+  if (!Object.keys(prices).length) return;
+  Object.assign(priceCache, prices);
+}
+
+async function loadWatchlistTickers() {
+  try {
+    const { data } = await db.from('stocks').select('ticker').eq('type', activeMode === 'crypto' ? 'crypto' : 'stock');
+    watchlistTickers = data?.map(s => s.ticker) || [];
+  } catch(e) {}
+}
+
+function roundPositionToUnits(price, dollars, maxPct) {
+  const rawQty = dollars / price;
+  const rounded = Math.round(rawQty / 10) * 10;
+  const actual = Math.max(rounded, 1);
+  const actualDollars = actual * price;
+  const actualPct = (actualDollars / 10000) * 100;
+  return { qty: actual, pct: Math.min(actualPct, maxPct) };
+}
 
 async function getClaudeSuggestion() {
   const btn = document.getElementById('claude-btn');
@@ -1330,20 +1369,25 @@ async function getClaudeSuggestion() {
 
   try {
     const modeType = activeMode === 'crypto' ? 'crypto' : 'stock';
-    const { data: stocks } = await db.from('stocks').select('ticker, sector').eq('type', modeType);
-    const { data: picks  } = await db.from('picks').select('ticker, score, brief').eq('type', modeType).order('picked_at', { ascending: false }).limit(5);
+    await loadWatchlistTickers();
+    await refreshPrices();
 
-    const watchlist  = stocks?.map(s => s.ticker + '(' + s.sector + ')').join(', ') || 'None';
-    const pickSum    = picks?.map(p => p.ticker + ':' + p.score + ' ' + p.brief).join(' | ') || 'None';
+    const [stocksRes, picksRes] = await Promise.all([
+      db.from('stocks').select('ticker, sector').eq('type', modeType),
+      db.from('picks').select('ticker, score, brief').eq('type', modeType).order('picked_at', { ascending: false }).limit(5)
+    ]);
+
+    const watchlist = stocksRes.data?.map(s => s.ticker + '(' + s.sector + ')').join(', ') || 'None';
+    const pickSum   = picksRes.data?.map(p => p.ticker + ':' + p.score + ' ' + p.brief).join(' | ') || 'None';
     const stratLabel = currentStrategy === 'day' ? 'DAY TRADE (intraday, tighter stops, IOC orders)' : 'SWING TRADE (days to weeks, standard stops)';
     const instLabel  = currentInstrument === 'options' ? 'OPTIONS (calls or puts)' : 'STOCKS (long or short)';
+    const targetTicker = picksRes.data?.[0]?.ticker || stocksRes.data?.[0]?.ticker || 'SPY';
+    const livePriceContext = Object.entries(priceCache).slice(0, 10)
+      .map(([t, d]) => t + ':$' + d.price.toFixed(2)).join(', ');
 
-    // Pick a ticker to run the Governor against — prefer top pick, fallback to first watchlist ticker
-    const targetTicker = picks?.[0]?.ticker || stocks?.[0]?.ticker || 'SPY';
-
-    // ── Call the Governor edge function — runs all 25 algorithms with real data ──
+    // Governor
     let governorBrief = 'Governor unavailable — proceeding without algorithm execution.';
-    let governorMeta = { algoCount: 0, signalQuality: 0, coveragePct: 0 };
+    let governorMeta = { algoCount: 0, signalQuality: 0, coveragePct: 0, compositeScore: null, verdict: null, direction: null, confidence: null };
 
     try {
       thinking.textContent = 'Governor executing algorithms...';
@@ -1354,21 +1398,21 @@ async function getClaudeSuggestion() {
       });
       const gov = govRes.ok ? await govRes.json() : null;
       if (gov) {
-      governorBrief = gov.governor_brief || gov.claude_brief || governorBrief;
-      governorMeta = {
-        algoCount:            gov.algorithms_succeeded || 0,
-        signalQuality:        gov.signal_quality       || 0,
-        coveragePct:          gov.coverage_pct         || 0,
-        recommended_position_pct: gov.recommended_position_pct || 5,
-        swing_signal:         gov.swing_signal         || false,
-        swing_direction:      gov.swing_direction      || null,
-        swing_confidence:     gov.swing_confidence     || null,
-        entry_price:          gov.entry_price          || null,
-        stop_loss:            gov.stop_loss            || null,
-        target_price:         gov.target_price         || null,
-      };
-
-      thinking.textContent = 'Governor complete — ' + governorMeta.algoCount + ' algorithms ran. Asking Gemini...';
+        governorBrief = gov.governor_brief || gov.claude_brief || governorBrief;
+        governorMeta = {
+          algoCount:            gov.algorithms_succeeded || 0,
+          signalQuality:        gov.signal_quality       || 0,
+          coveragePct:          gov.coverage_pct         || 0,
+          compositeScore:       gov.composite_score      || null,
+          verdict:              gov.verdict              || null,
+          direction:            gov.direction            || null,
+          confidence:           gov.confidence           || null,
+          recommended_position_pct: gov.recommended_position_pct || 5,
+          swing_signal:         gov.swing_signal         || false,
+          swing_direction:      gov.swing_direction      || null,
+          swing_confidence:     gov.swing_confidence     || null,
+        };
+        thinking.textContent = 'Governor complete — ' + governorMeta.algoCount + ' algorithms ran. Asking Claude...';
       }
     } catch(govErr) {
       governorBrief = 'Governor edge function failed: ' + govErr.message + '. Proceeding without algorithm execution.';
@@ -1379,37 +1423,75 @@ async function getClaudeSuggestion() {
       ? 'CRYPTO MODE: Suggest a crypto paper trade. Both LONG and SHORT are valid based on Governor signal. Include DEX recommendation and trading pair. No broker required.'
       : '';
 
-    const jsonExample = isCrypto
-      ? '{\n  "ticker": "ETH",\n  "direction": "long",\n  "reasoning": "2-3 sentence rationale citing specific algorithm scores and signals from the Governor brief",\n  "entry_price": 3250.00,\n  "stop_loss": 3050.00,\n  "target_price": 3650.00,\n  "shares": 0.5,\n  "confidence": "High",\n  "dex": "Uniswap v3",\n  "pair": "ETH/USDC",\n  "execution_note": "Buy ETH against USDC on Uniswap v3. Stop at $3050, target $3650.",\n  "contract_type": null,\n  "strike": null,\n  "expiration": null,\n  "premium": null,\n  "contracts": null,\n  "stop_premium": null,\n  "target_premium": null\n}'
-      : '{\n  "ticker": "NVDA",\n  "direction": "long",\n  "reasoning": "2-3 sentence rationale citing specific algorithm scores and signals from the Governor brief",\n  "entry_price": 875.50,\n  "stop_loss": 850.00,\n  "target_price": 920.00,\n  "shares": 5,\n  "confidence": "High",\n  "contract_type": null,\n  "strike": null,\n  "expiration": null,\n  "premium": null,\n  "contracts": null,\n  "stop_premium": null,\n  "target_premium": null\n}';
+    // Strict JSON prompt – same as trading.html
+    let prompt, jsonExample;
+    if (isCrypto) {
+      jsonExample = `{
+  "ticker": "ETH",
+  "direction": "long",
+  "reasoning": "2-3 sentence rationale citing specific algorithm scores and signals from the Governor brief",
+  "entry_price": 3250.00,
+  "stop_loss": 3050.00,
+  "target_price": 3650.00,
+  "position_size_pct": 5,
+  "confidence": "High",
+  "orchestrator_score": 84,
+  "algo_signals": "crypto_derivatives_flow, crypto_whale_tracker",
+  "dex": "Uniswap v3",
+  "pair": "ETH/USDC",
+  "execution_note": "Buy ETH against USDC on Uniswap v3. Stop at $3050, target $3650."
+}`;
+      prompt = `You are AURUM's trade execution engine. Your sole output is a valid JSON object.
+Use the Governor brief below. Do not add any explanatory text, markdown, or reasoning outside the JSON.
 
-    const prompt = `You are AURUM — a private market intelligence system powered by a 32-algorithm Governor suite.
-
-=== GOVERNOR BRIEF (${governorMeta.algoCount} algorithms executed, signal quality ${governorMeta.signalQuality}/100) ===
+Governor brief:
 ${governorBrief}
-=== END GOVERNOR BRIEF ===
 
-Strategy: ${stratLabel}
-Instrument: ${instLabel}
-Watchlist: ${watchlist}
-Recent picks: ${pickSum}
-${modeContext}
+Instructions:
+- Direction: LONG if composite_score >= 55, SHORT if <= 45, else NEUTRAL (but still produce a trade with reduced position_size_pct).
+- entry_price: use live price if available (provided in livePrices).
+- exit_target and stop_loss: derive from Governor's recommended levels.
+- position_size_pct: will be rounded to nearest whole unit automatically.
+- Confidence: "High", "Medium", or "Low".
+- orchestrator_score: composite_score.
+- algo_signals: top 3 algorithms from Governor's top_bullish_signals/top_bearish_signals.
+- Include dex, pair, execution_note.
 
-TASK: Generate ONE specific paper trade for the simulator based on the Governor brief above.
-
-CRITICAL RULES:
-1. Use the ENTRY PRICE, STOP LOSS, and TARGET PRICE from the Governor brief if provided
-2. If the Governor brief contains specific price levels, use them exactly
-3. Set direction based on Governor verdict (LONG if BUY, SHORT if SELL)
-4. The reasoning must cite specific algorithm scores and signals from the brief
-5. All numeric fields (entry_price, stop_loss, target_price, shares) MUST be real numbers — never null
-6. If signal quality is below 40, set confidence to "Very Low" and note it in reasoning
-${isCrypto ? '7. For crypto: include dex, pair, and execution_note fields with real DEX instructions' : ''}
-
-Respond ONLY in this exact JSON format with no additional text:
+Return ONLY this JSON:
 ${jsonExample}`;
+    } else {
+      jsonExample = `{
+  "ticker": "NVDA",
+  "direction": "long",
+  "reasoning": "2-3 sentence rationale citing specific algorithm scores and signals from the Governor brief",
+  "entry_price": 875.50,
+  "stop_loss": 850.00,
+  "target_price": 920.00,
+  "position_size_pct": 5,
+  "confidence": "High",
+  "orchestrator_score": 87,
+  "algo_signals": "options_flow_detector, insider_transaction_tracker"
+}`;
+      prompt = `You are AURUM's trade execution engine. Your sole output is a valid JSON object.
+Use the Governor brief below. Do not add any explanatory text, markdown, or reasoning outside the JSON.
 
-    const res  = await fetch('https://zpcbbwynvvyldavxzjng.supabase.co/functions/v1/smooth-service', {
+Governor brief:
+${governorBrief}
+
+Instructions:
+- Direction: LONG if composite_score >= 55, SHORT if <= 45, else NEUTRAL (but still produce a trade with reduced position_size_pct).
+- entry_price: use live price if available (provided in livePrices).
+- exit_target and stop_loss: derive from Governor's recommended levels.
+- position_size_pct: will be rounded to nearest 10 shares automatically.
+- Confidence: "High", "Medium", or "Low".
+- orchestrator_score: composite_score.
+- algo_signals: top 3 algorithms from Governor's top_bullish_signals/top_bearish_signals.
+
+Return ONLY this JSON:
+${jsonExample}`;
+    }
+
+    const res = await fetch('https://zpcbbwynvvyldavxzjng.supabase.co/functions/v1/smooth-service', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + GOVERNOR_ANON_KEY },
       body: JSON.stringify({ prompt, max_tokens: 1500 })
@@ -1418,14 +1500,29 @@ ${jsonExample}`;
     const data = await res.json();
     if (data.error) throw new Error(data.error);
     const text = data.content?.[0]?.text || data.text || '{}';
-
-    // Extract JSON — Gemini sometimes wraps in markdown or adds preamble
     let jsonStr = text;
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (jsonMatch) jsonStr = jsonMatch[0];
 
     claudeSuggestion = JSON.parse(jsonStr);
     claudeSuggestion._governorMeta = governorMeta;
+
+    // Live price override
+    const livePrice = priceCache[claudeSuggestion.ticker]?.price;
+    if (livePrice) claudeSuggestion.entry_price = livePrice;
+
+    // Round position size to 10 units
+    const pf = 10000; // simulator fixed starting balance
+    const maxPct = 10;
+    const rawPct = Math.min(claudeSuggestion.position_size_pct || 5, maxPct);
+    const dollars = (rawPct / 100) * pf;
+    const rounded = roundPositionToUnits(claudeSuggestion.entry_price, dollars, maxPct);
+    claudeSuggestion.position_size_pct = parseFloat(rounded.pct.toFixed(1));
+    if (rounded.pct < 0.5) claudeSuggestion.position_size_pct = maxPct * 0.1;
+
+    // If crypto, ensure dex/pair exist
+    if (isCrypto && !claudeSuggestion.dex) claudeSuggestion.dex = 'Uniswap v3';
+    if (isCrypto && !claudeSuggestion.pair) claudeSuggestion.pair = claudeSuggestion.ticker + '/USDC';
 
     renderSuggestion(claudeSuggestion);
     document.getElementById('suggestion-panel').classList.add('visible');
@@ -1490,16 +1587,18 @@ function applySuggestion() {
   if (!claudeSuggestion) return;
   const s = claudeSuggestion;
 
-  // Crypto uses the same stock trade form — spot crypto trades work identically
-  // direction handles both long/short for crypto just like stocks
   if (currentInstrument === 'stock' || activeMode === 'crypto') {
     document.getElementById('trade-ticker').value  = s.ticker || '';
     document.getElementById('entry-price').value   = s.entry_price || '';
-    document.getElementById('num-shares').value    = s.shares || '';
+    const roundedQty = Math.max(1, Math.round((s.position_size_pct / 100) * 10000 / s.entry_price / 10) * 10);
+    document.getElementById('num-shares').value    = roundedQty;
     document.getElementById('stop-loss').value     = s.stop_loss || '';
     document.getElementById('target-price').value  = s.target_price || '';
     document.getElementById('current-price').value = s.entry_price || '';
-    document.getElementById('trade-note').value    = (s.reasoning || '') + (s.execution_note ? ' | DEX: ' + s.dex + ' — ' + s.execution_note : '');
+    let note = s.reasoning || '';
+    if (s.dex) note += ' | DEX: ' + s.dex + (s.pair ? ' — ' + s.pair : '');
+    if (s.execution_note) note += ' | ' + s.execution_note;
+    document.getElementById('trade-note').value    = note;
     if (s.direction === 'short') setDirection('short'); else setDirection('long');
   } else {
     document.getElementById('opt-ticker').value    = s.ticker || '';
@@ -1532,24 +1631,31 @@ async function openTrade() {
     type:      activeMode,
     note,
     slippage_pct: slippagePct * 100,
-    opened_at: new Date().toISOString()
+    opened_at: new Date().toISOString(),
+    auto_generated: false
   };
 
-  if (currentInstrument === 'stock') {
+  if (currentInstrument === 'stock' || activeMode === 'crypto') {
     const ticker  = document.getElementById('trade-ticker').value.trim().toUpperCase();
+    let shares    = parseFloat(document.getElementById('num-shares').value);
     const entry   = parseFloat(document.getElementById('entry-price').value);
-    const shares  = parseFloat(document.getElementById('num-shares').value);
     const stop    = parseFloat(document.getElementById('stop-loss').value)   || null;
     const target  = parseFloat(document.getElementById('target-price').value) || null;
     const current = parseFloat(document.getElementById('current-price').value) || entry;
 
     if (!ticker || !entry || !shares) { alert('Ticker, entry price, and shares are required.'); return; }
 
-    // Apply slippage to entry (buy at slightly higher, short at slightly lower)
+    // If crypto, shares may be fractional – keep as is
+    // If stock, round to nearest 10 shares
+    if (activeMode !== 'crypto') {
+      shares = Math.round(shares / 10) * 10;
+      if (shares < 1) shares = 10;
+    }
+
     const slippageAmount = entry * slippagePct;
     const effectiveEntry = currentDirection === 'long' ? entry + slippageAmount : entry - slippageAmount;
     const slippageCost   = slippageAmount * shares;
-    const commissionCost = commission * 2; // round trip
+    const commissionCost = commission * 2;
     const posValue       = shares * current;
     const gl = currentDirection === 'long'
       ? (current - effectiveEntry) * shares - commissionCost
@@ -1560,6 +1666,7 @@ async function openTrade() {
       ticker,
       shares,
       entry_price:   effectiveEntry,
+      effective_entry: effectiveEntry,
       current_price: current,
       stop_loss:     stop,
       target_price:  target,
@@ -1568,7 +1675,6 @@ async function openTrade() {
       gain_loss_pct: glPct,
       slippage_cost: slippageCost,
       commission:    commissionCost,
-      // Crypto-specific fields — populated from Claude suggestion via applySuggestion
       dex:            activeMode === 'crypto' ? (claudeSuggestion?.dex || null) : null,
       trading_pair:   activeMode === 'crypto' ? (claudeSuggestion?.pair || null) : null,
       execution_note: activeMode === 'crypto' ? (claudeSuggestion?.execution_note || null) : null,
@@ -1586,29 +1692,24 @@ async function openTrade() {
 
     if (!ticker || !premium || !contracts) { alert('Ticker, premium, and contracts are required.'); return; }
 
-    // ── CORRECT OPTIONS COMPUTATION ──
     const slippageAmount = premium * slippagePct;
-    const effectivePrem  = premium + slippageAmount;  // pay slightly more
+    const effectivePrem  = premium + slippageAmount;
     const slippageCost   = slippageAmount * contracts * 100;
-    // Options commission: $0.65 per contract per leg, round trip = × 2
     const commissionCost = commission * contracts * 2;
-    const posValue       = contracts * effectivePrem * 100; // position value at open
-    // gain_loss = 0 at open — nothing realized yet
-    const grossGL        = 0;
-    const glPct          = 0;
+    const posValue       = contracts * effectivePrem * 100;
 
     Object.assign(record, {
       ticker,
       shares:          contracts,
       entry_price:     parseFloat(effectivePrem.toFixed(4)),
       effective_entry: parseFloat(effectivePrem.toFixed(4)),
-      current_price:   effectivePrem, // at open, current = effective entry
+      current_price:   effectivePrem,
       stop_loss:       stop,
       target_price:    target,
       strike_price:    strike,
       expiration:      expiry,
       position_value:  parseFloat(posValue.toFixed(2)),
-      gain_loss:       0,       // CORRECT: nothing realized at open
+      gain_loss:       0,
       gain_loss_pct:   0,
       gross_gain_loss: 0,
       net_gain_loss:   0,
@@ -1638,12 +1739,10 @@ async function closeTrade(id) {
   const { data: t } = await db.from('paper_trades').select('*').eq('id', id).single();
   if (!t) return;
 
-  // Check if swing is available and not expired
   if (t.swing_signal && t.swing_expires_at && !t.swing_taken) {
     const expires = new Date(t.swing_expires_at);
     const now     = new Date();
     if (expires > now) {
-      // Show swing dialog
       showSwingDialog(t, id);
       return;
     }
@@ -1658,9 +1757,8 @@ async function executeClose(id, trade) {
   const shares        = Number(trade.shares);
   const direction     = (trade.direction || 'long').toLowerCase();
   const slippageCost  = Number(trade.slippage_cost || 0);
-  const commissionCost = Number(trade.commission || 1.30); // already round trip
+  const commissionCost = Number(trade.commission || 1.30);
 
-  // Calculate final gross P&L at current price
   let grossGL;
   if (direction === 'long') {
     grossGL = (currentPrice - effectiveEntry) * shares;
@@ -1670,12 +1768,9 @@ async function executeClose(id, trade) {
     grossGL = (currentPrice - effectiveEntry) * shares;
   }
 
-  // Net P&L = gross minus ALL costs (commission + slippage)
-  // Commission stored as round-trip already — deduct once here at close
   const netGL    = grossGL - commissionCost - slippageCost;
   const netGLPct = effectiveEntry > 0 ? (netGL / (effectiveEntry * shares)) * 100 : 0;
 
-  // Swing expiry for manual close
   const swingExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
   const swingDirection = direction === 'long' ? 'short' : 'long';
 
@@ -1709,7 +1804,6 @@ function showSwingDialog(trade, id) {
   const isStop     = trade.swing_trigger === 'stop';
   const swingDir   = trade.swing_direction || (trade.direction === 'long' ? 'short' : 'long');
 
-  // Create overlay
   const overlay = document.createElement('div');
   overlay.id    = 'swing-overlay';
   overlay.style.cssText = 'position:fixed;inset:0;background:rgba(8,8,8,0.95);z-index:2000;display:flex;align-items:center;justify-content:center;padding:2rem;';
@@ -1742,7 +1836,6 @@ function showSwingDialog(trade, id) {
   overlay.appendChild(box);
   document.body.appendChild(overlay);
 
-  // Countdown timer
   const updateCountdown = () => {
     const remaining = new Date(trade.swing_expires_at) - new Date();
     const el = document.getElementById('swing-countdown');
@@ -1753,10 +1846,8 @@ function showSwingDialog(trade, id) {
       return;
     }
     if (isStop) {
-      // Show seconds for 60s window
       el.textContent = Math.ceil(remaining / 1000) + 's';
     } else {
-      // Show hours/minutes for 24h window
       const hrs  = Math.floor(remaining / 3600000);
       const mins = Math.floor((remaining % 3600000) / 60000);
       el.textContent = hrs + 'h ' + mins + 'm';
@@ -1772,20 +1863,17 @@ function showSwingDialog(trade, id) {
     } else {
       updateCountdown();
     }
-  }, isStop ? 1000 : 60000); // update every second for stop, every minute for target
+  }, isStop ? 1000 : 60000);
 }
 
 async function takeSwing(originalId, swingDirection) {
-  // Mark original trade as swing taken
   await db.from('paper_trades').update({
     swing_taken: true
   }).eq('id', originalId);
 
-  // Get original trade details to populate the new swing trade
   const { data: orig } = await db.from('paper_trades').select('*').eq('id', originalId).single();
   if (!orig) { dismissSwing(originalId); return; }
 
-  // Open reverse position with same parameters
   const entry          = Number(orig.current_price);
   const slippagePct    = (orig.slippage_pct || 0.05) / 100;
   const slippageAmount = entry * slippagePct;
@@ -1793,7 +1881,6 @@ async function takeSwing(originalId, swingDirection) {
     ? entry + slippageAmount
     : entry - slippageAmount;
 
-  // Stop and target flipped from original
   const stopPct   = 0.04;
   const targetPct = 0.08;
   const stop   = swingDirection === 'long'
@@ -1831,7 +1918,6 @@ async function takeSwing(originalId, swingDirection) {
     trading_pair:    orig.trading_pair || null,
   }).select().single();
 
-  // Link swing trade to original
   if (newTrade?.id) {
     await db.from('paper_trades').update({
       swing_trade_id: newTrade.id
@@ -1848,7 +1934,6 @@ async function takeSwing(originalId, swingDirection) {
 function dismissSwing(id) {
   const overlay = document.getElementById('swing-overlay');
   if (overlay) overlay.remove();
-  // Execute the close without swing
   db.from('paper_trades').select('*').eq('id', id).single().then(({ data: t }) => {
     if (t) {
       updatePortfolioBalance();
@@ -1860,8 +1945,6 @@ function dismissSwing(id) {
 }
 
 // ── UPDATE PORTFOLIO BALANCE ──
-// CORRECT: balance = startingBalance + sum(CLOSED net gain_loss) only
-// Unrealized P&L from open trades shown separately, never mixed into balance
 async function updatePortfolioBalance() {
   const { data: closed } = await db.from('paper_trades').select('gain_loss').eq('status', 'closed');
   const { data: open }   = await db.from('paper_trades').select('unrealized_gl, gain_loss').eq('status', 'open');
@@ -1869,11 +1952,8 @@ async function updatePortfolioBalance() {
   if (!port) return;
 
   const startBal    = Number(port.starting_balance) || 10000;
-  // Realized = only closed trades net P&L
   const realizedGL  = (closed || []).reduce((s, t) => s + Number(t.gain_loss || 0), 0);
-  // Unrealized = open trades gross P&L (no costs deducted yet)
   const unrealizedGL = (open  || []).reduce((s, t) => s + Number(t.unrealized_gl || t.gain_loss || 0), 0);
-  // Balance only moves when trades close
   const curBal      = startBal + realizedGL;
   const glPct       = startBal > 0 ? (realizedGL / startBal) * 100 : 0;
 
@@ -1926,52 +2006,50 @@ async function loadActiveStrategy() {
   } catch(e) {}
 }
 
-  async function loadPositionAlerts() {
-    try {
-      const { data } = await db.from('position_alerts')
-        .select('*').eq('read', false)
-        .order('created_at', { ascending: false }).limit(10);
+async function loadPositionAlerts() {
+  try {
+    const { data } = await db.from('position_alerts')
+      .select('*').eq('read', false)
+      .order('created_at', { ascending: false }).limit(10);
 
-      const container = document.getElementById('position-alerts-container');
-      if (!container) return;
+    const container = document.getElementById('position-alerts-container');
+    if (!container) return;
 
-      if (!data || !data.length) {
-        container.style.display = 'none';
-        return;
-      }
-
-      container.style.display = 'block';
-      const colors = {
-        stop_tightened:      'rgba(201,168,76,0.8)',
-        direction_reversal:  'var(--danger)',
-        target_reached:      'var(--positive)',
-        stop_loss_triggered: 'var(--danger)',
-        manual_close:        'var(--muted)',
-      };
-
-      container.innerHTML = '<div style="font-size:0.65rem;letter-spacing:0.2em;color:var(--gold);font-family:\'IBM Plex Mono\',monospace;margin-bottom:0.5rem;">⚠ POSITION ALERTS</div>' +
-        data.map(a => {
-          const color = colors[a.alert_type] || 'var(--muted)';
-          const time  = new Date(a.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-          return '<div style="border-left:3px solid ' + color + ';padding:0.6rem 0.8rem;margin-bottom:0.4rem;background:rgba(0,0,0,0.3);display:flex;justify-content:space-between;align-items:flex-start;gap:0.5rem;">' +
-            '<div style="flex:1;">' +
-              '<div style="font-size:0.65rem;color:' + color + ';font-family:\'IBM Plex Mono\',monospace;letter-spacing:0.1em;margin-bottom:0.2rem;">' + a.alert_type.toUpperCase().replace(/_/g,' ') + ' · ' + a.ticker + ' · ' + time + '</div>' +
-              '<div style="font-size:0.78rem;color:var(--white);line-height:1.5;">' + a.message + '</div>' +
-            '</div>' +
-            '<button onclick="dismissAlert(\'' + a.id + '\')" style="background:transparent;border:none;color:var(--muted);cursor:pointer;font-size:0.8rem;padding:0;flex-shrink:0;">✕</button>' +
-          '</div>';
-        }).join('');
-    } catch(e) {
-      // position_alerts table may not exist yet — silently skip
+    if (!data || !data.length) {
+      container.style.display = 'none';
+      return;
     }
-  }
 
-  async function dismissAlert(id) {
-    try {
-      await db.from('position_alerts').update({ read: true }).eq('id', id);
-      loadPositionAlerts();
-    } catch(e) {}
-  }
+    container.style.display = 'block';
+    const colors = {
+      stop_tightened:      'rgba(201,168,76,0.8)',
+      direction_reversal:  'var(--danger)',
+      target_reached:      'var(--positive)',
+      stop_loss_triggered: 'var(--danger)',
+      manual_close:        'var(--muted)',
+    };
+
+    container.innerHTML = '<div style="font-size:0.65rem;letter-spacing:0.2em;color:var(--gold);font-family:\'IBM Plex Mono\',monospace;margin-bottom:0.5rem;">⚠ POSITION ALERTS</div>' +
+      data.map(a => {
+        const color = colors[a.alert_type] || 'var(--muted)';
+        const time  = new Date(a.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+        return '<div style="border-left:3px solid ' + color + ';padding:0.6rem 0.8rem;margin-bottom:0.4rem;background:rgba(0,0,0,0.3);display:flex;justify-content:space-between;align-items:flex-start;gap:0.5rem;">' +
+          '<div style="flex:1;">' +
+            '<div style="font-size:0.65rem;color:' + color + ';font-family:\'IBM Plex Mono\',monospace;letter-spacing:0.1em;margin-bottom:0.2rem;">' + a.alert_type.toUpperCase().replace(/_/g,' ') + ' · ' + a.ticker + ' · ' + time + '</div>' +
+            '<div style="font-size:0.78rem;color:var(--white);line-height:1.5;">' + a.message + '</div>' +
+          '</div>' +
+          '<button onclick="dismissAlert(\'' + a.id + '\')" style="background:transparent;border:none;color:var(--muted);cursor:pointer;font-size:0.8rem;padding:0;flex-shrink:0;">✕</button>' +
+        '</div>';
+      }).join('');
+  } catch(e) {}
+}
+
+async function dismissAlert(id) {
+  try {
+    await db.from('position_alerts').update({ read: true }).eq('id', id);
+    loadPositionAlerts();
+  } catch(e) {}
+}
 
 function openNav() { document.getElementById('nav-overlay').classList.add('open'); }
 function closeNav() { document.getElementById('nav-overlay').classList.remove('open'); }
