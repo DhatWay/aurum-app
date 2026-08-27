@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>AURUM Auto</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+  <h1>AURUM Autonomous Simulation</h1>
+  <p id="status">Idle</p>
+  <button id="startBtn">Start</button>
+  <button id="stopBtn">Stop</button>
+  <div id="log"></div>
+
+  <script>
+    const supabase = supabase.createClient(
+      'https://zpcbbwynvvyldavxzjng.supabase.co',
+      'YOUR_ANON_KEY' // Paste your anon key here
+    );
+
+    let running = false;
+    let clusterInterval, monitorInterval;
+
+    async function generateCluster() {
+      log('🔄 Running Governor on watchlist...');
+      
+      // 1. Get watchlist
+      const { data: stocks } = await supabase.from('stocks').select('ticker').eq('type', 'crypto');
+      if (!stocks?.length) { log('❌ No watchlist'); return; }
+
+      // 2. Run Governor on each
+      const governorResults = [];
+      for (const s of stocks) {
+        const res = await fetch('https://zpcbbwynvvyldavxzjng.supabase.co/functions/v1/clever-responder', {
+          method: 'POST',
+          headers: { 'Authorization': 'Bearer YOUR_ANON_KEY', 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ticker: s.ticker, strategy: 'swing', instrument: 'crypto', mode: 'crypto' })
+        });
+        if (res.ok) {
+          const data = await res.json();
+          governorResults.push({ ticker: s.ticker, ...data });
+        }
+        await delay(500); // avoid rate limits
+      }
+      log(`✅ Governor ran on ${governorResults.length} assets`);
+
+      // 3. Build prompt and call Claude
+      const briefs = governorResults.map(g => 
+        `=== ${g.ticker} ===\nComposite: ${g.composite_score}\nDirection: ${g.direction}\nBrief: ${g.claude_brief}`
+      ).join('\n\n');
+
+      const prompt = `You are AURUM's trade cluster. Based on these briefs, pick the top 20 assets. Respond JSON array only:\n\n${briefs}`;
+
+      const claudeRes = await fetch('https://zpcbbwynvvyldavxzjng.supabase.co/functions/v1/smooth-service', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer YOUR_ANON_KEY', 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt, max_tokens: 2000 })
+      });
+      const claudeData = await claudeRes.json();
+      const picks = JSON.parse((claudeData.content?.[0]?.text || '[]').replace(/```json|```/g, ''));
+
+      log(`✅ Claude selected ${picks.length} picks`);
+
+      // 4. Insert into paper_trades
+      const { data: portfolio } = await supabase.from('paper_portfolio').select('current_balance').single();
+      let balance = portfolio?.current_balance || 10000;
+
+      for (const pick of picks.slice(0, 20)) {
+        const price = await getPrice(pick.ticker);
+        if (!price) continue;
+        const perTrade = Math.min((10 / 20), 5);
+        const posValue = (perTrade / 100) * balance;
+        const shares = posValue / price;
+
+        await supabase.from('paper_trades').insert({
+          ticker: pick.ticker,
+          direction: pick.direction,
+          entry_price: price,
+          shares,
+          status: 'open',
+          type: 'crypto',
+          strategy: 'swing',
+          instrument: 'crypto',
+          stop_loss: pick.direction === 'LONG' ? price * (1 - (pick.stop_loss_pct || 5) / 100) : price * (1 + (pick.stop_loss_pct || 5) / 100),
+          target_price: pick.direction === 'LONG' ? price * (1 + (pick.target_pct || 10) / 100) : price * (1 - (pick.target_pct || 10) / 100),
+          note: `Auto: ${pick.reasoning}`,
+          auto_generated: true,
+          opened_at: new Date().toISOString(),
+          current_price: price,
+        });
+        balance -= posValue;
+      }
+
+      await supabase.from('paper_portfolio').update({ current_balance: balance }).eq('id', portfolio.id);
+      log(`✅ Opened ${Math.min(picks.length, 20)} positions. Balance: $${balance.toFixed(2)}`);
+    }
+
+    async function getPrice(ticker) {
+      const map = { BTC:'bitcoin', ETH:'ethereum', SOL:'solana' };
+      const id = map[ticker];
+      if (!id) return 0;
+      const res = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${id}&vs_currencies=usd`);
+      const data = await res.json();
+      return data[id]?.usd || 0;
+    }
+
+    function log(msg) {
+      document.getElementById('log').innerHTML += `<br>${new Date().toLocaleTimeString()}: ${msg}`;
+    }
+
+    function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+    function start() {
+      if (running) return;
+      running = true;
+      document.getElementById('status').textContent = '▶️ Running';
+      generateCluster();
+      clusterInterval = setInterval(generateCluster, 30 * 60 * 1000);
+    }
+
+    function stop() {
+      running = false;
+      clearInterval(clusterInterval);
+      clearInterval(monitorInterval);
+      document.getElementById('status').textContent = '⏹️ Stopped';
+    }
+
+    document.getElementById('startBtn').onclick = start;
+    document.getElementById('stopBtn').onclick = stop;
+  </script>
+</body>
+</html>
