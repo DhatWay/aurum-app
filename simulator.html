@@ -1497,12 +1497,8 @@ ${jsonExample}`;
       body: JSON.stringify({ prompt, max_tokens: 1500 })
     });
 
-    // ── Parse the response and show any error ──
     const data = await res.json();
-    if (!res.ok || data.error) {
-      const msg = data.error || 'Unknown error from edge function';
-      throw new Error(msg);
-    }
+    if (data.error) throw new Error(data.error);
     const text = data.content?.[0]?.text || data.text || '{}';
     let jsonStr = text;
     const jsonMatch = text.match(/\{[\s\S]*\}/);
@@ -1533,7 +1529,7 @@ ${jsonExample}`;
 
   } catch(e) {
     document.getElementById('suggestion-panel').classList.add('visible');
-    document.getElementById('suggestion-text').textContent = 'Error: ' + (e.message || 'Unknown error');
+    document.getElementById('suggestion-text').textContent = 'AI service unavailable. Check smooth-service deployment in Supabase Edge Functions.';
     document.getElementById('suggestion-fields').innerHTML = '';
   }
 
