@@ -280,6 +280,7 @@ canvas#equity-chart {
   color: var(--white);
   line-height: 1.7;
   margin-bottom: 1rem;
+  white-space: pre-wrap;
 }
 
 .suggestion-fields {
@@ -1307,6 +1308,42 @@ function drawEquityCurve(trades) {
 // ── CLAUDE SUGGESTION ──
 const GOVERNOR_EDGE_URL = 'https://zpcbbwynvvyldavxzjng.supabase.co/functions/v1/clever-responder';
 const GOVERNOR_ANON_KEY = 'sb_publishable_K80lcfk8LsQNqo5enznRRA_lrzf2U9K';
+
+// Tracks which service failed so the error message can name it
+let lastDiagnostic = { governor: null, smoothService: null };
+
+// fetch with a hard timeout — prevents the button hanging forever on a stalled edge function
+async function fetchWithTimeout(url, options, timeoutMs) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } catch(err) {
+    if (err.name === 'AbortError') {
+      throw new Error('Request timed out after ' + (timeoutMs / 1000) + 's. The edge function did not respond — likely a cold start or CPU limit on the Supabase plan.');
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// Reads an error response body safely — it may be JSON, HTML, or plain text
+async function readErrorBody(res) {
+  try {
+    const raw = await res.text();
+    if (!raw) return 'empty response body';
+    try {
+      const parsed = JSON.parse(raw);
+      return parsed.error || parsed.message || raw.slice(0, 200);
+    } catch(e) {
+      // Not JSON — likely an HTML gateway error page
+      return raw.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 200);
+    }
+  } catch(e) {
+    return 'could not read response body';
+  }
+}
 let priceCache = {};
 let watchlistTickers = [];
 
@@ -1362,6 +1399,7 @@ function roundPositionToUnits(price, dollars, maxPct) {
 async function getClaudeSuggestion() {
   const btn = document.getElementById('claude-btn');
   const thinking = document.getElementById('claude-thinking');
+  lastDiagnostic = { governor: null, smoothService: null };
   btn.disabled = true;
   thinking.classList.add('visible');
   thinking.textContent = 'Governor executing 25 algorithms with live market data...';
@@ -1391,13 +1429,26 @@ async function getClaudeSuggestion() {
 
     try {
       thinking.textContent = 'Governor executing algorithms...';
-      const govRes = await fetch(GOVERNOR_EDGE_URL, {
+      const govRes = await fetchWithTimeout(GOVERNOR_EDGE_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + GOVERNOR_ANON_KEY },
         body: JSON.stringify({ ticker: targetTicker, strategy: currentStrategy, instrument: currentInstrument, mode: activeMode })
-      });
-      const gov = govRes.ok ? await govRes.json() : null;
+      }, 30000);
+
+      if (!govRes.ok) {
+        // Capture the real reason instead of silently returning null
+        const detail = await readErrorBody(govRes);
+        lastDiagnostic.governor = 'HTTP ' + govRes.status + ' — ' + detail;
+        throw new Error('Governor returned HTTP ' + govRes.status + ': ' + detail);
+      }
+
+      const gov = await govRes.json();
+      if (gov && gov.error) {
+        lastDiagnostic.governor = gov.error;
+        throw new Error('Governor error: ' + gov.error);
+      }
       if (gov) {
+        lastDiagnostic.governor = 'ok';
         governorBrief = gov.governor_brief || gov.claude_brief || governorBrief;
         governorMeta = {
           algoCount:            gov.algorithms_succeeded || 0,
@@ -1415,7 +1466,9 @@ async function getClaudeSuggestion() {
         thinking.textContent = 'Governor complete — ' + governorMeta.algoCount + ' algorithms ran. Asking Claude...';
       }
     } catch(govErr) {
+      if (lastDiagnostic.governor === null) lastDiagnostic.governor = govErr.message;
       governorBrief = 'Governor edge function failed: ' + govErr.message + '. Proceeding without algorithm execution.';
+      thinking.textContent = 'Governor failed — continuing to Claude without algorithm data...';
     }
 
     const isCrypto = activeMode === 'crypto';
@@ -1491,20 +1544,55 @@ Return ONLY this JSON:
 ${jsonExample}`;
     }
 
-    const res = await fetch('https://zpcbbwynvvyldavxzjng.supabase.co/functions/v1/smooth-service', {
+    thinking.textContent = 'Asking Claude for a trade instruction...';
+
+    const res = await fetchWithTimeout('https://zpcbbwynvvyldavxzjng.supabase.co/functions/v1/smooth-service', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + GOVERNOR_ANON_KEY },
       body: JSON.stringify({ prompt, max_tokens: 1500 })
-    });
+    }, 30000);
 
-    const data = await res.json();
-    if (data.error) throw new Error(data.error);
-    const text = data.content?.[0]?.text || data.text || '{}';
-    let jsonStr = text;
+    // Check HTTP status BEFORE parsing — a 500/504 often returns HTML, not JSON
+    if (!res.ok) {
+      const detail = await readErrorBody(res);
+      lastDiagnostic.smoothService = 'HTTP ' + res.status + ' — ' + detail;
+      throw new Error('smooth-service returned HTTP ' + res.status + ': ' + detail);
+    }
+
+    let data;
+    try {
+      data = await res.json();
+    } catch(parseErr) {
+      lastDiagnostic.smoothService = 'Response was not valid JSON';
+      throw new Error('smooth-service returned a non-JSON response. This usually means the edge function crashed or timed out.');
+    }
+
+    if (data.error) {
+      lastDiagnostic.smoothService = data.error;
+      throw new Error('smooth-service error: ' + data.error);
+    }
+
+    // Do NOT silently fall back to '{}' — an unexpected shape must fail loudly
+    const text = data.content?.[0]?.text || data.text || '';
+    if (!text) {
+      lastDiagnostic.smoothService = 'Empty response body';
+      throw new Error('smooth-service returned an empty response. Expected content[0].text from the Anthropic API.');
+    }
+
     const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (jsonMatch) jsonStr = jsonMatch[0];
+    if (!jsonMatch) {
+      lastDiagnostic.smoothService = 'No JSON object in model output';
+      throw new Error('Claude did not return JSON. First 200 chars: ' + text.slice(0, 200));
+    }
 
-    claudeSuggestion = JSON.parse(jsonStr);
+    lastDiagnostic.smoothService = 'ok';
+
+    try {
+      claudeSuggestion = JSON.parse(jsonMatch[0]);
+    } catch(jsonErr) {
+      lastDiagnostic.smoothService = 'Malformed JSON from model';
+      throw new Error('Claude returned malformed JSON: ' + jsonErr.message);
+    }
     claudeSuggestion._governorMeta = governorMeta;
 
     // Live price override
@@ -1529,8 +1617,26 @@ ${jsonExample}`;
 
   } catch(e) {
     document.getElementById('suggestion-panel').classList.add('visible');
-    document.getElementById('suggestion-text').textContent = 'AI service unavailable. Check smooth-service deployment in Supabase Edge Functions.';
-    document.getElementById('suggestion-fields').innerHTML = '';
+
+    // Show the ACTUAL error, and identify which service failed
+    let failedAt = 'Unknown stage';
+    if (lastDiagnostic.smoothService && lastDiagnostic.smoothService !== 'ok') {
+      failedAt = 'smooth-service (Claude API proxy)';
+    } else if (lastDiagnostic.governor && lastDiagnostic.governor !== 'ok') {
+      failedAt = 'clever-responder (Governor)';
+    }
+
+    document.getElementById('suggestion-text').textContent =
+      'FAILED AT: ' + failedAt + '\n\n' + (e.message || 'Unknown error');
+
+    document.getElementById('suggestion-fields').innerHTML =
+      '<div style="grid-column:1/-1; border:1px solid rgba(139,58,58,0.4); padding:0.8rem 1rem;">' +
+        '<div style="font-size:0.6rem; letter-spacing:0.2em; color:#8B3A3A; font-family:\'IBM Plex Mono\',monospace; margin-bottom:0.5rem;">DIAGNOSTIC</div>' +
+        '<div style="font-size:0.72rem; color:#6B6560; font-family:\'IBM Plex Mono\',monospace; line-height:1.7;">' +
+          'Governor: ' + (lastDiagnostic.governor || 'not reached') + '<br>' +
+          'smooth-service: ' + (lastDiagnostic.smoothService || 'not reached') +
+        '</div>' +
+      '</div>';
   }
 
   thinking.classList.remove('visible');
