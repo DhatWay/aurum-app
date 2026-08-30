@@ -8,6 +8,13 @@
 <meta name="theme-color" content="#C9A84C">
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;600&family=DM+Sans:wght@300;400;500&family=IBM+Plex+Mono:wght@300;400&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+// Fallback if jsDelivr is blocked or slow. Loaded synchronously so it is
+// available before the main script runs.
+if (typeof supabase === 'undefined') {
+  document.write('<script src="https://unpkg.com/@supabase/supabase-js@2"><\/script>');
+}
+</script>
 <style>
 :root {
   --black: #080808;
@@ -989,8 +996,32 @@ footer p { font-size: 0.6rem; letter-spacing: 0.12em; color: var(--muted); text-
 <script>
 const SUPABASE_URL = 'https://zpcbbwynvvyldavxzjng.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_K80lcfk8LsQNqo5enznRRA_lrzf2U9K';
-const { createClient } = supabase;
-const db = createClient(SUPABASE_URL, SUPABASE_KEY);
+// The Supabase client comes from the CDN tag in <head>. If that request fails —
+// blocked, offline, or a stale service-worker entry — `supabase` is undefined
+// and destructuring it here throws, killing every line below it: no data loads
+// and click handlers silently do nothing. Guard it and say so on screen.
+let db = null;
+(function initSupabase() {
+  try {
+    if (typeof supabase === 'undefined' || !supabase.createClient) {
+      throw new Error('Supabase library did not load from the CDN.');
+    }
+    db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  } catch (e) {
+    document.addEventListener('DOMContentLoaded', showConnectionError);
+    if (document.readyState !== 'loading') showConnectionError();
+  }
+  function showConnectionError() {
+    if (document.getElementById('aurum-conn-error')) return;
+    const bar = document.createElement('div');
+    bar.id = 'aurum-conn-error';
+    bar.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:3000;background:#2a0f0f;border-bottom:1px solid rgba(139,58,58,0.6);color:#E8C9C9;font-family:monospace;font-size:0.72rem;padding:0.7rem 1rem;line-height:1.5;';
+    bar.innerHTML = 'DATABASE NOT CONNECTED — the Supabase library failed to load, so no data can display. '
+      + 'Usually a network block or a stale cached copy. '
+      + '<button onclick="location.reload(true)" style="background:transparent;border:1px solid rgba(232,201,201,0.5);color:#E8C9C9;padding:0.2rem 0.6rem;margin-left:0.5rem;cursor:pointer;font-family:monospace;font-size:0.7rem;">RELOAD</button>';
+    document.body.appendChild(bar);
+  }
+})();
 
 let activeMode = 'stock';
 
@@ -2576,4 +2607,140 @@ async function openPositionFromSignal(gov, why) {
   return !error;
 }
 
-async function run
+async function runAutonomousCycle(manualTrigger) {
+  if (autoCycleRunning) return;
+  if (!autoModeEnabled && !manualTrigger) return;
+  autoCycleRunning = true;
+
+  try {
+    let openCount = await countOpenPositions();
+    if (openCount >= TARGET_POSITIONS) {
+      autoLog('Block full — ' + openCount + '/' + TARGET_POSITIONS + ' positions open.');
+      return;
+    }
+
+    const pool = await getCandidateTickers();
+    if (!pool.length) {
+      autoLog('No eligible tickers. Every candidate already holds ' + MAX_PER_TICKER + ' positions.');
+      return;
+    }
+
+    const balance = await getPortfolioBalance();
+    let totalOpened   = 0;
+    let rejected      = 0;
+    let lowConviction = 0;
+    let wave          = 0;
+
+    // Keep pulling waves of candidates until the block is full or we run dry.
+    // A single wave rarely fills 10, since the allocator rejects weak signals.
+    while (openCount < TARGET_POSITIONS && pool.length && wave < MAX_WAVES) {
+      wave++;
+      const needed = TARGET_POSITIONS - openCount;
+      const batch  = pool.splice(0, WAVE_SIZE);
+
+      autoLog('Wave ' + wave + ' — scoring ' + batch.length + ' tickers, need ' + needed + ' more (' + openCount + '/' + TARGET_POSITIONS + ' open)');
+
+      const scored = await scoreAllCandidates(batch, balance);
+      if (!scored.length) continue;
+
+      // Hard filter before spending a Claude call
+      const qualified = scored.filter(passesConviction);
+      lowConviction  += (scored.length - qualified.length);
+
+      if (!qualified.length) {
+        autoLog('Wave ' + wave + ' — none of ' + scored.length + ' cleared conviction ' + MIN_CONVICTION + '. Scanning further...');
+        continue;
+      }
+
+      autoLog('Wave ' + wave + ' — ' + qualified.length + ' of ' + scored.length + ' cleared conviction. Claude deciding...');
+      let decisions = [];
+      try {
+        decisions = await decideAllocations(qualified, needed);
+      } catch(e) {
+        autoLog('Wave ' + wave + ' allocator failed: ' + e.message);
+        continue;
+      }
+
+      const approved = decisions.filter(d => d.go).slice(0, needed);
+      rejected += (decisions.length - approved.length);
+
+      for (const d of approved) {
+        const gov = qualified.find(g => g.ticker.toUpperCase() === String(d.t).toUpperCase());
+        if (!gov) continue;
+        if (await openPositionFromSignal(gov, d.why)) {
+          openCount++;
+          totalOpened++;
+        }
+      }
+
+      await updatePortfolioBalance();
+      loadTrades();
+      loadPortfolio();
+    }
+
+    if (openCount >= TARGET_POSITIONS) {
+      autoLog('Block filled — ' + openCount + '/' + TARGET_POSITIONS + ' open. Opened ' + totalOpened + ' this cycle across ' + wave + ' wave(s).');
+    } else if (!pool.length) {
+      autoLog('Universe exhausted at ' + openCount + '/' + TARGET_POSITIONS + '. Opened ' + totalOpened +
+              '. ' + lowConviction + ' below conviction ' + MIN_CONVICTION + ', ' + rejected + ' rejected by Claude. ' +
+              'Not enough high-conviction setups exist right now — that is a real market read, not a failure.');
+    } else {
+      autoLog('Stopped after ' + MAX_WAVES + ' waves at ' + openCount + '/' + TARGET_POSITIONS +
+              '. Opened ' + totalOpened + ', ' + lowConviction + ' below conviction, ' + rejected + ' rejected. Run again to continue.');
+    }
+
+  } catch(e) {
+    autoLog('Cycle failed: ' + (e.message || 'unknown error'));
+  } finally {
+    autoCycleRunning = false;
+  }
+}
+
+function toggleAutoMode() {
+  autoModeEnabled = !autoModeEnabled;
+  const btn = document.getElementById('auto-mode-btn');
+  if (btn) {
+    btn.textContent = autoModeEnabled ? 'AUTONOMOUS: ON' : 'AUTONOMOUS: OFF';
+    btn.style.color       = autoModeEnabled ? '#C9A84C' : '#6B6560';
+    btn.style.borderColor = autoModeEnabled ? 'rgba(201,168,76,0.6)' : 'rgba(107,101,96,0.4)';
+  }
+  clearInterval(autoCycleTimer);
+  if (autoModeEnabled) {
+    autoLog('Autonomous mode on — maintaining ' + TARGET_POSITIONS + ' positions.');
+    runAutonomousCycle();
+    autoCycleTimer = setInterval(runAutonomousCycle, AUTO_CYCLE_MS);
+  } else {
+    autoLog('Manual mode. Autonomous cycle stopped.');
+  }
+}
+
+function openNav() { document.getElementById('nav-overlay').classList.add('open'); }
+function closeNav() { document.getElementById('nav-overlay').classList.remove('open'); }
+
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/aurum-app/sw.js').catch(() => {});
+}
+
+// Only boot the page if the database client actually exists. Without this,
+// a failed CDN load produces a cascade of confusing console errors on top of
+// the real problem, which is already shown in the banner.
+if (db) {
+  loadActiveMode();
+  loadActiveStrategy();
+  loadPortfolio();
+  loadTrades();
+  loadHistory();
+  loadPositionAlerts();
+}
+</script>
+
+<script src="tickers.js"></script>
+<script>
+if (typeof initTickerAutocomplete === 'function') {
+  initTickerAutocomplete('trade-ticker');
+  initTickerAutocomplete('opt-ticker');
+}
+</script>
+
+</body>
+</html>
