@@ -785,9 +785,9 @@ footer p { font-size: 0.6rem; letter-spacing: 0.12em; color: var(--muted); text-
 
   <div style="display:flex; gap:0.6rem; margin-bottom:0.8rem; flex-wrap:wrap;">
     <button id="auto-mode-btn" onclick="toggleAutoMode()" style="flex:1; min-width:150px; background:transparent; border:1px solid rgba(107,101,96,0.4); color:#6B6560; font-family:'DM Sans',sans-serif; font-size:0.72rem; letter-spacing:0.15em; padding:0.7rem 1rem; cursor:pointer;">AUTONOMOUS: OFF</button>
-    <button onclick="runAutonomousCycle(true)" style="flex:1; min-width:150px; background:transparent; border:1px solid rgba(201,168,76,0.3); color:#C9A84C; font-family:'DM Sans',sans-serif; font-size:0.72rem; letter-spacing:0.15em; padding:0.7rem 1rem; cursor:pointer;">RUN CYCLE NOW</button>
+    <button onclick="runAutonomousCycle(true)" style="flex:1; min-width:150px; background:transparent; border:1px solid rgba(201,168,76,0.3); color:#C9A84C; font-family:'DM Sans',sans-serif; font-size:0.72rem; letter-spacing:0.15em; padding:0.7rem 1rem; cursor:pointer;">FILL TO 10 ONCE</button>
   </div>
-  <div id="auto-status" style="font-size:0.7rem; color:#6B6560; font-family:'IBM Plex Mono',monospace; margin-bottom:1rem; line-height:1.6;">Manual mode. Autonomous fills to 10 positions and backfills as they close.</div>
+  <div id="auto-status" style="font-size:0.7rem; color:#6B6560; font-family:'IBM Plex Mono',monospace; margin-bottom:1rem; line-height:1.6;">Manual mode. FILL TO 10 ONCE runs a single cycle. AUTONOMOUS keeps refilling every 5 min as positions close.</div>
 
   <button class="btn-claude" id="claude-btn" onclick="getClaudeSuggestion()">Get Claude Trade Suggestion</button>
   <div class="claude-thinking" id="claude-thinking">Claude is analyzing your watchlist and algorithms...</div>
@@ -2179,7 +2179,19 @@ async function dismissAlert(id) {
 
 const TARGET_POSITIONS   = 10;
 const GOVERNOR_BATCH     = 3;      // concurrent Governor calls
+const WAVE_SIZE          = 12;     // candidates scored per wave
+const MAX_WAVES          = 6;      // ceiling per cycle (12 x 6 = 72 tickers)
+const MAX_PER_TICKER     = 2;      // positions allowed in the same ticker
 const AUTO_CYCLE_MS      = 300000; // 5 minutes
+
+// Coin universe. Must stay in sync with CG_IDS in the Governor —
+// a coin absent there cannot be priced and will be rejected.
+const CRYPTO_UNIVERSE = [
+  'BTC','ETH','SOL','BNB','XRP','AVAX','MATIC','LINK','ADA','DOT',
+  'DOGE','UNI','TRX','LTC','ATOM','SHIB','HYPE','NEAR','APT','ARB',
+  'OP','FIL','ICP','ETC','XLM','HBAR','VET','INJ','SUI','SEI',
+  'TIA','RUNE','AAVE','MKR','LDO','CRV','ALGO','FTM','SAND','MANA'
+];
 
 let autoModeEnabled  = false;
 let autoCycleRunning = false;
@@ -2190,16 +2202,45 @@ function autoLog(msg) {
   if (el) el.textContent = msg;
 }
 
-// Watchlist tickers for the active mode, excluding anything already open
+async function countOpenPositions() {
+  const { data } = await db.from('paper_trades').select('id').eq('status', 'open');
+  return (data || []).length;
+}
+
+// Full tradable universe for the active mode.
+// Stocks come from tickers.js (111 majors) merged with the watchlist.
+// Tickers already holding MAX_PER_TICKER positions are excluded.
 async function getCandidateTickers() {
-  const [{ data: stocks }, { data: open }] = await Promise.all([
-    db.from('stocks').select('ticker').eq('type', activeMode === 'crypto' ? 'crypto' : 'stock'),
+  const isCrypto = activeMode === 'crypto';
+
+  const [{ data: watchlist }, { data: open }] = await Promise.all([
+    db.from('stocks').select('ticker').eq('type', isCrypto ? 'crypto' : 'stock'),
     db.from('paper_trades').select('ticker').eq('status', 'open')
   ]);
-  const openSet = new Set((open || []).map(t => t.ticker.toUpperCase()));
-  return (stocks || [])
-    .map(s => s.ticker.toUpperCase())
-    .filter(t => !openSet.has(t));
+
+  // Count how many positions each ticker already holds
+  const heldCount = {};
+  (open || []).forEach(t => {
+    const k = t.ticker.toUpperCase();
+    heldCount[k] = (heldCount[k] || 0) + 1;
+  });
+
+  const universe = isCrypto
+    ? CRYPTO_UNIVERSE.slice()
+    : (typeof TICKER_DATABASE !== 'undefined' ? TICKER_DATABASE.map(x => x.t) : []);
+
+  // Watchlist first — those are your explicit picks — then the broad universe
+  const watch = (watchlist || []).map(s => s.ticker.toUpperCase());
+  const merged = [];
+  const seen = new Set();
+  watch.concat(universe.map(t => t.toUpperCase())).forEach(t => {
+    if (seen.has(t)) return;
+    seen.add(t);
+    if ((heldCount[t] || 0) >= MAX_PER_TICKER) return;
+    merged.push(t);
+  });
+
+  return merged;
 }
 
 async function getPortfolioBalance() {
@@ -2344,50 +2385,68 @@ async function runAutonomousCycle(manualTrigger) {
   autoCycleRunning = true;
 
   try {
-    const { data: open } = await db.from('paper_trades').select('id').eq('status', 'open');
-    const openCount = (open || []).length;
-    const needed    = TARGET_POSITIONS - openCount;
-
-    if (needed <= 0) {
+    let openCount = await countOpenPositions();
+    if (openCount >= TARGET_POSITIONS) {
       autoLog('Block full — ' + openCount + '/' + TARGET_POSITIONS + ' positions open.');
       return;
     }
 
-    const candidates = await getCandidateTickers();
-    if (!candidates.length) {
-      autoLog('No candidates left in ' + activeMode + ' watchlist. Add more tickers in Admin.');
+    const pool = await getCandidateTickers();
+    if (!pool.length) {
+      autoLog('No eligible tickers. Every candidate already holds ' + MAX_PER_TICKER + ' positions.');
       return;
     }
 
     const balance = await getPortfolioBalance();
-    autoLog('Need ' + needed + ' more. Scoring ' + candidates.length + ' candidates...');
+    let totalOpened = 0;
+    let rejected    = 0;
+    let wave        = 0;
 
-    const scored = await scoreAllCandidates(candidates, balance);
-    if (!scored.length) {
-      autoLog('Governor returned no usable scores. Check the Governor logs.');
-      return;
+    // Keep pulling waves of candidates until the block is full or we run dry.
+    // A single wave rarely fills 10, since the allocator rejects weak signals.
+    while (openCount < TARGET_POSITIONS && pool.length && wave < MAX_WAVES) {
+      wave++;
+      const needed = TARGET_POSITIONS - openCount;
+      const batch  = pool.splice(0, WAVE_SIZE);
+
+      autoLog('Wave ' + wave + ' — scoring ' + batch.length + ' tickers, need ' + needed + ' more (' + openCount + '/' + TARGET_POSITIONS + ' open)');
+
+      const scored = await scoreAllCandidates(batch, balance);
+      if (!scored.length) continue;
+
+      autoLog('Wave ' + wave + ' — Claude deciding across ' + scored.length + ' scored...');
+      let decisions = [];
+      try {
+        decisions = await decideAllocations(scored, needed);
+      } catch(e) {
+        autoLog('Wave ' + wave + ' allocator failed: ' + e.message);
+        continue;
+      }
+
+      const approved = decisions.filter(d => d.go).slice(0, needed);
+      rejected += (decisions.length - approved.length);
+
+      for (const d of approved) {
+        const gov = scored.find(g => g.ticker.toUpperCase() === String(d.t).toUpperCase());
+        if (!gov) continue;
+        if (await openPositionFromSignal(gov, d.why)) {
+          openCount++;
+          totalOpened++;
+        }
+      }
+
+      await updatePortfolioBalance();
+      loadTrades();
+      loadPortfolio();
     }
 
-    autoLog('Claude deciding across ' + scored.length + ' scored candidates...');
-    const decisions = await decideAllocations(scored, needed);
-
-    const approved = decisions.filter(d => d.go).slice(0, needed);
-    if (!approved.length) {
-      autoLog('Claude approved none of ' + scored.length + ' candidates this cycle.');
-      return;
+    if (openCount >= TARGET_POSITIONS) {
+      autoLog('Block filled — ' + openCount + '/' + TARGET_POSITIONS + ' open. Opened ' + totalOpened + ' this cycle across ' + wave + ' wave(s).');
+    } else if (!pool.length) {
+      autoLog('Universe exhausted at ' + openCount + '/' + TARGET_POSITIONS + '. Opened ' + totalOpened + ', Claude rejected ' + rejected + ' as too weak.');
+    } else {
+      autoLog('Stopped after ' + MAX_WAVES + ' waves at ' + openCount + '/' + TARGET_POSITIONS + '. Opened ' + totalOpened + ', rejected ' + rejected + '. Run again to continue.');
     }
-
-    let opened = 0;
-    for (const d of approved) {
-      const gov = scored.find(g => g.ticker.toUpperCase() === String(d.t).toUpperCase());
-      if (!gov) continue;
-      if (await openPositionFromSignal(gov, d.why)) opened++;
-    }
-
-    autoLog('Opened ' + opened + ' of ' + approved.length + ' approved. ' + (openCount + opened) + '/' + TARGET_POSITIONS + ' open.');
-    await updatePortfolioBalance();
-    loadTrades();
-    loadPortfolio();
 
   } catch(e) {
     autoLog('Cycle failed: ' + (e.message || 'unknown error'));
