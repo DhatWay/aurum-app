@@ -584,7 +584,7 @@ textarea { resize: vertical; min-height: 60px; }
 
 .history-row {
   display: grid;
-  grid-template-columns: auto auto auto auto auto 1fr;
+  grid-template-columns: auto auto auto auto auto 1fr auto;
   padding: 0.7rem 1.2rem;
   border-bottom: 1px solid var(--rule);
   align-items: center;
@@ -964,6 +964,12 @@ footer p { font-size: 0.6rem; letter-spacing: 0.12em; color: var(--muted); text-
     <div class="empty-state">No closed trades yet.</div>
   </div>
 
+  <div id="history-pager" style="display:flex; justify-content:space-between; align-items:center; gap:0.8rem; margin-top:0.8rem;"></div>
+
+  <div style="display:flex; justify-content:flex-end; margin-top:0.8rem;">
+    <button onclick="confirmDeleteAllHistory()" style="background:transparent; border:1px solid rgba(139,58,58,0.35); color:#8B3A3A; font-size:0.65rem; letter-spacing:0.12em; padding:0.4rem 0.9rem; cursor:pointer; font-family:'DM Sans',sans-serif;">CLEAR ALL HISTORY</button>
+  </div>
+
   <!-- RESET -->
   <div class="reset-panel">
     <div class="reset-text">
@@ -1182,20 +1188,48 @@ async function loadTrades() {
 }
 
 // ── LOAD HISTORY ──
+let historyPage = 0;
+const HISTORY_PAGE_SIZE = 20;
+
 async function loadHistory() {
-  const { data } = await db.from('paper_trades').select('*').eq('status', 'closed').order('closed_at', { ascending: false }).limit(20);
+  // Analytics and the equity curve must reflect EVERY closed trade, not just
+  // the visible page, so they are computed from a separate full fetch.
+  const { data: allClosed } = await db.from('paper_trades')
+    .select('gain_loss, gain_loss_pct, entry_price, shares, commission, slippage_cost, status')
+    .eq('status', 'closed')
+    .order('closed_at', { ascending: false });
+
+  const total = (allClosed || []).length;
   const container = document.getElementById('history-container');
 
-  if (!data || !data.length) {
+  if (!total) {
     container.innerHTML = '<div class="empty-state">No closed trades yet.</div>';
+    const pager = document.getElementById('history-pager');
+    if (pager) pager.innerHTML = '';
     computeAnalytics([]);
+    drawEquityCurve([]);
     return;
   }
 
-  container.innerHTML = data.map(t => {
+  const maxPage = Math.max(0, Math.ceil(total / HISTORY_PAGE_SIZE) - 1);
+  if (historyPage > maxPage) historyPage = maxPage;
+  if (historyPage < 0) historyPage = 0;
+
+  const from = historyPage * HISTORY_PAGE_SIZE;
+  const to   = from + HISTORY_PAGE_SIZE - 1;
+
+  const { data } = await db.from('paper_trades')
+    .select('*')
+    .eq('status', 'closed')
+    .order('closed_at', { ascending: false })
+    .range(from, to);
+
+  container.innerHTML = (data || []).map(t => {
     const gl    = Number(t.gain_loss);
     const glPct = Number(t.gain_loss_pct);
-    const date  = new Date(t.closed_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    const date  = t.closed_at
+      ? new Date(t.closed_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+      : '—';
     return `
       <div class="history-row">
         <div class="history-ticker">${t.ticker}</div>
@@ -1204,12 +1238,90 @@ async function loadHistory() {
         <div class="history-gl ${gl >= 0 ? 'positive' : 'negative'}">${glPct >= 0 ? '+' : ''}${glPct.toFixed(2)}%</div>
         <div style="color:var(--muted);font-size:0.65rem;font-family:'IBM Plex Mono',monospace;">${date}</div>
         <div class="history-note">${t.note || '—'}</div>
+        <button onclick="confirmDeleteTrade('${t.id}','${t.ticker}')" title="Delete this trade"
+          style="background:transparent;border:1px solid rgba(139,58,58,0.4);color:#8B3A3A;font-size:0.65rem;padding:0.2rem 0.5rem;cursor:pointer;font-family:'DM Sans',sans-serif;">✕</button>
       </div>
     `;
   }).join('');
 
-  computeAnalytics(data);
-  drawEquityCurve(data);
+  const pager = document.getElementById('history-pager');
+  if (pager) {
+    const showingFrom = from + 1;
+    const showingTo   = Math.min(from + HISTORY_PAGE_SIZE, total);
+    pager.innerHTML =
+      '<button onclick="historyPrev()" ' + (historyPage === 0 ? 'disabled' : '') +
+        ' style="background:transparent;border:1px solid rgba(201,168,76,0.3);color:' + (historyPage === 0 ? '#3a3a3a' : '#C9A84C') +
+        ';font-size:0.68rem;letter-spacing:0.1em;padding:0.4rem 0.9rem;cursor:' + (historyPage === 0 ? 'default' : 'pointer') + ';font-family:\'DM Sans\',sans-serif;">← NEWER</button>' +
+      '<span style="font-size:0.68rem;color:#6B6560;font-family:\'IBM Plex Mono\',monospace;">' +
+        showingFrom + '-' + showingTo + ' of ' + total + '</span>' +
+      '<button onclick="historyNext()" ' + (historyPage >= maxPage ? 'disabled' : '') +
+        ' style="background:transparent;border:1px solid rgba(201,168,76,0.3);color:' + (historyPage >= maxPage ? '#3a3a3a' : '#C9A84C') +
+        ';font-size:0.68rem;letter-spacing:0.1em;padding:0.4rem 0.9rem;cursor:' + (historyPage >= maxPage ? 'default' : 'pointer') + ';font-family:\'DM Sans\',sans-serif;">OLDER →</button>';
+  }
+
+  computeAnalytics(allClosed);
+  drawEquityCurve(allClosed);
+}
+
+function historyNext() { historyPage++; loadHistory(); }
+function historyPrev() { historyPage--; loadHistory(); }
+
+// Deleting a CLOSED trade changes realized P&L, so the portfolio must be
+// rebuilt afterwards or the balance drifts out of sync with the trade list.
+let pendingTradeDelete = null;
+
+function confirmDeleteTrade(id, ticker) {
+  pendingTradeDelete = id;
+  showTradeDeleteDialog('Delete the closed ' + ticker + ' trade? Its profit or loss will be removed from your balance. This cannot be undone.', deleteTradeConfirmed);
+}
+
+function confirmDeleteAllHistory() {
+  pendingTradeDelete = 'ALL';
+  showTradeDeleteDialog('Delete ALL closed trades? Your entire trade history and its realized P&L will be removed, and your balance will reset to starting capital. This cannot be undone.', deleteTradeConfirmed);
+}
+
+function showTradeDeleteDialog(message, onYes) {
+  const existing = document.getElementById('trade-delete-overlay');
+  if (existing) existing.remove();
+  const ov = document.createElement('div');
+  ov.id = 'trade-delete-overlay';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(8,8,8,0.95);z-index:2100;display:flex;align-items:center;justify-content:center;padding:2rem;';
+  ov.innerHTML =
+    '<div style="border:1px solid rgba(139,58,58,0.5);background:#0d0d0d;padding:2rem;max-width:400px;width:100%;">' +
+      '<div style="font-size:0.62rem;letter-spacing:0.25em;color:#8B3A3A;font-family:\'IBM Plex Mono\',monospace;margin-bottom:0.8rem;">⚠ CONFIRM DELETE</div>' +
+      '<div style="font-size:0.85rem;color:#F0EDE6;margin-bottom:1.5rem;line-height:1.6;">' + message + '</div>' +
+      '<div style="display:flex;gap:0.8rem;">' +
+        '<button id="trade-del-yes" style="flex:1;background:rgba(139,58,58,0.15);border:1px solid rgba(139,58,58,0.5);color:#8B3A3A;font-family:\'DM Sans\',sans-serif;font-size:0.75rem;letter-spacing:0.15em;padding:0.7rem;cursor:pointer;">YES, DELETE</button>' +
+        '<button onclick="closeTradeDeleteDialog()" style="flex:1;background:transparent;border:1px solid rgba(107,101,96,0.4);color:#6B6560;font-family:\'DM Sans\',sans-serif;font-size:0.75rem;letter-spacing:0.15em;padding:0.7rem;cursor:pointer;">CANCEL</button>' +
+      '</div>' +
+    '</div>';
+  document.body.appendChild(ov);
+  document.getElementById('trade-del-yes').onclick = onYes;
+}
+
+function closeTradeDeleteDialog() {
+  const ov = document.getElementById('trade-delete-overlay');
+  if (ov) ov.remove();
+  pendingTradeDelete = null;
+}
+
+async function deleteTradeConfirmed() {
+  const target = pendingTradeDelete;
+  closeTradeDeleteDialog();
+  if (!target) return;
+  try {
+    if (target === 'ALL') {
+      await db.from('paper_trades').delete().eq('status', 'closed');
+      historyPage = 0;
+    } else {
+      await db.from('paper_trades').delete().eq('id', target);
+    }
+    await updatePortfolioBalance();
+    loadHistory();
+    loadPortfolio();
+  } catch(e) {
+    alert('Delete failed: ' + (e?.message || 'unknown error'));
+  }
 }
 
 // ── ANALYTICS ──
@@ -2464,135 +2576,4 @@ async function openPositionFromSignal(gov, why) {
   return !error;
 }
 
-async function runAutonomousCycle(manualTrigger) {
-  if (autoCycleRunning) return;
-  if (!autoModeEnabled && !manualTrigger) return;
-  autoCycleRunning = true;
-
-  try {
-    let openCount = await countOpenPositions();
-    if (openCount >= TARGET_POSITIONS) {
-      autoLog('Block full — ' + openCount + '/' + TARGET_POSITIONS + ' positions open.');
-      return;
-    }
-
-    const pool = await getCandidateTickers();
-    if (!pool.length) {
-      autoLog('No eligible tickers. Every candidate already holds ' + MAX_PER_TICKER + ' positions.');
-      return;
-    }
-
-    const balance = await getPortfolioBalance();
-    let totalOpened   = 0;
-    let rejected      = 0;
-    let lowConviction = 0;
-    let wave          = 0;
-
-    // Keep pulling waves of candidates until the block is full or we run dry.
-    // A single wave rarely fills 10, since the allocator rejects weak signals.
-    while (openCount < TARGET_POSITIONS && pool.length && wave < MAX_WAVES) {
-      wave++;
-      const needed = TARGET_POSITIONS - openCount;
-      const batch  = pool.splice(0, WAVE_SIZE);
-
-      autoLog('Wave ' + wave + ' — scoring ' + batch.length + ' tickers, need ' + needed + ' more (' + openCount + '/' + TARGET_POSITIONS + ' open)');
-
-      const scored = await scoreAllCandidates(batch, balance);
-      if (!scored.length) continue;
-
-      // Hard filter before spending a Claude call
-      const qualified = scored.filter(passesConviction);
-      lowConviction  += (scored.length - qualified.length);
-
-      if (!qualified.length) {
-        autoLog('Wave ' + wave + ' — none of ' + scored.length + ' cleared conviction ' + MIN_CONVICTION + '. Scanning further...');
-        continue;
-      }
-
-      autoLog('Wave ' + wave + ' — ' + qualified.length + ' of ' + scored.length + ' cleared conviction. Claude deciding...');
-      let decisions = [];
-      try {
-        decisions = await decideAllocations(qualified, needed);
-      } catch(e) {
-        autoLog('Wave ' + wave + ' allocator failed: ' + e.message);
-        continue;
-      }
-
-      const approved = decisions.filter(d => d.go).slice(0, needed);
-      rejected += (decisions.length - approved.length);
-
-      for (const d of approved) {
-        const gov = qualified.find(g => g.ticker.toUpperCase() === String(d.t).toUpperCase());
-        if (!gov) continue;
-        if (await openPositionFromSignal(gov, d.why)) {
-          openCount++;
-          totalOpened++;
-        }
-      }
-
-      await updatePortfolioBalance();
-      loadTrades();
-      loadPortfolio();
-    }
-
-    if (openCount >= TARGET_POSITIONS) {
-      autoLog('Block filled — ' + openCount + '/' + TARGET_POSITIONS + ' open. Opened ' + totalOpened + ' this cycle across ' + wave + ' wave(s).');
-    } else if (!pool.length) {
-      autoLog('Universe exhausted at ' + openCount + '/' + TARGET_POSITIONS + '. Opened ' + totalOpened +
-              '. ' + lowConviction + ' below conviction ' + MIN_CONVICTION + ', ' + rejected + ' rejected by Claude. ' +
-              'Not enough high-conviction setups exist right now — that is a real market read, not a failure.');
-    } else {
-      autoLog('Stopped after ' + MAX_WAVES + ' waves at ' + openCount + '/' + TARGET_POSITIONS +
-              '. Opened ' + totalOpened + ', ' + lowConviction + ' below conviction, ' + rejected + ' rejected. Run again to continue.');
-    }
-
-  } catch(e) {
-    autoLog('Cycle failed: ' + (e.message || 'unknown error'));
-  } finally {
-    autoCycleRunning = false;
-  }
-}
-
-function toggleAutoMode() {
-  autoModeEnabled = !autoModeEnabled;
-  const btn = document.getElementById('auto-mode-btn');
-  if (btn) {
-    btn.textContent = autoModeEnabled ? 'AUTONOMOUS: ON' : 'AUTONOMOUS: OFF';
-    btn.style.color       = autoModeEnabled ? '#C9A84C' : '#6B6560';
-    btn.style.borderColor = autoModeEnabled ? 'rgba(201,168,76,0.6)' : 'rgba(107,101,96,0.4)';
-  }
-  clearInterval(autoCycleTimer);
-  if (autoModeEnabled) {
-    autoLog('Autonomous mode on — maintaining ' + TARGET_POSITIONS + ' positions.');
-    runAutonomousCycle();
-    autoCycleTimer = setInterval(runAutonomousCycle, AUTO_CYCLE_MS);
-  } else {
-    autoLog('Manual mode. Autonomous cycle stopped.');
-  }
-}
-
-function openNav() { document.getElementById('nav-overlay').classList.add('open'); }
-function closeNav() { document.getElementById('nav-overlay').classList.remove('open'); }
-
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/aurum-app/sw.js').catch(() => {});
-}
-
-loadActiveMode();
-loadActiveStrategy();
-loadPortfolio();
-loadTrades();
-loadHistory();
-loadPositionAlerts();
-</script>
-
-<script src="tickers.js"></script>
-<script>
-if (typeof initTickerAutocomplete === 'function') {
-  initTickerAutocomplete('trade-ticker');
-  initTickerAutocomplete('opt-ticker');
-}
-</script>
-
-</body>
-</html>
+async function run
