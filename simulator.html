@@ -783,6 +783,12 @@ footer p { font-size: 0.6rem; letter-spacing: 0.12em; color: var(--muted); text-
     <div style="font-size:0.65rem;letter-spacing:0.2em;color:var(--gold);font-family:'IBM Plex Mono',monospace;margin-bottom:0.5rem;">⚠ POSITION ALERTS</div>
   </div>
 
+  <div style="display:flex; gap:0.6rem; margin-bottom:0.8rem; flex-wrap:wrap;">
+    <button id="auto-mode-btn" onclick="toggleAutoMode()" style="flex:1; min-width:150px; background:transparent; border:1px solid rgba(107,101,96,0.4); color:#6B6560; font-family:'DM Sans',sans-serif; font-size:0.72rem; letter-spacing:0.15em; padding:0.7rem 1rem; cursor:pointer;">AUTONOMOUS: OFF</button>
+    <button onclick="runAutonomousCycle(true)" style="flex:1; min-width:150px; background:transparent; border:1px solid rgba(201,168,76,0.3); color:#C9A84C; font-family:'DM Sans',sans-serif; font-size:0.72rem; letter-spacing:0.15em; padding:0.7rem 1rem; cursor:pointer;">RUN CYCLE NOW</button>
+  </div>
+  <div id="auto-status" style="font-size:0.7rem; color:#6B6560; font-family:'IBM Plex Mono',monospace; margin-bottom:1rem; line-height:1.6;">Manual mode. Autonomous fills to 10 positions and backfills as they close.</div>
+
   <button class="btn-claude" id="claude-btn" onclick="getClaudeSuggestion()">Get Claude Trade Suggestion</button>
   <div class="claude-thinking" id="claude-thinking">Claude is analyzing your watchlist and algorithms...</div>
 
@@ -1432,7 +1438,13 @@ async function getClaudeSuggestion() {
       const govRes = await fetchWithTimeout(GOVERNOR_EDGE_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + GOVERNOR_ANON_KEY },
-        body: JSON.stringify({ ticker: targetTicker, strategy: currentStrategy, instrument: currentInstrument, mode: activeMode })
+        body: JSON.stringify({
+          ticker: targetTicker,
+          strategy: currentStrategy,
+          instrument: currentInstrument,
+          mode: activeMode,
+          portfolio_balance: await getPortfolioBalance()
+        })
       }, 30000);
 
       if (!govRes.ok) {
@@ -2155,6 +2167,251 @@ async function dismissAlert(id) {
     await db.from('position_alerts').update({ read: true }).eq('id', id);
     loadPositionAlerts();
   } catch(e) {}
+}
+
+// ══════════════════════════════════════════════════════════
+// AUTONOMOUS ENGINE
+// Maintains a rolling block of TARGET_POSITIONS open trades.
+// Flow: scan candidates -> Governor scores each -> ONE Claude call
+// decides yes/no across all -> approved trades open automatically.
+// As positions close, the next cycle backfills to TARGET_POSITIONS.
+// ══════════════════════════════════════════════════════════
+
+const TARGET_POSITIONS   = 10;
+const GOVERNOR_BATCH     = 3;      // concurrent Governor calls
+const AUTO_CYCLE_MS      = 300000; // 5 minutes
+
+let autoModeEnabled  = false;
+let autoCycleRunning = false;
+let autoCycleTimer   = null;
+
+function autoLog(msg) {
+  const el = document.getElementById('auto-status');
+  if (el) el.textContent = msg;
+}
+
+// Watchlist tickers for the active mode, excluding anything already open
+async function getCandidateTickers() {
+  const [{ data: stocks }, { data: open }] = await Promise.all([
+    db.from('stocks').select('ticker').eq('type', activeMode === 'crypto' ? 'crypto' : 'stock'),
+    db.from('paper_trades').select('ticker').eq('status', 'open')
+  ]);
+  const openSet = new Set((open || []).map(t => t.ticker.toUpperCase()));
+  return (stocks || [])
+    .map(s => s.ticker.toUpperCase())
+    .filter(t => !openSet.has(t));
+}
+
+async function getPortfolioBalance() {
+  try {
+    const { data } = await db.from('paper_portfolio').select('current_balance, starting_balance').single();
+    return Number(data?.current_balance) || Number(data?.starting_balance) || 10000;
+  } catch(e) { return 10000; }
+}
+
+// Run the Governor for a single ticker. Returns null on any failure so one
+// bad ticker never aborts the whole scan.
+async function scoreTicker(ticker, balance) {
+  try {
+    const res = await fetchWithTimeout(GOVERNOR_EDGE_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + GOVERNOR_ANON_KEY },
+      body: JSON.stringify({
+        ticker,
+        strategy:          currentStrategy,
+        instrument:        activeMode === 'crypto' ? 'crypto' : 'stock',
+        mode:              activeMode,
+        portfolio_balance: balance
+      })
+    }, 30000);
+    if (!res.ok) return null;
+    const g = await res.json();
+    if (g.error || !g.entry_price) return null;
+    return g;
+  } catch(e) {
+    return null;
+  }
+}
+
+// Score candidates in small batches to avoid hammering the API
+async function scoreAllCandidates(tickers, balance) {
+  const results = [];
+  for (let i = 0; i < tickers.length; i += GOVERNOR_BATCH) {
+    const batch = tickers.slice(i, i + GOVERNOR_BATCH);
+    autoLog('Governor scoring ' + (i + 1) + '-' + Math.min(i + GOVERNOR_BATCH, tickers.length) + ' of ' + tickers.length + '...');
+    const scored = await Promise.all(batch.map(t => scoreTicker(t, balance)));
+    scored.forEach(s => { if (s) results.push(s); });
+  }
+  return results;
+}
+
+// One Claude call receives every Governor brief and returns a yes/no per ticker
+async function decideAllocations(scored, needed) {
+  const briefs = scored.map(g =>
+    g.ticker + ' | dir ' + g.direction + ' | composite ' + g.composite_score +
+    ' | SQ ' + g.signal_quality + ' | conf ' + g.confidence +
+    ' | entry ' + g.entry_price + ' | stop ' + g.stop_loss + ' | target ' + g.target_price
+  ).join('\n');
+
+  const prompt = 'You are AURUM\'s capital allocator. Below are Governor briefs for candidate trades in ' +
+    activeMode.toUpperCase() + ' mode.\n\n' + briefs + '\n\n' +
+    'Select up to ' + needed + ' to trade now. Reject any with signal quality under 50, ' +
+    'or composite between 45 and 55 (no directional edge).\n\n' +
+    'Return ONLY this JSON, no other text:\n' +
+    '{"decisions":[{"t":"TICKER","go":true,"why":"under 10 words"}]}';
+
+  const res = await fetchWithTimeout('https://zpcbbwynvvyldavxzjng.supabase.co/functions/v1/smooth-service', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + GOVERNOR_ANON_KEY },
+    body: JSON.stringify({ prompt, max_tokens: 1500 })
+  }, 30000);
+
+  if (!res.ok) throw new Error('Allocator returned HTTP ' + res.status + ': ' + await readErrorBody(res));
+
+  const data = await res.json();
+  if (data.error) throw new Error('Allocator error: ' + data.error);
+
+  const text = data.content?.[0]?.text || data.text || '';
+  const match = text.match(/\{[\s\S]*\}/);
+  if (!match) throw new Error('Allocator did not return JSON');
+  return JSON.parse(match[0]).decisions || [];
+}
+
+// Insert an approved position directly. Bypasses the DOM form entirely.
+async function openPositionFromSignal(gov, why) {
+  const slippagePct = 0.0005;
+  const isCrypto    = activeMode === 'crypto';
+  const direction   = (gov.direction || 'LONG').toLowerCase() === 'short' ? 'short' : 'long';
+  const entry       = Number(gov.entry_price);
+  if (!entry || entry <= 0) return false;
+
+  let shares = Number(gov.shares);
+  if (!shares || shares <= 0) {
+    const bal = Number(gov.portfolio_balance) || 10000;
+    const pct = Number(gov.recommended_position_pct) || 5;
+    shares = (bal * pct / 100) / entry;
+  }
+  shares = isCrypto
+    ? parseFloat(shares.toFixed(4))
+    : Math.max(1, Math.floor(shares));
+  if (!shares || shares <= 0) return false;
+
+  const slipAmt        = entry * slippagePct;
+  const effectiveEntry = direction === 'long' ? entry + slipAmt : entry - slipAmt;
+  const commissionCost = isCrypto ? 0 : 0.65 * 2;
+
+  // Note kept deliberately short — long reasoning belongs in algorithm_log
+  const note = (why || (gov.confidence + ' conf, SQ ' + gov.signal_quality)).split(/\s+/).slice(0, 10).join(' ');
+
+  const { error } = await db.from('paper_trades').insert({
+    ticker:               gov.ticker,
+    shares,
+    direction,
+    strategy:             currentStrategy,
+    instrument:           isCrypto ? 'crypto' : 'stock',
+    type:                 activeMode,
+    status:               'open',
+    entry_price:          parseFloat(effectiveEntry.toFixed(6)),
+    effective_entry:      parseFloat(effectiveEntry.toFixed(6)),
+    current_price:        effectiveEntry,
+    stop_loss:            gov.stop_loss    ? Number(gov.stop_loss)    : null,
+    target_price:         gov.target_price ? Number(gov.target_price) : null,
+    position_value:       parseFloat((shares * effectiveEntry).toFixed(2)),
+    gain_loss:            0,
+    gain_loss_pct:        0,
+    gross_gain_loss:      0,
+    net_gain_loss:        0,
+    unrealized_gl:        0,
+    slippage_cost:        parseFloat((slipAmt * shares).toFixed(6)),
+    commission:           commissionCost,
+    slippage_pct:         slippagePct * 100,
+    note,
+    entry_signal_quality: gov.signal_quality || 50,
+    live_signal_quality:  gov.signal_quality || 50,
+    swing_signal:         gov.swing_signal    || false,
+    swing_direction:      gov.swing_direction || null,
+    swing_confidence:     gov.swing_confidence || null,
+    opened_at:            new Date().toISOString(),
+    auto_generated:       true
+  });
+
+  return !error;
+}
+
+async function runAutonomousCycle(manualTrigger) {
+  if (autoCycleRunning) return;
+  if (!autoModeEnabled && !manualTrigger) return;
+  autoCycleRunning = true;
+
+  try {
+    const { data: open } = await db.from('paper_trades').select('id').eq('status', 'open');
+    const openCount = (open || []).length;
+    const needed    = TARGET_POSITIONS - openCount;
+
+    if (needed <= 0) {
+      autoLog('Block full — ' + openCount + '/' + TARGET_POSITIONS + ' positions open.');
+      return;
+    }
+
+    const candidates = await getCandidateTickers();
+    if (!candidates.length) {
+      autoLog('No candidates left in ' + activeMode + ' watchlist. Add more tickers in Admin.');
+      return;
+    }
+
+    const balance = await getPortfolioBalance();
+    autoLog('Need ' + needed + ' more. Scoring ' + candidates.length + ' candidates...');
+
+    const scored = await scoreAllCandidates(candidates, balance);
+    if (!scored.length) {
+      autoLog('Governor returned no usable scores. Check the Governor logs.');
+      return;
+    }
+
+    autoLog('Claude deciding across ' + scored.length + ' scored candidates...');
+    const decisions = await decideAllocations(scored, needed);
+
+    const approved = decisions.filter(d => d.go).slice(0, needed);
+    if (!approved.length) {
+      autoLog('Claude approved none of ' + scored.length + ' candidates this cycle.');
+      return;
+    }
+
+    let opened = 0;
+    for (const d of approved) {
+      const gov = scored.find(g => g.ticker.toUpperCase() === String(d.t).toUpperCase());
+      if (!gov) continue;
+      if (await openPositionFromSignal(gov, d.why)) opened++;
+    }
+
+    autoLog('Opened ' + opened + ' of ' + approved.length + ' approved. ' + (openCount + opened) + '/' + TARGET_POSITIONS + ' open.');
+    await updatePortfolioBalance();
+    loadTrades();
+    loadPortfolio();
+
+  } catch(e) {
+    autoLog('Cycle failed: ' + (e.message || 'unknown error'));
+  } finally {
+    autoCycleRunning = false;
+  }
+}
+
+function toggleAutoMode() {
+  autoModeEnabled = !autoModeEnabled;
+  const btn = document.getElementById('auto-mode-btn');
+  if (btn) {
+    btn.textContent = autoModeEnabled ? 'AUTONOMOUS: ON' : 'AUTONOMOUS: OFF';
+    btn.style.color       = autoModeEnabled ? '#C9A84C' : '#6B6560';
+    btn.style.borderColor = autoModeEnabled ? 'rgba(201,168,76,0.6)' : 'rgba(107,101,96,0.4)';
+  }
+  clearInterval(autoCycleTimer);
+  if (autoModeEnabled) {
+    autoLog('Autonomous mode on — maintaining ' + TARGET_POSITIONS + ' positions.');
+    runAutonomousCycle();
+    autoCycleTimer = setInterval(runAutonomousCycle, AUTO_CYCLE_MS);
+  } else {
+    autoLog('Manual mode. Autonomous cycle stopped.');
+  }
 }
 
 function openNav() { document.getElementById('nav-overlay').classList.add('open'); }
