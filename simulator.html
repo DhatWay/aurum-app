@@ -1476,7 +1476,15 @@ async function getClaudeSuggestion() {
     const pickSum   = picksRes.data?.map(p => p.ticker + ':' + p.score + ' ' + p.brief).join(' | ') || 'None';
     const stratLabel = currentStrategy === 'day' ? 'DAY TRADE (intraday, tighter stops, IOC orders)' : 'SWING TRADE (days to weeks, standard stops)';
     const instLabel  = currentInstrument === 'options' ? 'OPTIONS (calls or puts)' : 'STOCKS (long or short)';
-    const targetTicker = picksRes.data?.[0]?.ticker || stocksRes.data?.[0]?.ticker || 'SPY';
+    // picks is often empty, which previously made this fall through to
+    // stocks[0] on every single call — the same ticker forever.
+    // Rotate through the pool so repeated taps analyze different names.
+    const pool = (picksRes.data || []).map(p => p.ticker)
+      .concat((stocksRes.data || []).map(s => s.ticker))
+      .filter(Boolean);
+    const targetTicker = pool.length
+      ? pool[Math.floor(Math.random() * pool.length)]
+      : 'SPY';
     const livePriceContext = Object.entries(priceCache).slice(0, 10)
       .map(([t, d]) => t + ':$' + d.price.toFixed(2)).join(', ');
 
