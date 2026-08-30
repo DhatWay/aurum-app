@@ -727,6 +727,21 @@ footer p { font-size: 0.6rem; letter-spacing: 0.12em; color: var(--muted); text-
       <div class="cell-value gold" id="open-count">—</div>
       <div class="cell-sub">Active trades</div>
     </div>
+    <div class="portfolio-cell">
+      <div class="cell-label">Cash Available</div>
+      <div class="cell-value" id="cash-available">—</div>
+      <div class="cell-sub">Not deployed</div>
+    </div>
+    <div class="portfolio-cell">
+      <div class="cell-label">Deployed</div>
+      <div class="cell-value" id="capital-deployed">—</div>
+      <div class="cell-sub">Tied up in positions</div>
+    </div>
+    <div class="portfolio-cell">
+      <div class="cell-label">Unrealized P&amp;L</div>
+      <div class="cell-value" id="unrealized-pl">—</div>
+      <div class="cell-sub">Open positions only</div>
+    </div>
   </div>
 
   <!-- PERFORMANCE ANALYTICS -->
@@ -1048,28 +1063,64 @@ function setContractType(type) {
 }
 
 // ── LOAD PORTFOLIO ──
+// Cash accounting:
+//   cash      = starting balance + realized P&L - capital currently deployed
+//   deployed  = sum of position value at entry across open trades
+//   value     = cash + deployed + unrealized  (true account value)
 async function loadPortfolio() {
   try {
-    const { data } = await db.from('paper_portfolio').select('*').single();
+    const [{ data }, { data: openTrades }] = await Promise.all([
+      db.from('paper_portfolio').select('*').single(),
+      db.from('paper_trades').select('shares, effective_entry, entry_price, unrealized_gl, gain_loss').eq('status', 'open')
+    ]);
     if (!data) { initPortfolio(); return; }
 
     const startBal = Number(data.starting_balance) || 10000;
     document.getElementById('starting-balance').textContent = '$' + startBal.toLocaleString();
     document.getElementById('starting-bal-input').value = startBal;
 
-    const curBal = Number(data.current_balance) || startBal;
-    document.getElementById('current-balance').textContent = '$' + curBal.toLocaleString();
+    const realized = Number(data.realized_gl) || Number(data.total_return) || 0;
 
-    const ret    = Number(data.total_return) || 0;
-    const retPct = Number(data.total_return_pct) || 0;
+    // Capital tied up in open positions, and their live P&L
+    let deployed   = 0;
+    let unrealized = 0;
+    (openTrades || []).forEach(t => {
+      const entry = Number(t.effective_entry || t.entry_price) || 0;
+      deployed   += entry * (Number(t.shares) || 0);
+      unrealized += Number(t.unrealized_gl ?? t.gain_loss) || 0;
+    });
 
-    const retEl  = document.getElementById('total-return');
-    retEl.textContent = (ret >= 0 ? '+$' : '-$') + Math.abs(ret).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    retEl.className = 'cell-value ' + (ret >= 0 ? 'positive' : 'negative');
+    const cash       = startBal + realized - deployed;
+    const totalValue = cash + deployed + unrealized;
+    const totalPL    = realized + unrealized;
+    const totalPLPct = startBal > 0 ? (totalPL / startBal) * 100 : 0;
 
-    const pctEl  = document.getElementById('return-pct');
-    pctEl.textContent = (retPct >= 0 ? '+' : '') + retPct.toFixed(2) + '%';
-    pctEl.className = 'cell-value ' + (retPct >= 0 ? 'positive' : 'negative');
+    document.getElementById('current-balance').textContent =
+      '$' + totalValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+    const retEl = document.getElementById('total-return');
+    retEl.textContent = (totalPL >= 0 ? '+$' : '-$') + Math.abs(totalPL).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    retEl.className = 'cell-value ' + (totalPL >= 0 ? 'positive' : 'negative');
+
+    const pctEl = document.getElementById('return-pct');
+    pctEl.textContent = (totalPLPct >= 0 ? '+' : '') + totalPLPct.toFixed(2) + '%';
+    pctEl.className = 'cell-value ' + (totalPLPct >= 0 ? 'positive' : 'negative');
+
+    // Cash vs deployed breakdown
+    const cashEl = document.getElementById('cash-available');
+    if (cashEl) {
+      cashEl.textContent = '$' + cash.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      cashEl.className = 'cell-value ' + (cash < 0 ? 'negative' : '');
+    }
+    const depEl = document.getElementById('capital-deployed');
+    if (depEl) {
+      depEl.textContent = '$' + deployed.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+    const unrealEl = document.getElementById('unrealized-pl');
+    if (unrealEl) {
+      unrealEl.textContent = (unrealized >= 0 ? '+$' : '-$') + Math.abs(unrealized).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      unrealEl.className = 'cell-value ' + (unrealized >= 0 ? 'positive' : 'negative');
+    }
 
   } catch(e) { initPortfolio(); }
 }
@@ -2180,8 +2231,10 @@ async function dismissAlert(id) {
 const TARGET_POSITIONS   = 10;
 const GOVERNOR_BATCH     = 3;      // concurrent Governor calls
 const WAVE_SIZE          = 12;     // candidates scored per wave
-const MAX_WAVES          = 6;      // ceiling per cycle (12 x 6 = 72 tickers)
-const MAX_PER_TICKER     = 2;      // positions allowed in the same ticker
+const MAX_WAVES          = 12;     // 12 x 12 = 144 tickers, covers the full universe
+const MAX_PER_TICKER     = 1;      // one position per ticker — no duplicate fills
+const MIN_CONVICTION     = 70;     // composite must clear this to trade
+const MIN_SIGNAL_QUALITY = 60;     // data must be trustworthy enough to act on
 const AUTO_CYCLE_MS      = 300000; // 5 minutes
 
 // Coin universe. Must stay in sync with CG_IDS in the Governor —
@@ -2286,18 +2339,39 @@ async function scoreAllCandidates(tickers, balance) {
   return results;
 }
 
-// One Claude call receives every Governor brief and returns a yes/no per ticker
+// Pre-filter on hard numbers before spending a Claude call.
+// Composite is directional conviction; signal quality is data trust.
+// Both must clear their floor, and the Governor must have committed to a side.
+function passesConviction(g) {
+  const composite = Number(g.composite_score);
+  const sq        = Number(g.signal_quality);
+  const dir       = String(g.direction || 'NONE').toUpperCase();
+  if (dir !== 'LONG' && dir !== 'SHORT') return false;
+  if (!Number.isFinite(composite) || !Number.isFinite(sq))   return false;
+  if (sq < MIN_SIGNAL_QUALITY)                                return false;
+  // Conviction must be strong in EITHER direction — a composite of 22 is as
+  // tradable short as 78 is long. Only the mushy middle is rejected.
+  const conviction = composite >= 50 ? composite : (100 - composite);
+  return conviction >= MIN_CONVICTION;
+}
+
+// One Claude call receives every qualifying brief and returns a yes/no per ticker
 async function decideAllocations(scored, needed) {
   const briefs = scored.map(g =>
-    g.ticker + ' | dir ' + g.direction + ' | composite ' + g.composite_score +
+    g.ticker + ' | ' + g.direction + ' | composite ' + g.composite_score +
     ' | SQ ' + g.signal_quality + ' | conf ' + g.confidence +
+    ' | vol ' + (g.volatility_pct || '?') + '%' +
     ' | entry ' + g.entry_price + ' | stop ' + g.stop_loss + ' | target ' + g.target_price
   ).join('\n');
 
-  const prompt = 'You are AURUM\'s capital allocator. Below are Governor briefs for candidate trades in ' +
-    activeMode.toUpperCase() + ' mode.\n\n' + briefs + '\n\n' +
-    'Select up to ' + needed + ' to trade now. Reject any with signal quality under 50, ' +
-    'or composite between 45 and 55 (no directional edge).\n\n' +
+  const prompt = 'You are AURUM\'s capital allocator in ' + activeMode.toUpperCase() + ' mode.\n\n' +
+    'Every candidate below already cleared the conviction floor (composite ' + MIN_CONVICTION +
+    '+ directional, signal quality ' + MIN_SIGNAL_QUALITY + '+).\n\n' + briefs + '\n\n' +
+    'Approve up to ' + needed + ' of these to trade now.\n\n' +
+    'Judge each on its own merit. Approving fewer than ' + needed + ' is correct and expected — ' +
+    'do NOT approve a weak setup simply to fill the quota. Reject anything where the ' +
+    'stop placement looks wrong for the stated volatility, or where conviction and ' +
+    'signal quality disagree.\n\n' +
     'Return ONLY this JSON, no other text:\n' +
     '{"decisions":[{"t":"TICKER","go":true,"why":"under 10 words"}]}';
 
@@ -2322,7 +2396,10 @@ async function decideAllocations(scored, needed) {
 async function openPositionFromSignal(gov, why) {
   const slippagePct = 0.0005;
   const isCrypto    = activeMode === 'crypto';
-  const direction   = (gov.direction || 'LONG').toLowerCase() === 'short' ? 'short' : 'long';
+  const rawDir      = String(gov.direction || 'NONE').toUpperCase();
+  // The Governor returns NONE when no directional edge exists. Never trade it.
+  if (rawDir !== 'LONG' && rawDir !== 'SHORT') return false;
+  const direction   = rawDir === 'SHORT' ? 'short' : 'long';
   const entry       = Number(gov.entry_price);
   if (!entry || entry <= 0) return false;
 
@@ -2398,9 +2475,10 @@ async function runAutonomousCycle(manualTrigger) {
     }
 
     const balance = await getPortfolioBalance();
-    let totalOpened = 0;
-    let rejected    = 0;
-    let wave        = 0;
+    let totalOpened   = 0;
+    let rejected      = 0;
+    let lowConviction = 0;
+    let wave          = 0;
 
     // Keep pulling waves of candidates until the block is full or we run dry.
     // A single wave rarely fills 10, since the allocator rejects weak signals.
@@ -2414,10 +2492,19 @@ async function runAutonomousCycle(manualTrigger) {
       const scored = await scoreAllCandidates(batch, balance);
       if (!scored.length) continue;
 
-      autoLog('Wave ' + wave + ' — Claude deciding across ' + scored.length + ' scored...');
+      // Hard filter before spending a Claude call
+      const qualified = scored.filter(passesConviction);
+      lowConviction  += (scored.length - qualified.length);
+
+      if (!qualified.length) {
+        autoLog('Wave ' + wave + ' — none of ' + scored.length + ' cleared conviction ' + MIN_CONVICTION + '. Scanning further...');
+        continue;
+      }
+
+      autoLog('Wave ' + wave + ' — ' + qualified.length + ' of ' + scored.length + ' cleared conviction. Claude deciding...');
       let decisions = [];
       try {
-        decisions = await decideAllocations(scored, needed);
+        decisions = await decideAllocations(qualified, needed);
       } catch(e) {
         autoLog('Wave ' + wave + ' allocator failed: ' + e.message);
         continue;
@@ -2427,7 +2514,7 @@ async function runAutonomousCycle(manualTrigger) {
       rejected += (decisions.length - approved.length);
 
       for (const d of approved) {
-        const gov = scored.find(g => g.ticker.toUpperCase() === String(d.t).toUpperCase());
+        const gov = qualified.find(g => g.ticker.toUpperCase() === String(d.t).toUpperCase());
         if (!gov) continue;
         if (await openPositionFromSignal(gov, d.why)) {
           openCount++;
@@ -2443,9 +2530,12 @@ async function runAutonomousCycle(manualTrigger) {
     if (openCount >= TARGET_POSITIONS) {
       autoLog('Block filled — ' + openCount + '/' + TARGET_POSITIONS + ' open. Opened ' + totalOpened + ' this cycle across ' + wave + ' wave(s).');
     } else if (!pool.length) {
-      autoLog('Universe exhausted at ' + openCount + '/' + TARGET_POSITIONS + '. Opened ' + totalOpened + ', Claude rejected ' + rejected + ' as too weak.');
+      autoLog('Universe exhausted at ' + openCount + '/' + TARGET_POSITIONS + '. Opened ' + totalOpened +
+              '. ' + lowConviction + ' below conviction ' + MIN_CONVICTION + ', ' + rejected + ' rejected by Claude. ' +
+              'Not enough high-conviction setups exist right now — that is a real market read, not a failure.');
     } else {
-      autoLog('Stopped after ' + MAX_WAVES + ' waves at ' + openCount + '/' + TARGET_POSITIONS + '. Opened ' + totalOpened + ', rejected ' + rejected + '. Run again to continue.');
+      autoLog('Stopped after ' + MAX_WAVES + ' waves at ' + openCount + '/' + TARGET_POSITIONS +
+              '. Opened ' + totalOpened + ', ' + lowConviction + ' below conviction, ' + rejected + ' rejected. Run again to continue.');
     }
 
   } catch(e) {
