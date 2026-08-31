@@ -105,6 +105,67 @@ const TICKER_DATABASE = [
   {t:'VOO',n:'Vanguard S&P 500 ETF',s:'ETF'},
 ];
 
+
+// ── CRYPTO DATABASE ──
+// Mirrors TICKER_DATABASE for coins. `s` holds the category so the watchlist
+// sector column stays meaningful in crypto mode.
+// Only coins mapped in the Governor's CG_IDS can be priced — that mapping and
+// this list must stay in sync.
+const CRYPTO_DATABASE = [
+  {t:'BTC',   n:'Bitcoin',            s:'Store of Value'},
+  {t:'ETH',   n:'Ethereum',           s:'Smart Contract'},
+  {t:'SOL',   n:'Solana',             s:'Smart Contract'},
+  {t:'BNB',   n:'BNB',                s:'Exchange'},
+  {t:'XRP',   n:'XRP',                s:'Payments'},
+  {t:'ADA',   n:'Cardano',            s:'Smart Contract'},
+  {t:'AVAX',  n:'Avalanche',          s:'Smart Contract'},
+  {t:'DOGE',  n:'Dogecoin',           s:'Meme'},
+  {t:'LINK',  n:'Chainlink',          s:'Oracle'},
+  {t:'DOT',   n:'Polkadot',           s:'Interoperability'},
+  {t:'MATIC', n:'Polygon',            s:'Layer 2'},
+  {t:'LTC',   n:'Litecoin',           s:'Payments'},
+  {t:'UNI',   n:'Uniswap',            s:'DeFi'},
+  {t:'ATOM',  n:'Cosmos',             s:'Interoperability'},
+  {t:'TRX',   n:'TRON',               s:'Smart Contract'},
+  {t:'SHIB',  n:'Shiba Inu',          s:'Meme'},
+  {t:'HYPE',  n:'Hyperliquid',        s:'Perp DEX'},
+  {t:'NEAR',  n:'NEAR Protocol',      s:'Smart Contract'},
+  {t:'APT',   n:'Aptos',              s:'Smart Contract'},
+  {t:'ARB',   n:'Arbitrum',           s:'Layer 2'},
+  {t:'OP',    n:'Optimism',           s:'Layer 2'},
+  {t:'FIL',   n:'Filecoin',           s:'Storage'},
+  {t:'ICP',   n:'Internet Computer',  s:'Smart Contract'},
+  {t:'ETC',   n:'Ethereum Classic',   s:'Smart Contract'},
+  {t:'XLM',   n:'Stellar',            s:'Payments'},
+  {t:'HBAR',  n:'Hedera',             s:'Smart Contract'},
+  {t:'VET',   n:'VeChain',            s:'Supply Chain'},
+  {t:'INJ',   n:'Injective',          s:'DeFi'},
+  {t:'SUI',   n:'Sui',                s:'Smart Contract'},
+  {t:'SEI',   n:'Sei',                s:'Smart Contract'},
+  {t:'TIA',   n:'Celestia',           s:'Modular'},
+  {t:'RUNE',  n:'THORChain',          s:'DeFi'},
+  {t:'AAVE',  n:'Aave',               s:'DeFi'},
+  {t:'MKR',   n:'Maker',              s:'DeFi'},
+  {t:'LDO',   n:'Lido DAO',           s:'Liquid Staking'},
+  {t:'CRV',   n:'Curve DAO',          s:'DeFi'},
+  {t:'ALGO',  n:'Algorand',           s:'Smart Contract'},
+  {t:'FTM',   n:'Fantom',             s:'Smart Contract'},
+  {t:'SAND',  n:'The Sandbox',        s:'Gaming'},
+  {t:'MANA',  n:'Decentraland',       s:'Gaming'},
+];
+
+// Autocomplete searches whichever database matches the page's active mode.
+function getActiveTickerDatabase() {
+  try {
+    const mode = (typeof activeMode !== 'undefined' && activeMode)
+      || (typeof currentMode !== 'undefined' && currentMode)
+      || 'stock';
+    return mode === 'crypto' ? CRYPTO_DATABASE : TICKER_DATABASE;
+  } catch (e) {
+    return TICKER_DATABASE;
+  }
+}
+
 function initTickerAutocomplete(inputId, onSelect) {
   const input = document.getElementById(inputId);
   if (!input) return;
@@ -140,7 +201,7 @@ const parent = input.parentElement;
       return;
     }
 
-    const matches = TICKER_DATABASE.filter(t =>
+    const matches = getActiveTickerDatabase().filter(t =>
       t.t.startsWith(query) || t.n.toUpperCase().includes(query)
     ).slice(0, 8);
 
