@@ -62,7 +62,7 @@
         // Session is stored by the client; reload so the page boots normally
         location.reload();
       } catch (err) {
-        msg.textContent = 'Could not reach the server. Check your connection.';
+        msg.textContent = 'Sign in threw: ' + ((err && err.message) ? err.message : String(err));
         btn.disabled = false;
         btn.textContent = 'SIGN IN';
       }
@@ -92,23 +92,42 @@
     location.reload();
   };
 
-  window.aurumAuth.auth.getSession().then(({ data }) => {
-    if (data && data.session) {
-      reveal();
-    } else {
-      const show = () => { reveal(); renderLogin(''); };
-      if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', show);
-      } else {
-        show();
-      }
-    }
-  }).catch(() => {
-    const show = () => { reveal(); renderLogin('Could not verify your session.'); };
+  // localStorage is where the session lives. Some PWA and private-browsing
+  // contexts throw on access, which would break getSession() before any
+  // network call happens — so check it explicitly and report it plainly.
+  let storageOK = true;
+  let storageErr = '';
+  try {
+    localStorage.setItem('__aurum_test', '1');
+    localStorage.removeItem('__aurum_test');
+  } catch (e) {
+    storageOK = false;
+    storageErr = e && e.message ? e.message : 'blocked';
+  }
+
+  function boot(msg) {
+    const show = () => { reveal(); renderLogin(msg || ''); };
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', show);
     } else {
       show();
     }
-  });
+  }
+
+  if (!storageOK) {
+    boot('Browser storage is blocked (' + storageErr + '). A login cannot persist. '
+       + 'If this is a private/incognito window or an in-app browser, open the site in normal Chrome.');
+  } else {
+    window.aurumAuth.auth.getSession().then((res) => {
+      if (res && res.error) {
+        boot('Session check failed: ' + (res.error.message || 'unknown'));
+      } else if (res && res.data && res.data.session) {
+        reveal();
+      } else {
+        boot('');
+      }
+    }).catch((err) => {
+      boot('Session check threw: ' + ((err && err.message) ? err.message : String(err)));
+    });
+  }
 })();
