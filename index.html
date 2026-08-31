@@ -319,18 +319,22 @@
   .watchlist-header {
     padding: 1rem 1.5rem;
     border-bottom: 1px solid var(--rule);
-    font-size: 0.8rem;
-    letter-spacing: 0.3em;
+    font-size: 0.72rem;
+    letter-spacing: 0.2em;
     color: var(--gold);
     text-transform: uppercase;
-    display: flex;
-    justify-content: space-between;
+    /* grid, not flex, so headings align with the row columns beneath */
+    display: grid;
+    grid-template-columns: minmax(56px,auto) 1.4fr 1.2fr minmax(90px,auto);
+    gap: 0.9rem;
   }
+  .watchlist-header span:last-child { text-align: right; }
 
   .watchlist-row {
     padding: 1rem 1.5rem;
     display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
+    grid-template-columns: minmax(56px,auto) 1.4fr 1.2fr minmax(90px,auto);
+    gap: 0.9rem;
     align-items: center;
     border-bottom: 1px solid var(--rule);
     transition: background 0.3s;
@@ -346,6 +350,10 @@
   }
 
   .watchlist-company {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
     font-size: 0.7rem;
     color: var(--muted);
   }
@@ -353,8 +361,12 @@
   .watchlist-sector {
     font-size: 0.8rem;
     color: var(--muted);
-    letter-spacing: 0.1em;
-    text-align: right;
+    letter-spacing: 0.06em;
+    text-align: left;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
   }
 
   /* Self rating history */
@@ -459,8 +471,21 @@
     main { padding: 2rem 1.5rem; }
     header { padding: 1.5rem; flex-wrap: wrap; gap: 1rem; }
     .accuracy-grid { grid-template-columns: 1fr; }
-    .watchlist-row { grid-template-columns: 1fr 1fr; }
-    .watchlist-company { display: none; }
+    .watchlist-row {
+      grid-template-columns: minmax(48px,auto) 1fr minmax(80px,auto);
+      gap: 0.6rem;
+      padding: 0.9rem 1rem;
+    }
+    .watchlist-sector { display: none; }
+    .watchlist-header {
+      grid-template-columns: minmax(48px,auto) 1fr minmax(80px,auto);
+      gap: 0.6rem;
+      padding: 0.9rem 1rem;
+      font-size: 0.62rem;
+      letter-spacing: 0.12em;
+    }
+    .watchlist-header span:nth-child(3) { display: none; }
+    .watchlist-company { font-size: 0.72rem; }
     .rating-row { grid-template-columns: 1fr 1fr 1fr; }
   }
 .signal-breakdown {
@@ -954,7 +979,7 @@
     watchlistTickers = data.map(s => s.ticker);
 
     container.innerHTML = data.map(s => `
-      <div class="watchlist-row" style="grid-template-columns:1fr 1fr 1fr auto;">
+      <div class="watchlist-row">
         <div class="watchlist-ticker">${s.ticker}</div>
         <div class="watchlist-company">${s.company_name || '—'}</div>
         <div class="watchlist-sector">${s.sector || '—'}</div>
