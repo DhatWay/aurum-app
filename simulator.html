@@ -2535,6 +2535,8 @@ async function decideAllocations(scored, needed) {
     g.ticker + ' | ' + g.direction + ' | composite ' + g.composite_score +
     ' | SQ ' + g.signal_quality + ' | conf ' + g.confidence +
     ' | vol ' + (g.volatility_pct || '?') + '%' +
+    ' | R:R ' + (g.reward_risk || '?') +
+    ' | moves-to-target ' + (g.moves_to_target || '?') +
     ' | entry ' + g.entry_price + ' | stop ' + g.stop_loss + ' | target ' + g.target_price
   ).join('\n');
 
