@@ -21,6 +21,12 @@
   window.aurumAuth = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
   function renderLogin(message) {
+    // Defensive: every caller routes through boot() which waits for the DOM,
+    // but this must never run against a null body.
+    if (!document.body) {
+      document.addEventListener('DOMContentLoaded', () => renderLogin(message));
+      return;
+    }
     document.documentElement.style.background = '#080808';
     document.body.innerHTML =
       '<div style="position:fixed;inset:0;background:#080808;display:flex;align-items:center;justify-content:center;padding:1.5rem;z-index:9999;">' +
@@ -81,10 +87,20 @@
   style.textContent = 'body{visibility:hidden;}';
   document.head.appendChild(style);
 
+  // This script runs in <head>, so document.body does not exist yet on first
+  // execution. Touching it synchronously throws and the error surfaces as a
+  // bogus session failure. Wait for the DOM when body is not ready.
   function reveal() {
-    const s = document.getElementById('au-hide');
-    if (s) s.remove();
-    document.body.style.visibility = 'visible';
+    const doReveal = () => {
+      const s = document.getElementById('au-hide');
+      if (s) s.remove();
+      if (document.body) document.body.style.visibility = 'visible';
+    };
+    if (document.body) {
+      doReveal();
+    } else {
+      document.addEventListener('DOMContentLoaded', doReveal);
+    }
   }
 
   window.aurumSignOut = async function () {
