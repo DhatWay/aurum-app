@@ -1264,6 +1264,22 @@ async function loadHistory() {
   drawEquityCurve(allClosed);
 }
 
+// Surfaces the candidates that came closest, so the threshold can be tuned
+// from the actual distribution rather than guessed at.
+function summariseRejections(log) {
+  if (!log.length) return 'none';
+  const scored = log
+    .map(entry => {
+      const m = entry.match(/(\d+)$/);
+      return { entry, n: m ? Number(m[1]) : -1 };
+    })
+    .filter(x => x.n >= 0)
+    .sort((a, b) => b.n - a.n)
+    .slice(0, 5)
+    .map(x => x.entry);
+  return scored.length ? scored.join(', ') : log.slice(0, 3).join(', ');
+}
+
 function historyNext() { historyPage++; loadHistory(); }
 function historyPrev() { historyPage--; loadHistory(); }
 
@@ -2354,7 +2370,8 @@ const GOVERNOR_BATCH     = 3;      // concurrent Governor calls
 const WAVE_SIZE          = 12;     // candidates scored per wave
 const MAX_WAVES          = 12;     // 12 x 12 = 144 tickers, covers the full universe
 const MAX_PER_TICKER     = 1;      // one position per ticker — no duplicate fills
-const MIN_CONVICTION     = 70;     // composite must clear this to trade
+const MIN_OPPORTUNITY    = 70;     // is the trade worth taking at all — the real gate
+const MIN_DIRECTION      = 60;     // conviction needed to commit to a side (matches Governor)
 const MIN_SIGNAL_QUALITY = 60;     // data must be trustworthy enough to act on
 const AUTO_CYCLE_MS      = 300000; // 5 minutes
 
@@ -2463,17 +2480,37 @@ async function scoreAllCandidates(tickers, balance) {
 // Pre-filter on hard numbers before spending a Claude call.
 // Composite is directional conviction; signal quality is data trust.
 // Both must clear their floor, and the Governor must have committed to a side.
+// Three independent tests. Opportunity decides whether the trade is worth
+// taking; conviction only decides which way. A high-conviction move that is
+// small, late or badly priced should still be rejected.
 function passesConviction(g) {
-  const composite = Number(g.composite_score);
-  const sq        = Number(g.signal_quality);
-  const dir       = String(g.direction || 'NONE').toUpperCase();
-  if (dir !== 'LONG' && dir !== 'SHORT') return false;
-  if (!Number.isFinite(composite) || !Number.isFinite(sq))   return false;
-  if (sq < MIN_SIGNAL_QUALITY)                                return false;
-  // Conviction must be strong in EITHER direction — a composite of 22 is as
-  // tradable short as 78 is long. Only the mushy middle is rejected.
+  const opportunity = Number(g.opportunity_score);
+  const composite   = Number(g.composite_score);
+  const sq          = Number(g.signal_quality);
+  const dir         = String(g.direction || 'NONE').toUpperCase();
+
+  if (dir !== 'LONG' && dir !== 'SHORT')                    return false;
+  if (!Number.isFinite(opportunity) || !Number.isFinite(sq)) return false;
+  if (sq < MIN_SIGNAL_QUALITY)                               return false;
+
+  // Direction must be committed — symmetric, so 22 is as tradable short as 78 is long
   const conviction = composite >= 50 ? composite : (100 - composite);
-  return conviction >= MIN_CONVICTION;
+  if (conviction < MIN_DIRECTION)                            return false;
+
+  return opportunity >= MIN_OPPORTUNITY;
+}
+
+// Why a candidate was rejected, so the status line can report the real
+// distribution instead of a single unhelpful count.
+function rejectionReason(g) {
+  const dir = String(g.direction || 'NONE').toUpperCase();
+  if (dir !== 'LONG' && dir !== 'SHORT') return 'no direction';
+  const sq = Number(g.signal_quality);
+  if (!Number.isFinite(sq) || sq < MIN_SIGNAL_QUALITY) return 'data quality ' + (sq || 0);
+  const composite  = Number(g.composite_score);
+  const conviction = composite >= 50 ? composite : (100 - composite);
+  if (conviction < MIN_DIRECTION) return 'weak direction ' + composite;
+  return 'opportunity ' + Number(g.opportunity_score);
 }
 
 // One Claude call receives every qualifying brief and returns a yes/no per ticker
@@ -2486,13 +2523,16 @@ async function decideAllocations(scored, needed) {
   ).join('\n');
 
   const prompt = 'You are AURUM\'s capital allocator in ' + activeMode.toUpperCase() + ' mode.\n\n' +
-    'Every candidate below already cleared the conviction floor (composite ' + MIN_CONVICTION +
-    '+ directional, signal quality ' + MIN_SIGNAL_QUALITY + '+).\n\n' + briefs + '\n\n' +
+    'Every candidate below already cleared the floors: opportunity ' + MIN_OPPORTUNITY +
+    '+, direction ' + MIN_DIRECTION + '+, signal quality ' + MIN_SIGNAL_QUALITY + '+.\n\n' + briefs + '\n\n' +
     'Approve up to ' + needed + ' of these to trade now.\n\n' +
-    'Judge each on its own merit. Approving fewer than ' + needed + ' is correct and expected — ' +
-    'do NOT approve a weak setup simply to fill the quota. Reject anything where the ' +
-    'stop placement looks wrong for the stated volatility, or where conviction and ' +
-    'signal quality disagree.\n\n' +
+    'Opportunity is the primary judgement: is this position worth taking at all, given ' +
+    'the expected move against its volatility and the reward-to-risk of the stop and ' +
+    'target shown. Conviction only says which way. Prefer a high-opportunity setup with ' +
+    'moderate conviction over a high-conviction one with little room left to run.\n\n' +
+    'Approving fewer than ' + needed + ' is correct and expected — never approve a weak ' +
+    'setup to fill the quota. Reject anything where the stop looks wrong for the stated ' +
+    'volatility, or where the three scores contradict each other.\n\n' +
     'Return ONLY this JSON, no other text:\n' +
     '{"decisions":[{"t":"TICKER","go":true,"why":"under 10 words"}]}';
 
@@ -2600,6 +2640,7 @@ async function runAutonomousCycle(manualTrigger) {
     let rejected      = 0;
     let lowConviction = 0;
     let wave          = 0;
+    const rejectLog   = [];   // ticker + why, so thresholds can be set from evidence
 
     // Keep pulling waves of candidates until the block is full or we run dry.
     // A single wave rarely fills 10, since the allocator rejects weak signals.
@@ -2615,10 +2656,13 @@ async function runAutonomousCycle(manualTrigger) {
 
       // Hard filter before spending a Claude call
       const qualified = scored.filter(passesConviction);
-      lowConviction  += (scored.length - qualified.length);
+      scored.filter(g => !passesConviction(g)).forEach(g => {
+        rejectLog.push(g.ticker + ' ' + rejectionReason(g));
+      });
+      lowConviction += (scored.length - qualified.length);
 
       if (!qualified.length) {
-        autoLog('Wave ' + wave + ' — none of ' + scored.length + ' cleared conviction ' + MIN_CONVICTION + '. Scanning further...');
+        autoLog('Wave ' + wave + ' — none of ' + scored.length + ' cleared opportunity ' + MIN_OPPORTUNITY + '. Scanning further...');
         continue;
       }
 
@@ -2652,11 +2696,13 @@ async function runAutonomousCycle(manualTrigger) {
       autoLog('Block filled — ' + openCount + '/' + TARGET_POSITIONS + ' open. Opened ' + totalOpened + ' this cycle across ' + wave + ' wave(s).');
     } else if (!pool.length) {
       autoLog('Universe exhausted at ' + openCount + '/' + TARGET_POSITIONS + '. Opened ' + totalOpened +
-              '. ' + lowConviction + ' below conviction ' + MIN_CONVICTION + ', ' + rejected + ' rejected by Claude. ' +
-              'Not enough high-conviction setups exist right now — that is a real market read, not a failure.');
+              '. ' + lowConviction + ' below the bar, ' + rejected + ' rejected by Claude. ' +
+              'Closest misses: ' + summariseRejections(rejectLog) +
+              ' — if these cluster just under ' + MIN_OPPORTUNITY + ', lower MIN_OPPORTUNITY.');
     } else {
       autoLog('Stopped after ' + MAX_WAVES + ' waves at ' + openCount + '/' + TARGET_POSITIONS +
-              '. Opened ' + totalOpened + ', ' + lowConviction + ' below conviction, ' + rejected + ' rejected. Run again to continue.');
+              '. Opened ' + totalOpened + ', ' + lowConviction + ' below the bar, ' + rejected + ' rejected. ' +
+              'Closest misses: ' + summariseRejections(rejectLog));
     }
 
   } catch(e) {
