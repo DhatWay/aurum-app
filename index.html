@@ -937,10 +937,14 @@
   }
 
   async function loadWatchlist() {
-    const { data } = await db.from('stocks')
-      .select('*')
-      .eq('type', currentMode === 'crypto' ? 'crypto' : 'stock')
-      .order('added_at', { ascending: false });
+    // Rows added before the type column existed have type = null. A strict
+    // .eq() hides those from BOTH modes, so treat null as stock (the old
+    // default) rather than letting entries disappear.
+    let q = db.from('stocks').select('*');
+    q = currentMode === 'crypto'
+      ? q.eq('type', 'crypto')
+      : q.or('type.eq.stock,type.is.null');
+    const { data } = await q.order('added_at', { ascending: false });
     const container = document.getElementById('watchlist-container');
     if (!data || !data.length) {
       container.innerHTML = '<div class="empty-state">No ' + (currentMode === 'crypto' ? 'crypto' : 'stocks') + ' in watchlist.</div>';
