@@ -2370,18 +2370,27 @@ const GOVERNOR_BATCH     = 3;      // concurrent Governor calls
 const WAVE_SIZE          = 12;     // candidates scored per wave
 const MAX_WAVES          = 12;     // 12 x 12 = 144 tickers, covers the full universe
 const MAX_PER_TICKER     = 1;      // one position per ticker — no duplicate fills
-const MIN_OPPORTUNITY    = 70;     // is the trade worth taking at all — the real gate
-const MIN_DIRECTION      = 60;     // conviction needed to commit to a side (matches Governor)
-const MIN_SIGNAL_QUALITY = 60;     // data must be trustworthy enough to act on
+// Thresholds differ by asset class. Crypto has no earnings, insider filings or
+// analyst coverage, so its data ceiling is genuinely lower — holding it to the
+// stock bar makes every coin unreachable regardless of how good the setup is.
+const THRESHOLDS = {
+  stock:  { opportunity: 70, direction: 60, signalQuality: 60 },
+  crypto: { opportunity: 65, direction: 58, signalQuality: 45 },
+};
+function limits() {
+  return THRESHOLDS[activeMode === 'crypto' ? 'crypto' : 'stock'];
+}
 const AUTO_CYCLE_MS      = 300000; // 5 minutes
 
 // Coin universe. Must stay in sync with CG_IDS in the Governor —
 // a coin absent there cannot be priced and will be rejected.
 const CRYPTO_UNIVERSE = [
-  'BTC','ETH','SOL','BNB','XRP','AVAX','MATIC','LINK','ADA','DOT',
-  'DOGE','UNI','TRX','LTC','ATOM','SHIB','HYPE','NEAR','APT','ARB',
-  'OP','FIL','ICP','ETC','XLM','HBAR','VET','INJ','SUI','SEI',
-  'TIA','RUNE','AAVE','MKR','LDO','CRV','ALGO','FTM','SAND','MANA'
+  // Liquid majors only. Thin alts score 30-40 on data completeness and would
+  // never clear the bar, so scanning them just burns Governor calls.
+  // The full 40-coin CRYPTO_DATABASE in tickers.js remains available for
+  // manual watchlist entries.
+  'BTC','ETH','SOL','BNB','XRP','ADA','AVAX','DOGE',
+  'LINK','DOT','MATIC','LTC','UNI','ATOM','TRX'
 ];
 
 let autoModeEnabled  = false;
@@ -2484,33 +2493,40 @@ async function scoreAllCandidates(tickers, balance) {
 // taking; conviction only decides which way. A high-conviction move that is
 // small, late or badly priced should still be rejected.
 function passesConviction(g) {
-  const opportunity = Number(g.opportunity_score);
+  const L           = limits();
   const composite   = Number(g.composite_score);
   const sq          = Number(g.signal_quality);
   const dir         = String(g.direction || 'NONE').toUpperCase();
+  // Older Governor responses have no opportunity field — derive it from
+  // conviction distance from 50 so a stale deploy still behaves sanely.
+  const opportunity = Number.isFinite(Number(g.opportunity_score))
+    ? Number(g.opportunity_score)
+    : (Number.isFinite(composite) ? Math.abs(composite - 50) * 2 : 0);
 
-  if (dir !== 'LONG' && dir !== 'SHORT')                    return false;
-  if (!Number.isFinite(opportunity) || !Number.isFinite(sq)) return false;
-  if (sq < MIN_SIGNAL_QUALITY)                               return false;
+  if (dir !== 'LONG' && dir !== 'SHORT')                      return false;
+  if (!Number.isFinite(opportunity) || !Number.isFinite(sq))  return false;
+  if (sq < L.signalQuality)                                   return false;
 
-  // Direction must be committed — symmetric, so 22 is as tradable short as 78 is long
+  // Symmetric — 22 is as tradable short as 78 is long
   const conviction = composite >= 50 ? composite : (100 - composite);
-  if (conviction < MIN_DIRECTION)                            return false;
+  if (conviction < L.direction)                               return false;
 
-  return opportunity >= MIN_OPPORTUNITY;
+  return opportunity >= L.opportunity;
 }
 
 // Why a candidate was rejected, so the status line can report the real
 // distribution instead of a single unhelpful count.
 function rejectionReason(g) {
+  const L = limits();
   const dir = String(g.direction || 'NONE').toUpperCase();
   if (dir !== 'LONG' && dir !== 'SHORT') return 'no direction';
   const sq = Number(g.signal_quality);
-  if (!Number.isFinite(sq) || sq < MIN_SIGNAL_QUALITY) return 'data quality ' + (sq || 0);
+  if (!Number.isFinite(sq) || sq < L.signalQuality) return 'data quality ' + (sq || 0);
   const composite  = Number(g.composite_score);
   const conviction = composite >= 50 ? composite : (100 - composite);
-  if (conviction < MIN_DIRECTION) return 'weak direction ' + composite;
-  return 'opportunity ' + Number(g.opportunity_score);
+  if (conviction < L.direction) return 'weak direction ' + composite;
+  const op = Number(g.opportunity_score);
+  return 'opportunity ' + (Number.isFinite(op) ? op : 'missing');
 }
 
 // One Claude call receives every qualifying brief and returns a yes/no per ticker
@@ -2523,8 +2539,8 @@ async function decideAllocations(scored, needed) {
   ).join('\n');
 
   const prompt = 'You are AURUM\'s capital allocator in ' + activeMode.toUpperCase() + ' mode.\n\n' +
-    'Every candidate below already cleared the floors: opportunity ' + MIN_OPPORTUNITY +
-    '+, direction ' + MIN_DIRECTION + '+, signal quality ' + MIN_SIGNAL_QUALITY + '+.\n\n' + briefs + '\n\n' +
+    'Every candidate below already cleared the ' + activeMode + ' floors: opportunity ' + limits().opportunity +
+    '+, direction ' + limits().direction + '+, signal quality ' + limits().signalQuality + '+.\n\n' + briefs + '\n\n' +
     'Approve up to ' + needed + ' of these to trade now.\n\n' +
     'Opportunity is the primary judgement: is this position worth taking at all, given ' +
     'the expected move against its volatility and the reward-to-risk of the stop and ' +
@@ -2662,7 +2678,7 @@ async function runAutonomousCycle(manualTrigger) {
       lowConviction += (scored.length - qualified.length);
 
       if (!qualified.length) {
-        autoLog('Wave ' + wave + ' — none of ' + scored.length + ' cleared opportunity ' + MIN_OPPORTUNITY + '. Scanning further...');
+        autoLog('Wave ' + wave + ' — none of ' + scored.length + ' cleared opportunity ' + limits().opportunity + '. Scanning further...');
         continue;
       }
 
@@ -2698,7 +2714,7 @@ async function runAutonomousCycle(manualTrigger) {
       autoLog('Universe exhausted at ' + openCount + '/' + TARGET_POSITIONS + '. Opened ' + totalOpened +
               '. ' + lowConviction + ' below the bar, ' + rejected + ' rejected by Claude. ' +
               'Closest misses: ' + summariseRejections(rejectLog) +
-              ' — if these cluster just under ' + MIN_OPPORTUNITY + ', lower MIN_OPPORTUNITY.');
+              ' — if these cluster just under ' + limits().opportunity + ', lower it in THRESHOLDS.' + activeMode + '.');
     } else {
       autoLog('Stopped after ' + MAX_WAVES + ' waves at ' + openCount + '/' + TARGET_POSITIONS +
               '. Opened ' + totalOpened + ', ' + lowConviction + ' below the bar, ' + rejected + ' rejected. ' +
