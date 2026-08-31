@@ -1,6 +1,5 @@
-const CACHE_NAME = 'aurum-v2';
+const CACHE_NAME = 'aurum-v1';
 const STATIC_ASSETS = [
-  '/aurum-app/auth-guard.js',
   '/aurum-app/tickers.js',
   '/aurum-app/manifest.json',
   '/aurum-app/icon-192.png',
@@ -53,9 +52,12 @@ self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
   const isLocal = url.origin === self.location.origin;
   const isHTML  = /\.(html)$/.test(url.pathname) || url.pathname.endsWith('/aurum-app/') || url.pathname === '/aurum-app/';
-  const isStatic = /\.(js|json|png|ico|webmanifest)$/.test(url.pathname);
+  // auth-guard.js is deliberately NOT cache-first. Caching it means a broken
+  // copy can never be replaced, which locks you out of your own app.
+  const isAuthGuard = url.pathname.endsWith('auth-guard.js');
+  const isStatic = !isAuthGuard && /\.(js|json|png|ico|webmanifest)$/.test(url.pathname);
 
-  if (isLocal && isHTML) {
+  if (isLocal && (isHTML || isAuthGuard)) {
     // Network-first for HTML — always get latest version
     event.respondWith(
       fetch(event.request)
