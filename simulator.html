@@ -8,13 +8,7 @@
 <meta name="theme-color" content="#C9A84C">
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;600&family=DM+Sans:wght@300;400;500&family=IBM+Plex+Mono:wght@300;400&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script>
-// Fallback if jsDelivr is blocked or slow. Loaded synchronously so it is
-// available before the main script runs.
-if (typeof supabase === 'undefined') {
-  document.write('<script src="https://unpkg.com/@supabase/supabase-js@2"><\/script>');
-}
-</script>
+<script src="auth-guard.js"></script>
 <style>
 :root {
   --black: #080808;
@@ -996,32 +990,8 @@ footer p { font-size: 0.6rem; letter-spacing: 0.12em; color: var(--muted); text-
 <script>
 const SUPABASE_URL = 'https://zpcbbwynvvyldavxzjng.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_K80lcfk8LsQNqo5enznRRA_lrzf2U9K';
-// The Supabase client comes from the CDN tag in <head>. If that request fails —
-// blocked, offline, or a stale service-worker entry — `supabase` is undefined
-// and destructuring it here throws, killing every line below it: no data loads
-// and click handlers silently do nothing. Guard it and say so on screen.
-let db = null;
-(function initSupabase() {
-  try {
-    if (typeof supabase === 'undefined' || !supabase.createClient) {
-      throw new Error('Supabase library did not load from the CDN.');
-    }
-    db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-  } catch (e) {
-    document.addEventListener('DOMContentLoaded', showConnectionError);
-    if (document.readyState !== 'loading') showConnectionError();
-  }
-  function showConnectionError() {
-    if (document.getElementById('aurum-conn-error')) return;
-    const bar = document.createElement('div');
-    bar.id = 'aurum-conn-error';
-    bar.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:3000;background:#2a0f0f;border-bottom:1px solid rgba(139,58,58,0.6);color:#E8C9C9;font-family:monospace;font-size:0.72rem;padding:0.7rem 1rem;line-height:1.5;';
-    bar.innerHTML = 'DATABASE NOT CONNECTED — the Supabase library failed to load, so no data can display. '
-      + 'Usually a network block or a stale cached copy. '
-      + '<button onclick="location.reload(true)" style="background:transparent;border:1px solid rgba(232,201,201,0.5);color:#E8C9C9;padding:0.2rem 0.6rem;margin-left:0.5rem;cursor:pointer;font-family:monospace;font-size:0.7rem;">RELOAD</button>';
-    document.body.appendChild(bar);
-  }
-})();
+const { createClient } = supabase;
+const db = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 let activeMode = 'stock';
 
@@ -2721,17 +2691,12 @@ if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('/aurum-app/sw.js').catch(() => {});
 }
 
-// Only boot the page if the database client actually exists. Without this,
-// a failed CDN load produces a cascade of confusing console errors on top of
-// the real problem, which is already shown in the banner.
-if (db) {
-  loadActiveMode();
-  loadActiveStrategy();
-  loadPortfolio();
-  loadTrades();
-  loadHistory();
-  loadPositionAlerts();
-}
+loadActiveMode();
+loadActiveStrategy();
+loadPortfolio();
+loadTrades();
+loadHistory();
+loadPositionAlerts();
 </script>
 
 <script src="tickers.js"></script>
