@@ -714,8 +714,8 @@
         .filter(Boolean))].sort();
 
       const { data: existing } = await db.from('monthly_reports')
-        .select('month').eq('mode', modeType);
-      const archived = new Set((existing || []).map(r => r.month));
+        .select('report_month').eq('mode', modeType);
+      const archived = new Set((existing || []).map(r => r.report_month));
 
       const thisMonth = new Date().toISOString().slice(0, 7);
       const saved = currentMonth;
@@ -749,38 +749,61 @@
     const wins     = closed.filter(t => Number(t.gain_loss) > 0);
     const realized = closed.reduce((a, t) => a + Number(t.gain_loss || 0), 0);
 
+    // Mapped to the ACTUAL monthly_reports schema: report_month (not month),
+    // winning_trades (not wins), generated_at (not archived_at). Detail that
+    // has no dedicated column goes into report_data, which the table already
+    // provides as JSONB.
+    // reportData has no startingBalance — read the real one so the archived
+    // return percentage is not computed against a hardcoded guess.
+    let startBal = 10000;
+    try {
+      const { data: pf } = await db.from('paper_portfolio').select('starting_balance').limit(1);
+      if (pf && pf.length && Number(pf[0].starting_balance) > 0) startBal = Number(pf[0].starting_balance);
+    } catch (e) {}
+    const endBal   = startBal + realized;
+
+    const sorted   = closed.slice().sort((a, b) => Number(b.gain_loss || 0) - Number(a.gain_loss || 0));
+    const bestPick  = sorted.length ? sorted[0].ticker : null;
+    const worstPick = sorted.length ? sorted[sorted.length - 1].ticker : null;
+
     const snapshot = {
-      month:          currentMonth,
-      mode:           modeType,
-      total_picks:    (reportData.picks || []).length,
-      total_trades:   (reportData.trades || []).length,
-      closed_trades:  closed.length,
-      wins:           wins.length,
-      win_rate:       closed.length ? Math.round(wins.length / closed.length * 100) : 0,
-      realized_pl:    Math.round(realized * 100) / 100,
-      commission:     Math.round(closed.reduce((a,t)=>a+Number(t.commission||0),0) * 100) / 100,
-      slippage:       Math.round(closed.reduce((a,t)=>a+Number(t.slippage_cost||0),0) * 100) / 100,
-      tickers:        [...new Set((reportData.trades||[]).map(t => t.ticker))].join(', '),
-      archived_at:    new Date().toISOString(),
-      // Full trade detail, not just the rollup. Without this the archive
-      // cannot reconstruct a month once paper_trades is cleared.
-      trades_json:    (reportData.trades || []).map(t => ({
-        ticker: t.ticker, direction: t.direction, status: t.status,
-        shares: t.shares, entry: t.effective_entry || t.entry_price,
-        exit: t.status === 'closed' ? t.current_price : null,
-        stop: t.stop_loss, target: t.target_price,
-        gain_loss: t.gain_loss, gain_loss_pct: t.gain_loss_pct,
-        commission: t.commission, slippage: t.slippage_cost,
-        entry_sq: t.entry_signal_quality, close_sq: t.close_signal_quality,
-        close_reason: t.close_reason, note: t.note,
-        opened_at: t.opened_at, closed_at: t.closed_at,
-      })),
-      open_at_archive: (reportData.trades || []).filter(t => t.status === 'open').length,
+      report_month:         currentMonth,
+      mode:                 modeType,
+      total_picks:          (reportData.picks || []).length,
+      total_trades:         (reportData.trades || []).length,
+      winning_trades:       wins.length,
+      accuracy_pct:         closed.length ? Math.round(wins.length / closed.length * 100) : 0,
+      best_pick:            bestPick,
+      worst_pick:           worstPick,
+      sim_starting_balance: Math.round(startBal * 100) / 100,
+      sim_ending_balance:   Math.round(endBal * 100) / 100,
+      sim_return_pct:       startBal ? Math.round((realized / startBal) * 100 * 100) / 100 : 0,
+      generated_at:         new Date().toISOString(),
+      report_data: {
+        closed_trades:   closed.length,
+        open_at_archive: (reportData.trades || []).filter(t => t.status === 'open').length,
+        realized_pl:     Math.round(realized * 100) / 100,
+        commission:      Math.round(closed.reduce((a,t)=>a+Number(t.commission||0),0) * 100) / 100,
+        slippage:        Math.round(closed.reduce((a,t)=>a+Number(t.slippage_cost||0),0) * 100) / 100,
+        tickers:         [...new Set((reportData.trades||[]).map(t => t.ticker))],
+        // Full detail so a month can be reconstructed after paper_trades is cleared
+        trades: (reportData.trades || []).map(t => ({
+          ticker: t.ticker, direction: t.direction, status: t.status,
+          shares: t.shares, entry: t.effective_entry || t.entry_price,
+          exit: t.status === 'closed' ? t.current_price : null,
+          stop: t.stop_loss, target: t.target_price,
+          gain_loss: t.gain_loss, gain_loss_pct: t.gain_loss_pct,
+          commission: t.commission, slippage: t.slippage_cost,
+          entry_sq: t.entry_signal_quality, close_sq: t.close_signal_quality,
+          close_reason: t.close_reason, note: t.note,
+          opened_at: t.opened_at, closed_at: t.closed_at,
+        })),
+      },
     };
 
     try {
       // Replace any existing snapshot for this month+mode rather than duplicating
-      await db.from('monthly_reports').delete().eq('month', currentMonth).eq('mode', modeType);
+      await db.from('monthly_reports').delete().eq('report_month', currentMonth).eq('mode', modeType);
       const { error } = await db.from('monthly_reports').insert(snapshot);
       if (error) throw error;
       say('Archived ' + currentMonth + ' (' + modeType + '): ' +
