@@ -2373,9 +2373,10 @@ const MAX_PER_TICKER     = 1;      // one position per ticker — no duplicate f
 // Thresholds differ by asset class. Crypto has no earnings, insider filings or
 // analyst coverage, so its data ceiling is genuinely lower — holding it to the
 // stock bar makes every coin unreachable regardless of how good the setup is.
+const BUILD = 'b64-crypto50';
 const THRESHOLDS = {
   stock:  { opportunity: 70, direction: 60, signalQuality: 60 },
-  crypto: { opportunity: 65, direction: 58, signalQuality: 45 },
+  crypto: { opportunity: 50, direction: 55, signalQuality: 45 },
 };
 function limits() {
   return THRESHOLDS[activeMode === 'crypto' ? 'crypto' : 'stock'];
