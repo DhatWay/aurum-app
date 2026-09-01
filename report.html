@@ -357,7 +357,9 @@
         <span>Export this month's full performance report as a PDF.</span>
       </div>
       <button class="btn-download" id="download-btn" onclick="downloadPDF()">Download PDF</button>
+      <button class="btn-download" id="archive-btn" onclick="archiveMonth()" style="margin-left:0.6rem;">Archive Month</button>
     </div>
+    <div id="archive-status" style="font-size:0.7rem;color:var(--muted);font-family:'IBM Plex Mono',monospace;margin:-1.5rem 0 2rem 0;"></div>
 
     <div class="section-label">Intelligence Performance</div>
     <div class="stats-grid">
@@ -463,12 +465,12 @@
 
     try {
       const { data: picks } = await db.from('picks').select('picked_at').eq('type', modeType);
-      picks?.forEach(p => months.add(p.picked_at.slice(0, 7)));
+      picks?.forEach(p => { if (p.picked_at) months.add(String(p.picked_at).slice(0, 7)); });
     } catch(e) {}
 
     try {
       const { data: trades } = await db.from('paper_trades').select('opened_at').eq('type', modeType);
-      trades?.forEach(t => months.add(t.opened_at.slice(0, 7)));
+      trades?.forEach(t => { if (t.opened_at) months.add(String(t.opened_at).slice(0, 7)); });
     } catch(e) {}
 
     const sortedMonths = [...months].sort().reverse();
@@ -497,7 +499,9 @@
     document.getElementById('report-tab-crypto').style.borderBottomColor = mode === 'crypto' ? 'var(--gold)' : 'transparent';
     document.getElementById('report-tab-stock').style.color  = mode === 'stock'  ? 'var(--gold)' : 'var(--muted)';
     document.getElementById('report-tab-crypto').style.color = mode === 'crypto' ? 'var(--gold)' : 'var(--muted)';
-    if (currentMonth) loadReport(currentMonth);
+    // Rebuild the month list — stocks and crypto have different active months,
+    // and reusing the old list can select a month with no data in this mode.
+    loadMonths();
   }
 
   async function loadDEXLog(start, end) {
@@ -541,7 +545,14 @@
 
   async function loadReport(month) {
     const start = month + '-01';
-    const end = new Date(new Date(start).getFullYear(), new Date(start).getMonth() + 1, 1).toISOString().split('T')[0];
+    // Build the end boundary from the month string directly. Constructing a
+    // Date from 'YYYY-MM-01' parses as UTC but getFullYear/getMonth read local,
+    // which shifts the boundary a day in negative-offset timezones and drops
+    // trades made on the 1st or the last day of the month.
+    const [yy, mm] = month.split('-').map(Number);
+    const endYear  = mm === 12 ? yy + 1 : yy;
+    const endMonth = mm === 12 ? 1 : mm + 1;
+    const end = endYear + '-' + String(endMonth).padStart(2, '0') + '-01';
     const modeType = activeMode === 'crypto' ? 'crypto' : 'stock';
 
     let picks = [], ratings = [], trades = [];
@@ -686,6 +697,102 @@
     await loadDEXLog(start, end);
   }
 
+  // Saves a snapshot of the month into monthly_reports. Without this, deleting
+  // or resetting trades erases the record of how a month actually performed.
+  // Archives every month that has data but no snapshot yet. Runs on load so
+  // months are preserved without needing to remember the button. The current
+  // month is re-archived each time so it stays current as trades close.
+  async function autoArchiveAll() {
+    try {
+      const modeType = activeMode === 'crypto' ? 'crypto' : 'stock';
+      const { data: trades } = await db.from('paper_trades')
+        .select('opened_at').eq('type', modeType);
+      if (!trades || !trades.length) return;
+
+      const months = [...new Set(trades
+        .map(t => t.opened_at ? String(t.opened_at).slice(0, 7) : null)
+        .filter(Boolean))].sort();
+
+      const { data: existing } = await db.from('monthly_reports')
+        .select('month').eq('mode', modeType);
+      const archived = new Set((existing || []).map(r => r.month));
+
+      const thisMonth = new Date().toISOString().slice(0, 7);
+      const saved = currentMonth;
+
+      for (const m of months) {
+        // Skip completed months already archived; always refresh the live one
+        if (archived.has(m) && m !== thisMonth) continue;
+        currentMonth = m;
+        await loadReport(m);
+        await archiveMonth(true);
+      }
+
+      if (saved) { currentMonth = saved; await loadReport(saved); }
+    } catch (e) {
+      console.warn('Auto-archive skipped:', e && e.message);
+    }
+  }
+
+  async function archiveMonth(silent) {
+    const btn = document.getElementById('archive-btn');
+    const status = document.getElementById('archive-status');
+    const say = (msg) => { if (!silent && status) status.textContent = msg; };
+    if (!currentMonth || !reportData.trades) {
+      say('Nothing to archive yet.');
+      return;
+    }
+    if (!silent && btn) { btn.disabled = true; btn.textContent = 'Archiving...'; }
+
+    const modeType = activeMode === 'crypto' ? 'crypto' : 'stock';
+    const closed   = (reportData.trades || []).filter(t => t.status === 'closed');
+    const wins     = closed.filter(t => Number(t.gain_loss) > 0);
+    const realized = closed.reduce((a, t) => a + Number(t.gain_loss || 0), 0);
+
+    const snapshot = {
+      month:          currentMonth,
+      mode:           modeType,
+      total_picks:    (reportData.picks || []).length,
+      total_trades:   (reportData.trades || []).length,
+      closed_trades:  closed.length,
+      wins:           wins.length,
+      win_rate:       closed.length ? Math.round(wins.length / closed.length * 100) : 0,
+      realized_pl:    Math.round(realized * 100) / 100,
+      commission:     Math.round(closed.reduce((a,t)=>a+Number(t.commission||0),0) * 100) / 100,
+      slippage:       Math.round(closed.reduce((a,t)=>a+Number(t.slippage_cost||0),0) * 100) / 100,
+      tickers:        [...new Set((reportData.trades||[]).map(t => t.ticker))].join(', '),
+      archived_at:    new Date().toISOString(),
+      // Full trade detail, not just the rollup. Without this the archive
+      // cannot reconstruct a month once paper_trades is cleared.
+      trades_json:    (reportData.trades || []).map(t => ({
+        ticker: t.ticker, direction: t.direction, status: t.status,
+        shares: t.shares, entry: t.effective_entry || t.entry_price,
+        exit: t.status === 'closed' ? t.current_price : null,
+        stop: t.stop_loss, target: t.target_price,
+        gain_loss: t.gain_loss, gain_loss_pct: t.gain_loss_pct,
+        commission: t.commission, slippage: t.slippage_cost,
+        entry_sq: t.entry_signal_quality, close_sq: t.close_signal_quality,
+        close_reason: t.close_reason, note: t.note,
+        opened_at: t.opened_at, closed_at: t.closed_at,
+      })),
+      open_at_archive: (reportData.trades || []).filter(t => t.status === 'open').length,
+    };
+
+    try {
+      // Replace any existing snapshot for this month+mode rather than duplicating
+      await db.from('monthly_reports').delete().eq('month', currentMonth).eq('mode', modeType);
+      const { error } = await db.from('monthly_reports').insert(snapshot);
+      if (error) throw error;
+      say('Archived ' + currentMonth + ' (' + modeType + '): ' +
+        snapshot.closed_trades + ' closed, ' + snapshot.win_rate + '% win rate, $' +
+        snapshot.realized_pl.toFixed(2) + ' realized.');
+    } catch(e) {
+      say('Archive failed: ' + (e?.message || 'unknown') +
+        ' — check the monthly_reports table exists.');
+    }
+    if (!silent && btn) { btn.disabled = false; btn.textContent = 'Archive Month'; }
+  }
+
   async function downloadPDF() {
     const btn = document.getElementById('download-btn');
     btn.disabled = true;
@@ -776,7 +883,12 @@
     navigator.serviceWorker.register('/aurum-app/sw.js');
   }
 
-  loadActiveMode().then(() => loadMonths());
+  // Load the page first, then archive in the background so the user is never
+  // waiting on it. Every month with data gets a snapshot; the current month is
+  // refreshed each visit so it stays accurate as positions close.
+  loadActiveMode()
+    .then(() => loadMonths())
+    .then(() => autoArchiveAll());
 </script>
 
 </body>
