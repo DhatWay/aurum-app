@@ -418,6 +418,12 @@
     <div id="switches-container"></div>
 
     <div class="gold-rule"></div>
+    <div class="section-label">Price Integrity Check</div>
+    <div class="page-sub" style="margin-bottom:1rem;">Recorded position prices verified against live API sources. Confirms whether what the system stored matches what the market actually did, or whether it drifted.</div>
+    <button onclick="runIntegrityCheck()" id="integrity-btn" style="background:transparent;border:1px solid rgba(201,168,76,0.4);color:var(--gold);font-family:'DM Sans',sans-serif;font-size:0.72rem;letter-spacing:0.15em;padding:0.6rem 1.2rem;cursor:pointer;margin-bottom:1rem;">RUN CHECK</button>
+    <div id="integrity-container"></div>
+
+    <div class="gold-rule"></div>
     <div class="section-label">DEX Execution Log</div>
     <div class="page-sub" style="margin-bottom:1.5rem;">Crypto trades opened via DEX — both paper simulation and live executions.</div>
     <div id="dex-log-container"></div>
@@ -702,6 +708,113 @@
   // Archives every month that has data but no snapshot yet. Runs on load so
   // months are preserved without needing to remember the button. The current
   // month is re-archived each time so it stays current as trades close.
+  // ── PRICE INTEGRITY CHECK ──
+  // Re-fetches each position's price from the same API the Governor used and
+  // compares it against what the system recorded. Answers whether the data
+  // stayed aligned end to end or slipped somewhere between fetch and storage.
+  const INTEGRITY_CG = {
+    BTC:'bitcoin', ETH:'ethereum', SOL:'solana', BNB:'binancecoin', XRP:'ripple',
+    ADA:'cardano', AVAX:'avalanche-2', DOGE:'dogecoin', LINK:'chainlink',
+    DOT:'polkadot', MATIC:'matic-network', LTC:'litecoin', UNI:'uniswap',
+    ATOM:'cosmos', TRX:'tron', SHIB:'shiba-inu', HYPE:'hyperliquid',
+  };
+  const INTEGRITY_FINNHUB = 'd8ipl11r01qtcvnt331gd8ipl11r01qtcvnt3320';
+
+  async function runIntegrityCheck() {
+    const btn = document.getElementById('integrity-btn');
+    const box = document.getElementById('integrity-container');
+    if (!box) return;
+    btn.disabled = true; btn.textContent = 'CHECKING...';
+    box.innerHTML = '<div class="empty-state">Fetching live prices...</div>';
+
+    try {
+      const { data: trades } = await db.from('paper_trades')
+        .select('ticker, type, direction, status, entry_price, effective_entry, current_price, opened_at')
+        .order('opened_at', { ascending: false })
+        .limit(40);
+
+      if (!trades || !trades.length) {
+        box.innerHTML = '<div class="empty-state">No positions to verify.</div>';
+        return;
+      }
+
+      const crypto = [...new Set(trades.filter(t => t.type === 'crypto').map(t => t.ticker.toUpperCase()))];
+      const stocks = [...new Set(trades.filter(t => t.type !== 'crypto').map(t => t.ticker.toUpperCase()))];
+      const live = {};
+
+      // Crypto — CoinGecko, the same source the Governor prices from
+      const ids = crypto.map(t => INTEGRITY_CG[t]).filter(Boolean);
+      if (ids.length) {
+        try {
+          const r = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=' + ids.join(',') + '&vs_currencies=usd');
+          if (r.ok) {
+            const d = await r.json();
+            crypto.forEach(t => { const id = INTEGRITY_CG[t]; if (d[id]) live[t] = d[id].usd; });
+          }
+        } catch(e) {}
+      }
+
+      // Stocks — Finnhub, matching the watchlist feed
+      await Promise.all(stocks.map(async t => {
+        try {
+          const r = await fetch('https://finnhub.io/api/v1/quote?symbol=' + t + '&token=' + INTEGRITY_FINNHUB);
+          if (!r.ok) return;
+          const q = await r.json();
+          if (q && q.c) live[t] = q.c;
+        } catch(e) {}
+      }));
+
+      let aligned = 0, drifted = 0, unverified = 0;
+
+      const rows = trades.map(t => {
+        const tk = t.ticker.toUpperCase();
+        const recorded = Number(t.current_price);
+        const actual = live[tk];
+
+        if (actual === undefined || !recorded) {
+          unverified++;
+          return '<div class="picks-table-row"><div class="row-ticker">' + t.ticker + '</div>' +
+                 '<div style="font-size:0.78rem;color:var(--muted)">' + (recorded ? '$' + recorded.toFixed(4) : '—') + '</div>' +
+                 '<div style="font-size:0.78rem;color:var(--muted)">unavailable</div>' +
+                 '<div style="font-size:0.78rem;color:var(--muted)">—</div>' +
+                 '<div><span class="outcome-badge pending">UNVERIFIED</span></div></div>';
+        }
+
+        const driftPct = ((actual - recorded) / recorded) * 100;
+        const absDrift = Math.abs(driftPct);
+        // Open positions revalue with the market, so only flag large gaps.
+        // Closed trades are snapshots and will legitimately differ.
+        const tolerance = t.status === 'open' ? 5 : 100;
+        const ok = absDrift <= tolerance;
+        if (ok) aligned++; else drifted++;
+
+        return '<div class="picks-table-row">' +
+          '<div class="row-ticker">' + t.ticker + '</div>' +
+          '<div style="font-size:0.78rem;color:var(--muted)">$' + recorded.toFixed(recorded < 1 ? 6 : 2) + '</div>' +
+          '<div style="font-size:0.78rem;color:var(--muted)">$' + Number(actual).toFixed(actual < 1 ? 6 : 2) + '</div>' +
+          '<div class="row-return ' + (absDrift < 1 ? 'positive' : 'negative') + '">' +
+            (driftPct >= 0 ? '+' : '') + driftPct.toFixed(2) + '%</div>' +
+          '<div><span class="outcome-badge ' + (ok ? 'win' : 'loss') + '">' +
+            (ok ? 'ALIGNED' : 'DRIFT') + '</span></div></div>';
+      }).join('');
+
+      box.innerHTML =
+        '<div style="font-size:0.75rem;color:var(--muted);margin-bottom:0.8rem;font-family:\'IBM Plex Mono\',monospace;">' +
+          aligned + ' aligned · ' + drifted + ' drifted · ' + unverified + ' unverified' +
+          ' — open positions tolerate 5% (they revalue live); closed trades are historical snapshots.' +
+        '</div>' +
+        '<div class="picks-table">' +
+          '<div class="picks-table-header"><span>Ticker</span><span>Recorded</span><span>Live API</span><span>Drift</span><span>Status</span></div>' +
+          rows +
+        '</div>';
+
+    } catch(e) {
+      box.innerHTML = '<div class="empty-state">Check failed: ' + (e?.message || 'unknown') + '</div>';
+    } finally {
+      btn.disabled = false; btn.textContent = 'RUN CHECK';
+    }
+  }
+
   async function autoArchiveAll() {
     try {
       const modeType = activeMode === 'crypto' ? 'crypto' : 'stock';
