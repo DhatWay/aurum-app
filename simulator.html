@@ -1712,7 +1712,7 @@ async function getClaudeSuggestion() {
       jsonExample = `{
   "ticker": "ETH",
   "direction": "long",
-  "reasoning": "2-3 sentence rationale citing specific algorithm scores and signals from the Governor brief",
+  "reasoning": "2-3 sentences on WHY, citing algorithm names and signal direction. Contains NO prices, NO dollar figures, NO quantities — the system inserts those",
   "entry_price": 3250.00,
   "stop_loss": 3050.00,
   "target_price": 3650.00,
@@ -1738,7 +1738,10 @@ Instructions:
 - Confidence: "High", "Medium", or "Low".
 - orchestrator_score: composite_score.
 - algo_signals: top 3 algorithms from Governor's top_bullish_signals/top_bearish_signals.
-- Include dex, pair, execution_note.
+- Include dex and pair only. Do NOT write execution_note — the system builds it.
+- reasoning: explain WHY using algorithm names and signal direction. Write NO prices,
+  NO dollar figures and NO quantities in the reasoning. Numbers are inserted by the
+  system and any you write will contradict them.
 
 Return ONLY this JSON:
 ${jsonExample}`;
@@ -1746,7 +1749,7 @@ ${jsonExample}`;
       jsonExample = `{
   "ticker": "NVDA",
   "direction": "long",
-  "reasoning": "2-3 sentence rationale citing specific algorithm scores and signals from the Governor brief",
+  "reasoning": "2-3 sentences on WHY, citing algorithm names and signal direction. Contains NO prices, NO dollar figures, NO quantities — the system inserts those",
   "entry_price": 875.50,
   "stop_loss": 850.00,
   "target_price": 920.00,
@@ -1846,6 +1849,35 @@ ${jsonExample}`;
     }
 
     // Flag whether this actually clears the bar, so the UI can refuse to apply it.
+    // Execution note is ASSEMBLED, not requested. Claude previously typed the
+    // numbers into this sentence and got them wrong ($15.53 for a $1.37 asset).
+    // A template filled from the same variables the fields use cannot disagree
+    // with them.
+    (function buildExecutionNote() {
+      const t  = claudeSuggestion.ticker || (gov && gov.ticker) || '';
+      const d  = String(claudeSuggestion.direction || '').toLowerCase();
+      const e  = Number(claudeSuggestion.entry_price);
+      const sl = Number(claudeSuggestion.stop_loss);
+      const tp = Number(claudeSuggestion.target_price);
+      const qty = claudeSuggestion.shares;
+
+      if (!e || !['long','short'].includes(d)) {
+        claudeSuggestion.execution_note = 'No trade — signal did not clear the threshold.';
+        return;
+      }
+      const fmt = (n) => n >= 1000 ? n.toLocaleString('en-US', {maximumFractionDigits:2})
+                                   : Number(n).toFixed(n < 1 ? 4 : 2);
+      const verb  = d === 'long' ? 'Buy' : 'Short';
+      const venue = activeMode === 'crypto'
+        ? ' on ' + (claudeSuggestion.dex || 'a DEX') +
+          (claudeSuggestion.pair ? ' (' + claudeSuggestion.pair + ')' : '')
+        : '';
+      claudeSuggestion.execution_note =
+        verb + ' ' + (qty || '') + ' ' + t + venue + ' at $' + fmt(e) +
+        '. Stop $' + (sl ? fmt(sl) : 'n/a') +
+        ', target $' + (tp ? fmt(tp) : 'n/a') + '.';
+    })();
+
     claudeSuggestion._tradeable = gov ? passesConviction(gov) : false;
     claudeSuggestion._rejectReason = (gov && !claudeSuggestion._tradeable)
       ? rejectionReason(gov) : null;
@@ -2456,7 +2488,7 @@ const MAX_PER_TICKER     = 1;      // one position per ticker — no duplicate f
 // Thresholds differ by asset class. Crypto has no earnings, insider filings or
 // analyst coverage, so its data ceiling is genuinely lower — holding it to the
 // stock bar makes every coin unreachable regardless of how good the setup is.
-const BUILD = 'b68-governor-authoritative';
+const BUILD = 'b69-no-model-numbers';
 const MAX_POSITION_PCT = 15;   // hard ceiling per position, as % of balance
 
 const THRESHOLDS = {
