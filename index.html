@@ -807,10 +807,27 @@
     return prices;
   }
 
+  // CoinGecko ID map — free, keyless public API. Must stay in sync with CG_IDS
+  // in the Governor: a coin absent here shows no price on the watchlist.
+  const COINGECKO_IDS = {
+    BTC:'bitcoin', ETH:'ethereum', SOL:'solana', BNB:'binancecoin',
+    XRP:'ripple', ADA:'cardano', AVAX:'avalanche-2', DOGE:'dogecoin',
+    LINK:'chainlink', DOT:'polkadot', MATIC:'matic-network', LTC:'litecoin',
+    UNI:'uniswap', ATOM:'cosmos', TRX:'tron', SHIB:'shiba-inu',
+    HYPE:'hyperliquid', NEAR:'near', APT:'aptos', ARB:'arbitrum',
+    OP:'optimism', FIL:'filecoin', ICP:'internet-computer', ETC:'ethereum-classic',
+    XLM:'stellar', HBAR:'hedera-hashgraph', VET:'vechain', INJ:'injective-protocol',
+    SUI:'sui', SEI:'sei-network', TIA:'celestia', RUNE:'thorchain',
+    AAVE:'aave', MKR:'maker', LDO:'lido-dao', CRV:'curve-dao-token',
+    ALGO:'algorand', FTM:'fantom', SAND:'the-sandbox', MANA:'decentraland',
+  };
+
     async function fetchCryptoPrices(tickers) {
     if (!tickers || !tickers.length) return {};
     try {
       const mappedTickers = tickers.filter(t => COINGECKO_IDS[t.toUpperCase()]);
+      const unmapped = tickers.filter(t => !COINGECKO_IDS[t.toUpperCase()]);
+      if (unmapped.length) console.warn('No CoinGecko ID for:', unmapped.join(', '));
       const ids = mappedTickers.map(t => COINGECKO_IDS[t.toUpperCase()]).join(',');
       if (!ids) return {};
       const res = await fetch(
