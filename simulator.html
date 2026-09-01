@@ -1076,11 +1076,15 @@ function setContractType(type) {
 //   value     = cash + deployed + unrealized  (true account value)
 async function loadPortfolio() {
   try {
-    const [{ data }, { data: openTrades }] = await Promise.all([
-      db.from('paper_portfolio').select('*').single(),
+    // .single() throws unless there is EXACTLY one row. A reset can leave the
+    // table empty or duplicated, which silently blanked the whole panel.
+    // Take the first row instead, and create one if none exists.
+    const [{ data: portRows }, { data: openTrades }] = await Promise.all([
+      db.from('paper_portfolio').select('*').limit(1),
       db.from('paper_trades').select('shares, effective_entry, entry_price, unrealized_gl, gain_loss').eq('status', 'open')
     ]);
-    if (!data) { initPortfolio(); return; }
+    const data = (portRows && portRows.length) ? portRows[0] : null;
+    if (!data) { await initPortfolio(); return; }
 
     const startBal = Number(data.starting_balance) || 10000;
     document.getElementById('starting-balance').textContent = '$' + startBal.toLocaleString();
@@ -1132,16 +1136,36 @@ async function loadPortfolio() {
   } catch(e) { initPortfolio(); }
 }
 
+let portfolioInitTried = false;
 async function initPortfolio() {
+  // Guard against recursion: initPortfolio calls loadPortfolio, which calls
+  // back here if the row is still missing. If the insert is blocked, that
+  // would loop forever.
+  if (portfolioInitTried) {
+    const el = document.getElementById('current-balance');
+    if (el) el.textContent = 'setup needed';
+    return;
+  }
+  portfolioInitTried = true;
   try {
-    await db.from('paper_portfolio').insert({
+    const { error } = await db.from('paper_portfolio').insert({
       starting_balance: 10000,
       current_balance:  10000,
+      realized_gl:      0,
+      unrealized_gl:    0,
       total_return:     0,
       total_return_pct: 0
     });
-    loadPortfolio();
-  } catch(e) {}
+    if (error) {
+      const el = document.getElementById('current-balance');
+      if (el) el.textContent = 'db error';
+      return;
+    }
+    await loadPortfolio();
+  } catch(e) {
+    const el = document.getElementById('current-balance');
+    if (el) el.textContent = 'db error';
+  }
 }
 
 // ── LOAD TRADES ──
@@ -2373,7 +2397,9 @@ const MAX_PER_TICKER     = 1;      // one position per ticker — no duplicate f
 // Thresholds differ by asset class. Crypto has no earnings, insider filings or
 // analyst coverage, so its data ceiling is genuinely lower — holding it to the
 // stock bar makes every coin unreachable regardless of how good the setup is.
-const BUILD = 'b64-crypto50';
+const BUILD = 'b66-sizing-fix';
+const MAX_POSITION_PCT = 15;   // hard ceiling per position, as % of balance
+
 const THRESHOLDS = {
   stock:  { opportunity: 70, direction: 60, signalQuality: 60 },
   crypto: { opportunity: 50, direction: 55, signalQuality: 45 },
@@ -2583,16 +2609,28 @@ async function openPositionFromSignal(gov, why) {
   const entry       = Number(gov.entry_price);
   if (!entry || entry <= 0) return false;
 
-  let shares = Number(gov.shares);
-  if (!shares || shares <= 0) {
-    const bal = Number(gov.portfolio_balance) || 10000;
-    const pct = Number(gov.recommended_position_pct) || 5;
-    shares = (bal * pct / 100) / entry;
-  }
+  // Position size is ARITHMETIC — never trust the model for it.
+  // The Governor returned sh=1 for BTC at $78k on a $10k account, an 8x
+  // overshoot. gov.shares is now ignored entirely and recomputed here.
+  const bal = Number(gov.portfolio_balance) || 10000;
+  const pct = Math.min(Math.max(Number(gov.recommended_position_pct) || 5, 1), 10);
+  const targetValue = bal * pct / 100;
+
+  let shares = targetValue / entry;
   shares = isCrypto
-    ? parseFloat(shares.toFixed(4))
+    ? parseFloat(shares.toFixed(6))
     : Math.max(1, Math.floor(shares));
-  if (!shares || shares <= 0) return false;
+  if (!shares || shares <= 0 || !isFinite(shares)) return false;
+
+  // Hard ceiling: no single position may exceed MAX_POSITION_PCT of the
+  // account, whatever the Governor asks for. For stocks the minimum of 1
+  // share can breach this on a high-priced ticker — reject rather than size up.
+  const positionValue = shares * entry;
+  if (positionValue > bal * (MAX_POSITION_PCT / 100)) {
+    console.warn('Rejected ' + gov.ticker + ': position $' + positionValue.toFixed(2) +
+                 ' exceeds ' + MAX_POSITION_PCT + '% of $' + bal);
+    return false;
+  }
 
   const slipAmt        = entry * slippagePct;
   const effectiveEntry = direction === 'long' ? entry + slipAmt : entry - slipAmt;
