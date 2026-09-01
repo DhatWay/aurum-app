@@ -1642,6 +1642,7 @@ async function getClaudeSuggestion() {
       .map(([t, d]) => t + ':$' + d.price.toFixed(2)).join(', ');
 
     // Governor
+    let gov = null;   // hoisted: needed after the try block for price override
     let governorBrief = 'Governor unavailable — proceeding without algorithm execution.';
     let governorMeta = { algoCount: 0, signalQuality: 0, coveragePct: 0, compositeScore: null, verdict: null, direction: null, confidence: null };
 
@@ -1668,7 +1669,7 @@ async function getClaudeSuggestion() {
         throw new Error('Governor returned HTTP ' + govRes.status + ': ' + detail);
       }
 
-      const gov = await govRes.json();
+      gov = await govRes.json();
       if (gov && gov.error) {
         lastDiagnostic.governor = gov.error;
         throw new Error('Governor error: ' + gov.error);
@@ -1824,6 +1825,31 @@ ${jsonExample}`;
     }
     claudeSuggestion._governorMeta = governorMeta;
 
+    // The Governor's numbers are authoritative. The second Claude call restates
+    // them and gets them wrong — it returned entry $15.53 for XRP while its own
+    // prose said $1.37, the same failure as BTC at $34.32. Never let the model
+    // carry a price it was only asked to repeat.
+    if (governorMeta.entry_price)  claudeSuggestion.entry_price  = Number(governorMeta.entry_price);
+    if (governorMeta.stop_loss)    claudeSuggestion.stop_loss    = Number(governorMeta.stop_loss);
+    if (governorMeta.target_price) claudeSuggestion.target_price = Number(governorMeta.target_price);
+    if (gov && gov.direction)      claudeSuggestion.direction    = String(gov.direction).toLowerCase();
+
+    // Quantity is arithmetic, computed from the real balance — not asked for.
+    const _bal   = await getPortfolioBalance();
+    const _pct   = Math.min(Math.max(Number(governorMeta.recommended_position_pct) || 5, 1), 10);
+    const _entry = Number(claudeSuggestion.entry_price);
+    if (_entry > 0) {
+      const raw = (_bal * _pct / 100) / _entry;
+      claudeSuggestion.shares = activeMode === 'crypto'
+        ? parseFloat(raw.toFixed(6))
+        : Math.max(1, Math.floor(raw));
+    }
+
+    // Flag whether this actually clears the bar, so the UI can refuse to apply it.
+    claudeSuggestion._tradeable = gov ? passesConviction(gov) : false;
+    claudeSuggestion._rejectReason = (gov && !claudeSuggestion._tradeable)
+      ? rejectionReason(gov) : null;
+
     // Live price override
     const livePrice = priceCache[claudeSuggestion.ticker]?.price;
     if (livePrice) claudeSuggestion.entry_price = livePrice;
@@ -1876,6 +1902,27 @@ function renderSuggestion(s) {
   document.getElementById('suggestion-strategy-badge').textContent = currentStrategy === 'day' ? 'Day Trade' : 'Swing';
   document.getElementById('suggestion-text').textContent = s.reasoning || '—';
 
+  // A suggestion that failed the Governor's own bar must not be one tap from
+  // becoming a real position. Previously NEUTRAL, below-threshold cards still
+  // offered APPLY.
+  const applyBtn = document.querySelector('.apply-btn');
+  if (applyBtn) {
+    const dirOK = ['long','short'].includes(String(s.direction || '').toLowerCase());
+    if (s._tradeable === false || !dirOK) {
+      applyBtn.disabled = true;
+      applyBtn.style.opacity = '0.35';
+      applyBtn.style.cursor = 'not-allowed';
+      applyBtn.textContent = s._rejectReason
+        ? 'No Trade — ' + s._rejectReason
+        : 'No Trade — below threshold';
+    } else {
+      applyBtn.disabled = false;
+      applyBtn.style.opacity = '1';
+      applyBtn.style.cursor = 'pointer';
+      applyBtn.textContent = 'Apply to Trade Form';
+    }
+  }
+
   const isOptions = currentInstrument === 'options';
   const isCrypto  = activeMode === 'crypto';
 
@@ -1919,6 +1966,13 @@ function renderSuggestion(s) {
 }
 
 function applySuggestion() {
+  // Guard in case the button state is bypassed
+  if (claudeSuggestion && claudeSuggestion._tradeable === false) {
+    alert('This suggestion did not clear the threshold' +
+          (claudeSuggestion._rejectReason ? ' (' + claudeSuggestion._rejectReason + ')' : '') +
+          '. It cannot be applied.');
+    return;
+  }
   if (!claudeSuggestion) return;
   const s = claudeSuggestion;
 
@@ -2402,7 +2456,7 @@ const MAX_PER_TICKER     = 1;      // one position per ticker — no duplicate f
 // Thresholds differ by asset class. Crypto has no earnings, insider filings or
 // analyst coverage, so its data ceiling is genuinely lower — holding it to the
 // stock bar makes every coin unreachable regardless of how good the setup is.
-const BUILD = 'b67-no-fabrication';
+const BUILD = 'b68-governor-authoritative';
 const MAX_POSITION_PCT = 15;   // hard ceiling per position, as % of balance
 
 const THRESHOLDS = {
