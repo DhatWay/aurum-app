@@ -2492,7 +2492,7 @@ const MAX_PER_TICKER     = 1;      // one position per ticker      // one positi
 // Thresholds differ by asset class. Crypto has no earnings, insider filings or
 // analyst coverage, so its data ceiling is genuinely lower — holding it to the
 // stock bar makes every coin unreachable regardless of how good the setup is.
-const BUILD = 'b72-funnel-shadow';
+const BUILD = 'b73-wide-universe';
 const MAX_POSITION_PCT = 15;   // hard ceiling per position, as % of balance
 
 // ── SCALE PRESETS ──
@@ -2751,6 +2751,9 @@ async function scoreTicker(ticker, balance) {
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + GOVERNOR_ANON_KEY },
       body: JSON.stringify({
         ticker,
+        // Pass the id the funnel already resolved, so coins outside the
+        // Governor's static map can still be priced.
+        coingecko_id:      (window._funnelIds && window._funnelIds[ticker]) || null,
         strategy:          currentStrategy,
         instrument:        activeMode === 'crypto' ? 'crypto' : 'stock',
         mode:              activeMode,
