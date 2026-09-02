@@ -868,6 +868,12 @@
     // provides as JSONB.
     // reportData has no startingBalance — read the real one so the archived
     // return percentage is not computed against a hardcoded guess.
+    let settingsRow = null;
+    try {
+      const { data: ts } = await db.from('trading_settings').select('scale_preset').limit(1);
+      if (ts && ts.length) settingsRow = ts[0];
+    } catch (e) {}
+
     let startBal = 10000;
     try {
       const { data: pf } = await db.from('paper_portfolio').select('starting_balance').limit(1);
@@ -893,6 +899,9 @@
       sim_return_pct:       startBal ? Math.round((realized / startBal) * 100 * 100) / 100 : 0,
       generated_at:         new Date().toISOString(),
       report_data: {
+        // Which configuration produced these results. Without this a month's
+        // numbers cannot be attributed to the settings that generated them.
+        scale_preset:    settingsRow?.scale_preset || 'conservative',
         closed_trades:   closed.length,
         open_at_archive: (reportData.trades || []).filter(t => t.status === 'open').length,
         realized_pl:     Math.round(realized * 100) / 100,
