@@ -799,6 +799,10 @@ footer p { font-size: 0.6rem; letter-spacing: 0.12em; color: var(--muted); text-
     <div style="font-size:0.65rem;letter-spacing:0.2em;color:var(--gold);font-family:'IBM Plex Mono',monospace;margin-bottom:0.5rem;">⚠ POSITION ALERTS</div>
   </div>
 
+  <div style="font-size:0.62rem; letter-spacing:0.2em; color:#C9A84C; font-family:'IBM Plex Mono',monospace; margin-bottom:0.5rem;">SCALE PRESET</div>
+  <div id="preset-buttons" style="display:flex; gap:0.5rem; margin-bottom:0.5rem; flex-wrap:wrap;"></div>
+  <div id="preset-note" style="font-size:0.66rem; color:#6B6560; font-family:'IBM Plex Mono',monospace; margin-bottom:1rem; line-height:1.6;"></div>
+
   <div style="display:flex; gap:0.6rem; margin-bottom:0.8rem; flex-wrap:wrap;">
     <button id="auto-mode-btn" onclick="toggleAutoMode()" style="flex:1; min-width:150px; background:transparent; border:1px solid rgba(107,101,96,0.4); color:#6B6560; font-family:'DM Sans',sans-serif; font-size:0.72rem; letter-spacing:0.15em; padding:0.7rem 1rem; cursor:pointer;">AUTONOMOUS: OFF</button>
     <button onclick="runAutonomousCycle(true)" style="flex:1; min-width:150px; background:transparent; border:1px solid rgba(201,168,76,0.3); color:#C9A84C; font-family:'DM Sans',sans-serif; font-size:0.72rem; letter-spacing:0.15em; padding:0.7rem 1rem; cursor:pointer;">FILL TO 10 ONCE</button>
@@ -2474,22 +2478,106 @@ async function dismissAlert(id) {
 
 // ══════════════════════════════════════════════════════════
 // AUTONOMOUS ENGINE
-// Maintains a rolling block of TARGET_POSITIONS open trades.
+// Maintains a rolling block of preset().positions open trades.
 // Flow: scan candidates -> Governor scores each -> ONE Claude call
 // decides yes/no across all -> approved trades open automatically.
-// As positions close, the next cycle backfills to TARGET_POSITIONS.
+// As positions close, the next cycle backfills to preset().positions.
 // ══════════════════════════════════════════════════════════
 
-const TARGET_POSITIONS   = 10;
+// Position count comes from the active preset — see SCALE_PRESETS.
 const GOVERNOR_BATCH     = 3;      // concurrent Governor calls
 const WAVE_SIZE          = 12;     // candidates scored per wave
 const MAX_WAVES          = 12;     // 12 x 12 = 144 tickers, covers the full universe
-const MAX_PER_TICKER     = 1;      // one position per ticker — no duplicate fills
+const MAX_PER_TICKER     = 1;      // one position per ticker      // one position per ticker — no duplicate fills
 // Thresholds differ by asset class. Crypto has no earnings, insider filings or
 // analyst coverage, so its data ceiling is genuinely lower — holding it to the
 // stock bar makes every coin unreachable regardless of how good the setup is.
-const BUILD = 'b70-auto-note-templated';
+const BUILD = 'b71-scale-presets';
 const MAX_POSITION_PCT = 15;   // hard ceiling per position, as % of balance
+
+// ── SCALE PRESETS ──
+// Capital is shared across modes, so position count and size are account-wide.
+// maxPerMode stops one asset class filling the whole block: crypto currently
+// clears its bar and stocks do not, so an uncapped block would fill almost
+// entirely with crypto by accident rather than by choice.
+// Thresholds are deliberately identical across presets — these scale COUNT,
+// not selectivity.
+const SCALE_PRESETS = {
+  conservative: {
+    label: 'Conservative',
+    positions: 10, sizePct: 5, maxPerMode: 10,
+    universe: { stock: 60, crypto: 15 },
+    note: '10 positions at 5%. Default.',
+  },
+  scaled: {
+    label: 'Scaled',
+    positions: 30, sizePct: 3, maxPerMode: 20,
+    universe: { stock: 111, crypto: 25 },
+    note: '30 positions at 3%. Wider universe, same standards.',
+  },
+  aggressive: {
+    label: 'Aggressive',
+    positions: 50, sizePct: 2, maxPerMode: 35,
+    universe: { stock: 111, crypto: 40 },
+    note: '50 positions at 2%. Fixed costs bite at this size.',
+  },
+};
+
+let activePreset = 'conservative';
+function preset() { return SCALE_PRESETS[activePreset] || SCALE_PRESETS.conservative; }
+
+// Persisted in trading_settings so the 5-minute autonomous cycle honours the
+// choice between sessions. Testing scale is meaningless if it forgets overnight.
+async function loadPreset() {
+  try {
+    const { data } = await db.from('trading_settings').select('scale_preset').limit(1);
+    if (data && data.length && data[0].scale_preset && SCALE_PRESETS[data[0].scale_preset]) {
+      activePreset = data[0].scale_preset;
+    }
+  } catch(e) {}
+  renderPresetUI();
+}
+
+async function setPreset(key) {
+  if (!SCALE_PRESETS[key]) return;
+  activePreset = key;
+  renderPresetUI();
+  try {
+    const { data } = await db.from('trading_settings').select('id').limit(1);
+    if (data && data.length) {
+      await db.from('trading_settings').update({ scale_preset: key }).eq('id', data[0].id);
+    } else {
+      await db.from('trading_settings').insert({ scale_preset: key });
+    }
+  } catch(e) {
+    const el = document.getElementById('preset-note');
+    if (el) el.textContent = 'Could not save — run scale_preset_setup.sql first.';
+  }
+}
+
+function renderPresetUI() {
+  const wrap = document.getElementById('preset-buttons');
+  if (!wrap) return;
+  wrap.innerHTML = Object.keys(SCALE_PRESETS).map(k => {
+    const p = SCALE_PRESETS[k];
+    const on = k === activePreset;
+    return '<button onclick="setPreset(\'' + k + '\')" style="flex:1;min-width:104px;background:' +
+      (on ? 'rgba(201,168,76,0.12)' : 'transparent') + ';border:1px solid ' +
+      (on ? 'rgba(201,168,76,0.6)' : 'rgba(107,101,96,0.35)') + ';color:' +
+      (on ? '#C9A84C' : '#6B6560') +
+      ';font-family:sans-serif;font-size:0.68rem;letter-spacing:0.12em;padding:0.55rem 0.4rem;cursor:pointer;">' +
+      p.label.toUpperCase() + '</button>';
+  }).join('');
+
+  const note = document.getElementById('preset-note');
+  if (note) {
+    const p = preset();
+    const deployed = p.positions * p.sizePct;
+    note.textContent = p.positions + ' positions · ' + p.sizePct + '% each (' + deployed +
+      '% deployed) · max ' + p.maxPerMode + ' per mode · universe ' +
+      p.universe.stock + ' stocks / ' + p.universe.crypto + ' coins';
+  }
+}
 
 const THRESHOLDS = {
   stock:  { opportunity: 70, direction: 60, signalQuality: 60 },
@@ -2543,9 +2631,12 @@ async function getCandidateTickers() {
     heldCount[k] = (heldCount[k] || 0) + 1;
   });
 
-  const universe = isCrypto
+  // Universe breadth is per-mode; the preset caps how many names are scanned.
+  const uniLimit = preset().universe[isCrypto ? 'crypto' : 'stock'];
+  const universe = (isCrypto
     ? CRYPTO_UNIVERSE.slice()
-    : (typeof TICKER_DATABASE !== 'undefined' ? TICKER_DATABASE.map(x => x.t) : []);
+    : (typeof TICKER_DATABASE !== 'undefined' ? TICKER_DATABASE.map(x => x.t) : [])
+  ).slice(0, uniLimit);
 
   // Watchlist first — those are your explicit picks — then the broad universe
   const watch = (watchlist || []).map(s => s.ticker.toUpperCase());
@@ -2704,7 +2795,10 @@ async function openPositionFromSignal(gov, why) {
   // The Governor returned sh=1 for BTC at $78k on a $10k account, an 8x
   // overshoot. gov.shares is now ignored entirely and recomputed here.
   const bal = Number(gov.portfolio_balance) || 10000;
-  const pct = Math.min(Math.max(Number(gov.recommended_position_pct) || 5, 1), 10);
+  // Size comes from the active preset. The Governor's recommendation is
+  // advisory only — capital allocation is a configuration decision, not a
+  // per-ticker one, or 30 positions could not fit in one account.
+  const pct = preset().sizePct;
   const targetValue = bal * pct / 100;
 
   let shares = targetValue / entry;
@@ -2783,8 +2877,20 @@ async function runAutonomousCycle(manualTrigger) {
 
   try {
     let openCount = await countOpenPositions();
-    if (openCount >= TARGET_POSITIONS) {
-      autoLog('Block full — ' + openCount + '/' + TARGET_POSITIONS + ' positions open.');
+    if (openCount >= preset().positions) {
+      autoLog('Block full — ' + openCount + '/' + preset().positions + ' positions open.');
+      return;
+    }
+
+    // Per-mode cap. Crypto currently clears its bar while stocks do not, so an
+    // uncapped block would fill almost entirely with crypto by accident.
+    const { data: openByMode } = await db.from('paper_trades').select('type').eq('status', 'open');
+    const modeKey = activeMode === 'crypto' ? 'crypto' : 'stock';
+    const inThisMode = (openByMode || []).filter(t =>
+      (t.type === 'crypto' ? 'crypto' : 'stock') === modeKey).length;
+    if (inThisMode >= preset().maxPerMode) {
+      autoLog(modeKey + ' cap reached — ' + inThisMode + '/' + preset().maxPerMode +
+              ' positions. Switch mode to fill the rest of the block.');
       return;
     }
 
@@ -2803,12 +2909,14 @@ async function runAutonomousCycle(manualTrigger) {
 
     // Keep pulling waves of candidates until the block is full or we run dry.
     // A single wave rarely fills 10, since the allocator rejects weak signals.
-    while (openCount < TARGET_POSITIONS && pool.length && wave < MAX_WAVES) {
+    let modeCount = inThisMode;
+    while (openCount < preset().positions && modeCount < preset().maxPerMode
+           && pool.length && wave < MAX_WAVES) {
       wave++;
-      const needed = TARGET_POSITIONS - openCount;
+      const needed = preset().positions - openCount;
       const batch  = pool.splice(0, WAVE_SIZE);
 
-      autoLog('Wave ' + wave + ' — scoring ' + batch.length + ' tickers, need ' + needed + ' more (' + openCount + '/' + TARGET_POSITIONS + ' open)');
+      autoLog('Wave ' + wave + ' — scoring ' + batch.length + ' tickers, need ' + needed + ' more (' + openCount + '/' + preset().positions + ' open)');
 
       const scored = await scoreAllCandidates(batch, balance);
       if (!scored.length) continue;
@@ -2840,8 +2948,10 @@ async function runAutonomousCycle(manualTrigger) {
       for (const d of approved) {
         const gov = qualified.find(g => g.ticker.toUpperCase() === String(d.t).toUpperCase());
         if (!gov) continue;
+        if (modeCount >= preset().maxPerMode) break;
         if (await openPositionFromSignal(gov, d.why)) {
           openCount++;
+          modeCount++;
           totalOpened++;
         }
       }
@@ -2851,15 +2961,15 @@ async function runAutonomousCycle(manualTrigger) {
       loadPortfolio();
     }
 
-    if (openCount >= TARGET_POSITIONS) {
-      autoLog('Block filled — ' + openCount + '/' + TARGET_POSITIONS + ' open. Opened ' + totalOpened + ' this cycle across ' + wave + ' wave(s).');
+    if (openCount >= preset().positions) {
+      autoLog('Block filled — ' + openCount + '/' + preset().positions + ' open. Opened ' + totalOpened + ' this cycle across ' + wave + ' wave(s).');
     } else if (!pool.length) {
-      autoLog('Universe exhausted at ' + openCount + '/' + TARGET_POSITIONS + '. Opened ' + totalOpened +
+      autoLog('Universe exhausted at ' + openCount + '/' + preset().positions + '. Opened ' + totalOpened +
               '. ' + lowConviction + ' below the bar, ' + rejected + ' rejected by Claude. ' +
               'Closest misses: ' + summariseRejections(rejectLog) +
               ' — if these cluster just under ' + limits().opportunity + ', lower it in THRESHOLDS.' + activeMode + '.');
     } else {
-      autoLog('Stopped after ' + MAX_WAVES + ' waves at ' + openCount + '/' + TARGET_POSITIONS +
+      autoLog('Stopped after ' + MAX_WAVES + ' waves at ' + openCount + '/' + preset().positions +
               '. Opened ' + totalOpened + ', ' + lowConviction + ' below the bar, ' + rejected + ' rejected. ' +
               'Closest misses: ' + summariseRejections(rejectLog));
     }
@@ -2881,7 +2991,7 @@ function toggleAutoMode() {
   }
   clearInterval(autoCycleTimer);
   if (autoModeEnabled) {
-    autoLog('Autonomous mode on — maintaining ' + TARGET_POSITIONS + ' positions.');
+    autoLog('Autonomous mode on — maintaining ' + preset().positions + ' positions.');
     runAutonomousCycle();
     autoCycleTimer = setInterval(runAutonomousCycle, AUTO_CYCLE_MS);
   } else {
@@ -2898,6 +3008,7 @@ if ('serviceWorker' in navigator) {
 
 loadActiveMode();
 loadActiveStrategy();
+loadPreset();
 loadPortfolio();
 loadTrades();
 loadHistory();
