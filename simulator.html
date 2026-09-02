@@ -2492,7 +2492,7 @@ const MAX_PER_TICKER     = 1;      // one position per ticker      // one positi
 // Thresholds differ by asset class. Crypto has no earnings, insider filings or
 // analyst coverage, so its data ceiling is genuinely lower — holding it to the
 // stock bar makes every coin unreachable regardless of how good the setup is.
-const BUILD = 'b71-scale-presets';
+const BUILD = 'b72-funnel-shadow';
 const MAX_POSITION_PCT = 15;   // hard ceiling per position, as % of balance
 
 // ── SCALE PRESETS ──
@@ -2616,6 +2616,79 @@ async function countOpenPositions() {
 // Full tradable universe for the active mode.
 // Stocks come from tickers.js (111 majors) merged with the watchlist.
 // Tickers already holding MAX_PER_TICKER positions are excluded.
+// ══════════════════════════════════════════════════════════
+// STAGE 1 FUNNEL — cheap arithmetic screening, no AI.
+//
+// The Governor is the expensive component, so it must sit at the NARROW end
+// of the funnel. Previously it scored a fixed list of 15 coins or 111 large
+// caps every cycle — roughly 2% of the market, and the slowest-moving 2%.
+// Mega caps rarely produce the sharp setups the opportunity score rewards.
+//
+// CoinGecko returns 250 coins per call with price, 24h change, volume and
+// range already included, so 1,000 coins costs 4 calls. Ranking those by
+// movement puts genuinely active names in front of the Governor instead of
+// the same slow list.
+// ══════════════════════════════════════════════════════════
+
+const FUNNEL_SCAN_DEPTH = 1000;   // coins pulled before ranking
+const FUNNEL_SHORTLIST  = 40;     // survivors passed to the Governor
+
+// Composite movement score. Pure arithmetic — this decides WHO gets looked at,
+// never whether a trade happens. That judgement stays with the Governor.
+function movementScore(c) {
+  const chg    = Math.abs(Number(c.price_change_percentage_24h) || 0);
+  const price  = Number(c.current_price) || 0;
+  const hi     = Number(c.high_24h) || price;
+  const lo     = Number(c.low_24h)  || price;
+  const range  = price > 0 ? ((hi - lo) / price) * 100 : 0;
+  const volRat = Number(c.market_cap) > 0
+    ? (Number(c.total_volume) || 0) / Number(c.market_cap)
+    : 0;
+  // Distance from ATH — deeply discounted names carry different setups
+  const athGap = Math.abs(Number(c.ath_change_percentage) || 0);
+
+  // Movement dominates, turnover confirms real participation rather than a
+  // thin book, and ATH distance is a light tiebreak.
+  return (chg * 2) + range + (Math.min(volRat, 1) * 30) + (athGap * 0.05);
+}
+
+async function screenCryptoUniverse() {
+  const perPage = 250;
+  const pages   = Math.ceil(FUNNEL_SCAN_DEPTH / perPage);
+  const all     = [];
+
+  for (let p = 1; p <= pages; p++) {
+    try {
+      const res = await fetch(
+        'https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd' +
+        '&order=market_cap_desc&per_page=' + perPage + '&page=' + p +
+        '&price_change_percentage=24h'
+      );
+      if (!res.ok) break;
+      const rows = await res.json();
+      if (!Array.isArray(rows) || !rows.length) break;
+      all.push(...rows);
+    } catch (e) { break; }
+  }
+  if (!all.length) return null;
+
+  // Liquidity floor — a huge percentage move on no volume is untradeable
+  const liquid = all.filter(c =>
+    Number(c.total_volume) > 1000000 && Number(c.current_price) > 0
+  );
+
+  liquid.sort((a, b) => movementScore(b) - movementScore(a));
+
+  // Cache the CoinGecko id so the Governor can price anything we surface,
+  // including coins absent from its static map.
+  window._funnelIds = {};
+  liquid.slice(0, FUNNEL_SHORTLIST).forEach(c => {
+    window._funnelIds[String(c.symbol).toUpperCase()] = c.id;
+  });
+
+  return liquid.slice(0, FUNNEL_SHORTLIST).map(c => String(c.symbol).toUpperCase());
+}
+
 async function getCandidateTickers() {
   const isCrypto = activeMode === 'crypto';
 
@@ -2633,10 +2706,20 @@ async function getCandidateTickers() {
 
   // Universe breadth is per-mode; the preset caps how many names are scanned.
   const uniLimit = preset().universe[isCrypto ? 'crypto' : 'stock'];
-  const universe = (isCrypto
-    ? CRYPTO_UNIVERSE.slice()
-    : (typeof TICKER_DATABASE !== 'undefined' ? TICKER_DATABASE.map(x => x.t) : [])
-  ).slice(0, uniLimit);
+
+  let universe;
+  if (isCrypto) {
+    // Screen the live market first. Falls back to the static list if
+    // CoinGecko is unreachable, so a feed outage degrades rather than breaks.
+    autoLog('Screening ' + FUNNEL_SCAN_DEPTH + ' coins for movement...');
+    const screened = await screenCryptoUniverse();
+    universe = screened && screened.length
+      ? screened.slice(0, Math.max(uniLimit, FUNNEL_SHORTLIST))
+      : CRYPTO_UNIVERSE.slice(0, uniLimit);
+    if (screened) autoLog('Funnel surfaced ' + universe.length + ' movers from ' + FUNNEL_SCAN_DEPTH + ' coins.');
+  } else {
+    universe = (typeof TICKER_DATABASE !== 'undefined' ? TICKER_DATABASE.map(x => x.t) : []).slice(0, uniLimit);
+  }
 
   // Watchlist first — those are your explicit picks — then the broad universe
   const watch = (watchlist || []).map(s => s.ticker.toUpperCase());
@@ -2870,9 +2953,76 @@ async function openPositionFromSignal(gov, why) {
   return !error;
 }
 
+// Tracks the block so scheduled runs only scan when a slot actually frees up.
+let lastKnownOpenCount = null;
+let lastScanAt         = 0;
+const RESCAN_COOLDOWN_MS = 60 * 60 * 1000;   // 1 hour
+
+// Records every candidate the Governor scores, passed or rejected, with the
+// price at that moment. Only logging accepted trades would make it impossible
+// to ever test whether the threshold does real work — you would see how the
+// 75s performed and never learn what the 45s would have done.
+async function logShadowCandidates(scored, qualifiedSet) {
+  if (!scored || !scored.length) return;
+  try {
+    const rows = scored.map(g => {
+      const passed = qualifiedSet.has(g.ticker);
+      return {
+        ticker:            g.ticker,
+        mode:              activeMode,
+        price_at_score:    Number(g.current_price || g.entry_price) || null,
+        direction:         g.direction || null,
+        composite_score:   Number.isFinite(Number(g.composite_score)) ? Math.round(Number(g.composite_score)) : null,
+        opportunity_score: Number.isFinite(Number(g.opportunity_score)) ? Math.round(Number(g.opportunity_score)) : null,
+        signal_quality:    Number.isFinite(Number(g.signal_quality)) ? Math.round(Number(g.signal_quality)) : null,
+        confidence:        g.confidence || null,
+        volatility_pct:    g.volatility_pct ?? null,
+        reward_risk:       g.reward_risk ?? null,
+        moves_to_target:   g.moves_to_target ?? null,
+        entry_price:       g.entry_price ?? null,
+        stop_loss:         g.stop_loss ?? null,
+        target_price:      g.target_price ?? null,
+        algorithm_scores:  g.algorithm_scores || null,
+        execution_mode:    g.execution_mode || null,
+        algorithms_ran:    g.algorithms_executed ?? null,
+        passed_gate:       passed,
+        reject_reason:     passed ? null : rejectionReason(g),
+        scored_at:         new Date().toISOString(),
+      };
+    }).filter(r => r.price_at_score);
+
+    if (rows.length) await db.from('shadow_log').insert(rows);
+  } catch (e) {
+    // Never let logging break a cycle
+    console.warn('Shadow log skipped:', e && e.message);
+  }
+}
+
 async function runAutonomousCycle(manualTrigger) {
   if (autoCycleRunning) return;
   if (!autoModeEnabled && !manualTrigger) return;
+
+  // A scheduled tick previously rescanned the whole universe every 5 minutes
+  // whenever the block was short, even if nothing had changed. With 6 of 10
+  // filled and nothing clearing the bar, that was a full Governor scan twelve
+  // times an hour, finding nothing each time. Only scan when a position has
+  // actually closed, or after a cooldown in case conditions have shifted.
+  if (!manualTrigger) {
+    const nowCount = await countOpenPositions();
+    const slotFreed = lastKnownOpenCount !== null && nowCount < lastKnownOpenCount;
+    const cooledDown = (Date.now() - lastScanAt) > RESCAN_COOLDOWN_MS;
+    const firstRun = lastKnownOpenCount === null;
+
+    lastKnownOpenCount = nowCount;
+
+    if (!firstRun && !slotFreed && !cooledDown) {
+      autoLog('Holding — ' + nowCount + '/' + preset().positions +
+              ' open, nothing closed since last scan. Next scan when a position closes.');
+      return;
+    }
+  }
+
+  lastScanAt = Date.now();
   autoCycleRunning = true;
 
   try {
@@ -2926,6 +3076,9 @@ async function runAutonomousCycle(manualTrigger) {
       scored.filter(g => !passesConviction(g)).forEach(g => {
         rejectLog.push(g.ticker + ' ' + rejectionReason(g));
       });
+
+      // Log everything scored this wave, accepted and rejected alike
+      await logShadowCandidates(scored, new Set(qualified.map(g => g.ticker)));
       lowConviction += (scored.length - qualified.length);
 
       if (!qualified.length) {
@@ -2978,6 +3131,7 @@ async function runAutonomousCycle(manualTrigger) {
     autoLog('Cycle failed: ' + (e.message || 'unknown error'));
   } finally {
     autoCycleRunning = false;
+    try { lastKnownOpenCount = await countOpenPositions(); } catch(e) {}
   }
 }
 
