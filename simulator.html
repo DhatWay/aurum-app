@@ -795,6 +795,16 @@ footer p { font-size: 0.6rem; letter-spacing: 0.12em; color: var(--muted); text-
 
   <!-- CLAUDE SUGGESTION -->
   <!-- Position Alerts -->
+  <div style="border:1px solid rgba(201,168,76,0.25); padding:1rem; margin-bottom:1.5rem;">
+    <div style="font-size:0.62rem; letter-spacing:0.2em; color:#C9A84C; font-family:'IBM Plex Mono',monospace; margin-bottom:0.5rem;">SYSTEM DIAGNOSTICS</div>
+    <div style="font-size:0.68rem; color:#6B6560; margin-bottom:0.8rem; line-height:1.6;">Verifies every computed value against its source. Scan reports drift; recalibrate rebuilds derived figures from raw trade data.</div>
+    <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+      <button onclick="runDiagnostics()" id="diag-btn" style="flex:1; min-width:120px; background:transparent; border:1px solid rgba(201,168,76,0.4); color:#C9A84C; font-family:'DM Sans',sans-serif; font-size:0.7rem; letter-spacing:0.12em; padding:0.6rem; cursor:pointer;">SCAN</button>
+      <button onclick="runRecalibration()" id="recal-btn" style="flex:1; min-width:120px; background:transparent; border:1px solid rgba(107,101,96,0.4); color:#6B6560; font-family:'DM Sans',sans-serif; font-size:0.7rem; letter-spacing:0.12em; padding:0.6rem; cursor:pointer;">RECALIBRATE</button>
+    </div>
+    <div id="diag-output" style="font-size:0.68rem; font-family:'IBM Plex Mono',monospace; margin-top:0.8rem; line-height:1.7;"></div>
+  </div>
+
   <div id="position-alerts-container" style="display:none; margin-bottom:1.5rem;">
     <div style="font-size:0.65rem;letter-spacing:0.2em;color:var(--gold);font-family:'IBM Plex Mono',monospace;margin-bottom:0.5rem;">⚠ POSITION ALERTS</div>
   </div>
@@ -2492,7 +2502,7 @@ const MAX_PER_TICKER     = 1;      // one position per ticker      // one positi
 // Thresholds differ by asset class. Crypto has no earnings, insider filings or
 // analyst coverage, so its data ceiling is genuinely lower — holding it to the
 // stock bar makes every coin unreachable regardless of how good the setup is.
-const BUILD = 'b73-wide-universe';
+const BUILD = 'b74-diagnostics';
 const MAX_POSITION_PCT = 15;   // hard ceiling per position, as % of balance
 
 // ── SCALE PRESETS ──
@@ -2590,6 +2600,27 @@ const AUTO_CYCLE_MS      = 300000; // 5 minutes
 
 // Coin universe. Must stay in sync with CG_IDS in the Governor —
 // a coin absent there cannot be priced and will be rejected.
+// Mirrors CG_IDS in the Governor and quick-service. Diagnostics compares
+// open positions against this to catch anything unpriceable — the failure
+// that left HYPE and LTC frozen and unprotected for two days.
+const CRYPTO_UNIVERSE_FULL = [
+  'AAVE','ACH','ADA','AERO','AGLD','AKT','ALGO','ANKR','APE','API3',
+  'APT','AR','ARB','ASTR','ATOM','AUDIO','AVAX','AXS','BAND','BAT',
+  'BCH','BEAM','BLUR','BNB','BONK','BTC','CAKE','CELO','CFX','CHZ',
+  'COMP','COTI','CRV','CVX','DASH','DOGE','DOT','DYDX','EGLD','ENA',
+  'ENJ','ENS','EOS','ETC','ETH','ETHFI','FET','FIL','FLOKI','FLOW',
+  'FLR','FTM','FXS','GALA','GLM','GMT','GMX','GNO','GRT','HBAR',
+  'HYPE','ICP','ID','IMX','INJ','IOTA','JASMY','JTO','JUP','KAVA',
+  'KSM','LDO','LINK','LPT','LRC','LTC','LUNC','MANA','MANTA','MASK',
+  'MATIC','MEME','METIS','MINA','MKR','MOG','MOVR','NEAR','NEO','NEXO',
+  'NOT','ONDO','ONE','OP','ORDI','OSMO','PAXG','PENDLE','PEOPLE','PEPE',
+  'PYTH','QNT','RAY','RENDER','ROSE','RPL','RSR','RUNE','SAFE','SAND',
+  'SC','SEI','SFP','SHIB','SKL','SNX','SOL','SPELL','SSV','STG',
+  'STRK','STX','SUI','SUPER','SUSHI','SXP','TFUEL','THETA','TIA','TON',
+  'TRX','TURBO','TWT','UMA','UNI','VET','WIF','WLD','WOO','XEC',
+  'XLM','XRP','XTZ','YFI','ZEC','ZIL','ZK','ZRX'
+];
+
 const CRYPTO_UNIVERSE = [
   // Liquid majors only. Thin alts score 30-40 on data completeness and would
   // never clear the bar, so scanning them just burns Governor calls.
@@ -2606,6 +2637,219 @@ let autoCycleTimer   = null;
 function autoLog(msg) {
   const el = document.getElementById('auto-status');
   if (el) el.textContent = msg;
+}
+
+// ══════════════════════════════════════════════════════════
+// SYSTEM DIAGNOSTICS
+//
+// Three failures in one day shared a shape: two components each holding a
+// copy of one truth, one updated, the other not. The Governor knew 148 coins
+// while the monitor knew 12, so HYPE and LTC sat unpriced — and therefore
+// unprotected — for two days without anything reporting it.
+//
+// These checks assert what must be true and recompute what can be derived.
+// All arithmetic; only the price checks touch an API, and those are keyless.
+// ══════════════════════════════════════════════════════════
+
+function diagLine(status, label, detail) {
+  const colour = status === 'ok' ? '#3A6B4A' : status === 'warn' ? '#C9A84C' : '#8B3A3A';
+  const mark   = status === 'ok' ? '✓' : status === 'warn' ? '!' : '✕';
+  return '<div style="color:' + colour + ';margin-bottom:0.3rem;">' + mark + ' ' + label +
+         (detail ? ' <span style="color:#6B6560;">— ' + detail + '</span>' : '') + '</div>';
+}
+
+async function collectDiagnostics() {
+  const issues = [];
+  const out = [];
+
+  const [{ data: portRows }, { data: openT }, { data: closedT }] = await Promise.all([
+    db.from('paper_portfolio').select('*'),
+    db.from('paper_trades').select('*').eq('status', 'open'),
+    db.from('paper_trades').select('gain_loss').eq('status', 'closed'),
+  ]);
+
+  // 1. Exactly one portfolio row. Duplicates previously reached 4,382 because
+  //    a failed read triggered an insert, which guaranteed the next failure.
+  if (!portRows || portRows.length === 0) {
+    out.push(diagLine('fail', 'Portfolio row', 'missing'));
+    issues.push('no_portfolio');
+  } else if (portRows.length > 1) {
+    out.push(diagLine('fail', 'Portfolio row', portRows.length + ' rows, expected 1'));
+    issues.push('dupe_portfolio');
+  } else {
+    out.push(diagLine('ok', 'Portfolio row', 'single row'));
+  }
+
+  const port = (portRows && portRows[0]) || null;
+  const startBal = Number(port?.starting_balance) || 10000;
+  const open = openT || [];
+
+  // 2. Every open position must be priceable by whatever monitors it.
+  //    An unpriceable position never revalues, so its stop and target are
+  //    inert — the HYPE and LTC failure.
+  const unpriceable = open.filter(t => {
+    if (t.type !== 'crypto') return false;
+    return !CRYPTO_UNIVERSE_FULL.includes(String(t.ticker).toUpperCase());
+  });
+  if (unpriceable.length) {
+    out.push(diagLine('fail', 'Priceable positions',
+      unpriceable.map(t => t.ticker).join(', ') + ' cannot be priced — stops inactive'));
+    issues.push('unpriceable');
+  } else {
+    out.push(diagLine('ok', 'Priceable positions', open.length + ' open, all mapped'));
+  }
+
+  // 3. Derived P&L must match its inputs
+  let plDrift = 0;
+  open.forEach(t => {
+    const entry = Number(t.effective_entry || t.entry_price);
+    const cur   = Number(t.current_price);
+    const sh    = Number(t.shares);
+    if (!entry || !cur || !sh) return;
+    const expected = String(t.direction).toLowerCase() === 'short'
+      ? (entry - cur) * sh : (cur - entry) * sh;
+    if (Math.abs(expected - Number(t.gain_loss || 0)) > 0.02) plDrift++;
+  });
+  out.push(plDrift
+    ? diagLine('warn', 'Position P&L', plDrift + ' of ' + open.length + ' drifted from inputs')
+    : diagLine('ok', 'Position P&L', 'all match'));
+  if (plDrift) issues.push('pl_drift');
+
+  // 4. effective_entry is the cost basis. Null means slippage was never applied.
+  const noBasis = open.filter(t => !t.effective_entry);
+  out.push(noBasis.length
+    ? diagLine('warn', 'Cost basis', noBasis.length + ' missing effective_entry')
+    : diagLine('ok', 'Cost basis', 'all present'));
+  if (noBasis.length) issues.push('no_basis');
+
+  // 5. Stops must sit on the profitable side of entry, or they fire instantly.
+  const badStops = open.filter(t => {
+    const entry = Number(t.effective_entry || t.entry_price);
+    const stop  = Number(t.stop_loss);
+    if (!entry || !stop) return false;
+    return String(t.direction).toLowerCase() === 'short' ? stop < entry : stop > entry;
+  });
+  out.push(badStops.length
+    ? diagLine('fail', 'Stop placement', badStops.map(t => t.ticker).join(', ') + ' on wrong side of entry')
+    : diagLine('ok', 'Stop placement', 'all correct side'));
+  if (badStops.length) issues.push('bad_stops');
+
+  // 6. Accounting identity: cash + deployed = start + realised
+  const realized = (closedT || []).reduce((a, t) => a + Number(t.gain_loss || 0), 0);
+  const deployed = open.reduce((a, t) =>
+    a + (Number(t.effective_entry || t.entry_price) || 0) * (Number(t.shares) || 0), 0);
+  const expectedBal = startBal + realized;
+  const recordedBal = Number(port?.current_balance) || 0;
+  const balDrift = Math.abs(expectedBal - recordedBal);
+  out.push(balDrift > 0.02
+    ? diagLine('fail', 'Balance', 'recorded $' + recordedBal.toFixed(2) + ' vs computed $' + expectedBal.toFixed(2))
+    : diagLine('ok', 'Balance', '$' + recordedBal.toFixed(2) + ' reconciles'));
+  if (balDrift > 0.02) issues.push('bal_drift');
+
+  // 7. Deployed capital cannot exceed the account
+  out.push(deployed > startBal + realized
+    ? diagLine('fail', 'Deployed capital', '$' + deployed.toFixed(2) + ' exceeds $' + expectedBal.toFixed(2))
+    : diagLine('ok', 'Deployed capital', '$' + deployed.toFixed(2) + ' of $' + expectedBal.toFixed(2)));
+
+  return { out, issues, port, open, realized, startBal, deployed };
+}
+
+async function runDiagnostics() {
+  const btn = document.getElementById('diag-btn');
+  const box = document.getElementById('diag-output');
+  btn.disabled = true; btn.textContent = 'SCANNING...';
+  box.innerHTML = '<div style="color:#6B6560;">Checking...</div>';
+  try {
+    const d = await collectDiagnostics();
+    box.innerHTML = d.out.join('') +
+      '<div style="color:#6B6560;margin-top:0.5rem;">' +
+      (d.issues.length ? d.issues.length + ' issue(s). RECALIBRATE fixes anything derived; map and stop problems need a code change.'
+                       : 'All checks passed.') + '</div>';
+  } catch (e) {
+    box.innerHTML = '<div style="color:#8B3A3A;">Scan failed: ' + (e?.message || 'unknown') + '</div>';
+  } finally {
+    btn.disabled = false; btn.textContent = 'SCAN';
+  }
+}
+
+// Rebuilds every derived value from raw trade data. Deliberately does NOT
+// touch stops or targets — altering those changes the risk on a live position,
+// which is a decision, not a correction.
+async function runRecalibration() {
+  const btn = document.getElementById('recal-btn');
+  const box = document.getElementById('diag-output');
+  btn.disabled = true; btn.textContent = 'RECALIBRATING...';
+  const log = [];
+  try {
+    const { data: portRows } = await db.from('paper_portfolio').select('*');
+
+    if (portRows && portRows.length > 1) {
+      const keep = portRows[0];
+      for (const r of portRows.slice(1)) await db.from('paper_portfolio').delete().eq('id', r.id);
+      log.push(diagLine('ok', 'Portfolio', 'collapsed ' + portRows.length + ' rows to 1'));
+    }
+
+    const { data: open } = await db.from('paper_trades').select('*').eq('status', 'open');
+    let fixed = 0;
+
+    for (const t of (open || [])) {
+      const patch = {};
+      // Backfill cost basis so P&L has a stable denominator
+      if (!t.effective_entry && t.entry_price) patch.effective_entry = Number(t.entry_price);
+
+      const entry = Number(patch.effective_entry || t.effective_entry || t.entry_price);
+      const cur   = Number(t.current_price);
+      const sh    = Number(t.shares);
+
+      if (entry && cur && sh) {
+        const gl = String(t.direction).toLowerCase() === 'short'
+          ? (entry - cur) * sh : (cur - entry) * sh;
+        const glPct = (gl / (entry * sh)) * 100;
+        if (Math.abs(gl - Number(t.gain_loss || 0)) > 0.02) {
+          patch.gain_loss     = Math.round(gl * 100) / 100;
+          patch.gain_loss_pct = Math.round(glPct * 100) / 100;
+          patch.unrealized_gl = Math.round(gl * 100) / 100;
+        }
+        const pv = cur * sh;
+        if (Math.abs(pv - Number(t.position_value || 0)) > 0.02) {
+          patch.position_value = Math.round(pv * 100) / 100;
+        }
+      }
+      if (Object.keys(patch).length) {
+        await db.from('paper_trades').update(patch).eq('id', t.id);
+        fixed++;
+      }
+    }
+    log.push(diagLine('ok', 'Positions', fixed ? fixed + ' recalculated' : 'already correct'));
+
+    // Rebuild the portfolio from what the trades actually say
+    const { data: closed } = await db.from('paper_trades').select('gain_loss').eq('status', 'closed');
+    const { data: openNow } = await db.from('paper_trades').select('unrealized_gl, gain_loss').eq('status', 'open');
+    const { data: pf } = await db.from('paper_portfolio').select('*').limit(1);
+
+    if (pf && pf.length) {
+      const startBal   = Number(pf[0].starting_balance) || 10000;
+      const realized   = (closed  || []).reduce((a, t) => a + Number(t.gain_loss || 0), 0);
+      const unrealized = (openNow || []).reduce((a, t) => a + Number(t.unrealized_gl ?? t.gain_loss ?? 0), 0);
+      await db.from('paper_portfolio').update({
+        realized_gl:      Math.round(realized * 100) / 100,
+        unrealized_gl:    Math.round(unrealized * 100) / 100,
+        current_balance:  Math.round((startBal + realized) * 100) / 100,
+        total_return:     Math.round(realized * 100) / 100,
+        total_return_pct: startBal ? Math.round((realized / startBal) * 10000) / 100 : 0,
+        updated_at:       new Date().toISOString(),
+      }).eq('id', pf[0].id);
+      log.push(diagLine('ok', 'Balance', 'rebuilt from ' + (closed || []).length + ' closed trades'));
+    }
+
+    box.innerHTML = log.join('') +
+      '<div style="color:#6B6560;margin-top:0.5rem;">Recalibrated. Run SCAN to confirm.</div>';
+    loadTrades(); loadPortfolio(); loadHistory();
+  } catch (e) {
+    box.innerHTML = '<div style="color:#8B3A3A;">Recalibration failed: ' + (e?.message || 'unknown') + '</div>';
+  } finally {
+    btn.disabled = false; btn.textContent = 'RECALIBRATE';
+  }
 }
 
 async function countOpenPositions() {
