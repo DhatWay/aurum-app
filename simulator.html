@@ -2511,7 +2511,7 @@ const MAX_PER_TICKER     = 1;      // one position per ticker      // one positi
 // Thresholds differ by asset class. Crypto has no earnings, insider filings or
 // analyst coverage, so its data ceiling is genuinely lower — holding it to the
 // stock bar makes every coin unreachable regardless of how good the setup is.
-const BUILD = 'b75-scoring-modes';
+const BUILD = 'b76-new-listings';
 const MAX_POSITION_PCT = 15;   // hard ceiling per position, as % of balance
 
 // ── SCALE PRESETS ──
@@ -3026,6 +3026,7 @@ const ALGO_WEIGHTS = {
   fuzzy_lspi: 1.2, autoencoder_selection: 1.0, state_space_mamba: 1.3,
   crypto_derivatives_flow: 2.2, crypto_whale_tracker: 2.0, crypto_protocol_events: 1.3,
   crypto_regulatory_signals: 0.7, crypto_onchain_momentum: 1.8, crypto_market_cycle_detector: 1.6,
+  new_listing_detector: 1.6,
 };
 
 // Weighted mean of the algorithm scores. Straight arithmetic — the same
@@ -3177,6 +3178,16 @@ const FUNNEL_SHORTLIST  = 40;     // survivors passed to the Governor
 // Composite movement score. Pure arithmetic — this decides WHO gets looked at,
 // never whether a trade happens. That judgement stays with the Governor.
 function movementScore(c) {
+  // Recently listed coins move hardest, and the suite is blind to them until
+  // new_listing_detector runs. Surfacing them is the point of the funnel —
+  // but only where turnover shows genuine participation rather than a thin
+  // book being pushed around.
+  var _ath = Number(c.atl_change_percentage);
+  var _mc  = Number(c.market_cap) || 0;
+  var _vol = Number(c.total_volume) || 0;
+  var _turnover = _mc > 0 ? (_vol / _mc) * 100 : 0;
+  var newListingBoost = (_turnover > 25 && _mc > 0 && _mc < 500000000) ? 15 : 0;
+
   const chg    = Math.abs(Number(c.price_change_percentage_24h) || 0);
   const price  = Number(c.current_price) || 0;
   const hi     = Number(c.high_24h) || price;
@@ -3190,7 +3201,7 @@ function movementScore(c) {
 
   // Movement dominates, turnover confirms real participation rather than a
   // thin book, and ATH distance is a light tiebreak.
-  return (chg * 2) + range + (Math.min(volRat, 1) * 30) + (athGap * 0.05);
+  return ((chg * 2) + range + (Math.min(volRat, 1) * 30) + (athGap * 0.05)) + newListingBoost;
 }
 
 async function screenCryptoUniverse() {
