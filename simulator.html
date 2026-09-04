@@ -795,13 +795,21 @@ footer p { font-size: 0.6rem; letter-spacing: 0.12em; color: var(--muted); text-
 
   <!-- CLAUDE SUGGESTION -->
   <!-- Position Alerts -->
+  <div style="border:1px solid rgba(201,168,76,0.25); padding:1rem; margin-bottom:1rem;">
+    <div style="font-size:0.62rem; letter-spacing:0.2em; color:#C9A84C; font-family:'IBM Plex Mono',monospace; margin-bottom:0.5rem;">SCORING MODE</div>
+    <div style="display:flex; gap:0.5rem; flex-wrap:wrap;" id="scoring-buttons"></div>
+    <div id="scoring-note" style="font-size:0.66rem; color:#6B6560; font-family:'IBM Plex Mono',monospace; margin-top:0.5rem; line-height:1.6;"></div>
+  </div>
+
   <div style="border:1px solid rgba(201,168,76,0.25); padding:1rem; margin-bottom:1.5rem;">
     <div style="font-size:0.62rem; letter-spacing:0.2em; color:#C9A84C; font-family:'IBM Plex Mono',monospace; margin-bottom:0.5rem;">SYSTEM DIAGNOSTICS</div>
     <div style="font-size:0.68rem; color:#6B6560; margin-bottom:0.8rem; line-height:1.6;">Verifies every computed value against its source. Scan reports drift; recalibrate rebuilds derived figures from raw trade data.</div>
     <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
       <button onclick="runDiagnostics()" id="diag-btn" style="flex:1; min-width:120px; background:transparent; border:1px solid rgba(201,168,76,0.4); color:#C9A84C; font-family:'DM Sans',sans-serif; font-size:0.7rem; letter-spacing:0.12em; padding:0.6rem; cursor:pointer;">SCAN</button>
+      <button onclick="runOutcomeCheck()" id="outcome-btn" style="flex:1; min-width:120px; background:transparent; border:1px solid rgba(107,101,96,0.4); color:#6B6560; font-family:'DM Sans',sans-serif; font-size:0.7rem; letter-spacing:0.12em; padding:0.6rem; cursor:pointer;">CHECK OUTCOMES</button>
       <button onclick="runRecalibration()" id="recal-btn" style="flex:1; min-width:120px; background:transparent; border:1px solid rgba(107,101,96,0.4); color:#6B6560; font-family:'DM Sans',sans-serif; font-size:0.7rem; letter-spacing:0.12em; padding:0.6rem; cursor:pointer;">RECALIBRATE</button>
     </div>
+    <div id="outcome-output" style="font-size:0.68rem; font-family:'IBM Plex Mono',monospace; margin-top:0.6rem; line-height:1.7;"></div>
     <div id="diag-output" style="font-size:0.68rem; font-family:'IBM Plex Mono',monospace; margin-top:0.8rem; line-height:1.7;"></div>
   </div>
 
@@ -2483,6 +2491,7 @@ async function dismissAlert(id) {
   try {
     await db.from('position_alerts').update({ read: true }).eq('id', id);
     loadPositionAlerts();
+  loadScoringMode();
   } catch(e) {}
 }
 
@@ -2502,7 +2511,7 @@ const MAX_PER_TICKER     = 1;      // one position per ticker      // one positi
 // Thresholds differ by asset class. Crypto has no earnings, insider filings or
 // analyst coverage, so its data ceiling is genuinely lower — holding it to the
 // stock bar makes every coin unreachable regardless of how good the setup is.
-const BUILD = 'b74-diagnostics';
+const BUILD = 'b75-scoring-modes';
 const MAX_POSITION_PCT = 15;   // hard ceiling per position, as % of balance
 
 // ── SCALE PRESETS ──
@@ -2852,6 +2861,294 @@ async function runRecalibration() {
   }
 }
 
+// Ticker to CoinGecko id, mirroring the Governor. Used by the outcome
+// checker to price historical candidates.
+const COINGECKO_IDS_FULL = {
+  AAVE:'aave', ACH:'alchemy-pay', ADA:'cardano', AERO:'aerodrome-finance',
+  AGLD:'adventure-gold', AKT:'akash-network', ALGO:'algorand', ANKR:'ankr',
+  APE:'apecoin', API3:'api3', APT:'aptos', AR:'arweave',
+  ARB:'arbitrum', ASTR:'astar', ATOM:'cosmos', AUDIO:'audius',
+  AVAX:'avalanche-2', AXS:'axie-infinity', BAND:'band-protocol', BAT:'basic-attention-token',
+  BCH:'bitcoin-cash', BEAM:'beam-2', BLUR:'blur', BNB:'binancecoin',
+  BONK:'bonk', BTC:'bitcoin', CAKE:'pancakeswap-token', CELO:'celo',
+  CFX:'conflux-token', CHZ:'chiliz', COMP:'compound-governance-token', COTI:'coti',
+  CRV:'curve-dao-token', CVX:'convex-finance', DASH:'dash', DOGE:'dogecoin',
+  DOT:'polkadot', DYDX:'dydx-chain', EGLD:'elrond-erd-2', ENA:'ethena',
+  ENJ:'enjincoin', ENS:'ethereum-name-service', EOS:'eos', ETC:'ethereum-classic',
+  ETH:'ethereum', ETHFI:'ether-fi', FET:'fetch-ai', FIL:'filecoin',
+  FLOKI:'floki', FLOW:'flow', FLR:'flare-networks', FTM:'fantom',
+  FXS:'frax-share', GALA:'gala', GLM:'golem', GMT:'stepn',
+  GMX:'gmx', GNO:'gnosis', GRT:'the-graph', HBAR:'hedera-hashgraph',
+  HYPE:'hyperliquid', ICP:'internet-computer', ID:'space-id', IMX:'immutable-x',
+  INJ:'injective-protocol', IOTA:'iota', JASMY:'jasmycoin', JTO:'jito-governance-token',
+  JUP:'jupiter-exchange-solana', KAVA:'kava', KSM:'kusama', LDO:'lido-dao',
+  LINK:'chainlink', LPT:'livepeer', LRC:'loopring', LTC:'litecoin',
+  LUNC:'terra-luna', MANA:'decentraland', MANTA:'manta-network', MASK:'mask-network',
+  MATIC:'matic-network', MEME:'memecoin-2', METIS:'metis-token', MINA:'mina-protocol',
+  MKR:'maker', MOG:'mog-coin', MOVR:'moonriver', NEAR:'near',
+  NEO:'neo', NEXO:'nexo', NOT:'notcoin', ONDO:'ondo-finance',
+  ONE:'harmony', OP:'optimism', ORDI:'ordinals', OSMO:'osmosis',
+  PAXG:'pax-gold', PENDLE:'pendle', PEOPLE:'constitutiondao', PEPE:'pepe',
+  PYTH:'pyth-network', QNT:'quant-network', RAY:'raydium', RENDER:'render-token',
+  ROSE:'oasis-network', RPL:'rocket-pool', RSR:'reserve-rights-token', RUNE:'thorchain',
+  SAFE:'safe', SAND:'the-sandbox', SC:'siacoin', SEI:'sei-network',
+  SFP:'safepal', SHIB:'shiba-inu', SKL:'skale', SNX:'havven',
+  SOL:'solana', SPELL:'spell-token', SSV:'ssv-network', STG:'stargate-finance',
+  STRK:'starknet', STX:'blockstack', SUI:'sui', SUPER:'superfarm',
+  SUSHI:'sushi', SXP:'swipe', TFUEL:'theta-fuel', THETA:'theta-token',
+  TIA:'celestia', TON:'the-open-network', TRX:'tron', TURBO:'turbo',
+  TWT:'trust-wallet-token', UMA:'uma', UNI:'uniswap', VET:'vechain',
+  WIF:'dogwifcoin', WLD:'worldcoin-wld', WOO:'woo-network', XEC:'ecash',
+  XLM:'stellar', XRP:'ripple', XTZ:'tezos', YFI:'yearn-finance',
+  ZEC:'zcash', ZIL:'zilliqa', ZK:'zksync', ZRX:'0x',
+};
+
+// ══════════════════════════════════════════════════════════
+// OUTCOME CHECKER
+//
+// Walks shadow_log rows that have aged past 24h and fills in what actually
+// happened. This is what converts stored scores into an answer: did the
+// candidates you rejected at opportunity 45 really underperform the ones you
+// took at 55, or is the threshold arbitrary?
+//
+// Keyless, arithmetic, and it never touches trading.
+// ══════════════════════════════════════════════════════════
+
+async function runOutcomeCheck() {
+  const btn = document.getElementById('outcome-btn');
+  const box = document.getElementById('outcome-output');
+  if (btn) { btn.disabled = true; btn.textContent = 'CHECKING...'; }
+  if (box) box.innerHTML = '<div style="color:#6B6560;">Fetching outcomes...</div>';
+
+  try {
+    const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const { data: rows } = await db.from('shadow_log')
+      .select('id, ticker, price_at_score, scored_at, direction')
+      .is('outcome_checked_at', null)
+      .lt('scored_at', cutoff)
+      .limit(200);
+
+    if (!rows || !rows.length) {
+      if (box) box.innerHTML = '<div style="color:#6B6560;">Nothing ready — rows must be 24h old before an outcome means anything.</div>';
+      return;
+    }
+
+    // One bulk call covers every ticker rather than one call each
+    const tickers = [...new Set(rows.map(r => String(r.ticker).toUpperCase()))];
+    const ids = tickers.map(t => COINGECKO_IDS_FULL[t]).filter(Boolean);
+    const live = {};
+
+    for (let i = 0; i < ids.length; i += 100) {
+      const slice = ids.slice(i, i + 100).join(',');
+      const res = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=' + slice + '&vs_currencies=usd');
+      if (!res.ok) continue;
+      const d = await res.json();
+      tickers.forEach(t => {
+        const id = COINGECKO_IDS_FULL[t];
+        if (id && d[id]) live[t] = d[id].usd;
+      });
+      if (i + 100 < ids.length) await new Promise(r => setTimeout(r, 1200));
+    }
+
+    let updated = 0, skipped = 0;
+    const now = new Date().toISOString();
+
+    for (const r of rows) {
+      const tk = String(r.ticker).toUpperCase();
+      const then = Number(r.price_at_score);
+      const nowPrice = live[tk];
+
+      if (!then || nowPrice === undefined) {
+        await db.from('shadow_log').update({
+          outcome_checked_at: now,
+          outcome_error: nowPrice === undefined ? 'no price available' : 'no scoring price',
+        }).eq('id', r.id);
+        skipped++;
+        continue;
+      }
+
+      // Signed to the direction called, so a correct short reads positive
+      const rawPct = ((nowPrice - then) / then) * 100;
+      const signed = String(r.direction).toUpperCase() === 'SHORT' ? -rawPct : rawPct;
+      const ageH = (Date.now() - new Date(r.scored_at).getTime()) / 3600000;
+
+      const patch = {
+        outcome_checked_at: now,
+        outcome_error: null,
+        price_24h: nowPrice,
+        outcome_24h_pct: Math.round(signed * 100) / 100,
+      };
+      if (ageH >= 168) {
+        patch.price_7d = nowPrice;
+        patch.outcome_7d_pct = Math.round(signed * 100) / 100;
+      }
+      await db.from('shadow_log').update(patch).eq('id', r.id);
+      updated++;
+    }
+
+    if (box) box.innerHTML =
+      '<div style="color:#3A6B4A;">Checked ' + updated + ' candidates' +
+      (skipped ? ', ' + skipped + ' unpriceable' : '') + '.</div>' +
+      '<div style="color:#6B6560;margin-top:0.3rem;">Outcomes are signed to the direction called, so a correct short reads positive.</div>';
+  } catch (e) {
+    if (box) box.innerHTML = '<div style="color:#8B3A3A;">Check failed: ' + (e?.message || 'unknown') + '</div>';
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'CHECK OUTCOMES'; }
+  }
+}
+
+// ══════════════════════════════════════════════════════════
+// DETERMINISTIC SCORER
+//
+// Computes composite and opportunity from the same algorithm outputs Claude
+// reads, using the Governor's own weight matrix. Reproducible, free, and
+// backtestable — the model gives slightly different numbers on identical
+// inputs, which makes historical replay impossible to trust.
+//
+// This does NOT replace Claude. scoring_mode decides which one is
+// authoritative; both are recorded either way, so disagreement between them
+// is measurable rather than assumed.
+// ══════════════════════════════════════════════════════════
+
+// Governor weight matrix, mirrored from the ALGORITHM_SUITE prompt.
+// These weights are assumptions, never validated — the deterministic scorer
+// will faithfully reproduce whatever bias they contain. That is the point of
+// running both modes: disagreement shows where the assumption is wrong.
+const ALGO_WEIGHTS = {
+  momentum_detector: 1.2, sentiment_detector: 0.9, political_signal_detector: 0.7,
+  macro_detector: 1.1, options_flow_detector: 2.2, insider_transaction_tracker: 2.0,
+  correlation_filter: 0.8, earnings_cycle_detector: 1.3, macro_regime_detector: 1.4,
+  sentiment_velocity: 1.0, probability_spread_model: 1.8, hybrid_sentiment_pipeline: 1.2,
+  ipo_early_detection: 0.9,
+  market_regime_adaptive_ga: 1.1, mcts_formula_tester: 0.9, autonomous_strategy_evolution: 1.0,
+  genetic_algorithm_optimizer: 1.0, evolutionary_data_labeling: 0.8, hybrid_ga_learning_to_rank: 1.0,
+  agentic_llm_workflow: 1.3, deep_reinforcement_learning: 1.5, attention_augmented_gru: 1.4,
+  fuzzy_lspi: 1.2, autoencoder_selection: 1.0, state_space_mamba: 1.3,
+  crypto_derivatives_flow: 2.2, crypto_whale_tracker: 2.0, crypto_protocol_events: 1.3,
+  crypto_regulatory_signals: 0.7, crypto_onchain_momentum: 1.8, crypto_market_cycle_detector: 1.6,
+};
+
+// Weighted mean of the algorithm scores. Straight arithmetic — the same
+// synthesis Claude performs, without the variance.
+function computeComposite(algoScores) {
+  if (!algoScores || typeof algoScores !== 'object') return null;
+  let weighted = 0, totalWeight = 0;
+  for (const [name, raw] of Object.entries(algoScores)) {
+    const score = Number(raw);
+    if (!Number.isFinite(score)) continue;
+    const w = ALGO_WEIGHTS[name] ?? 1.0;
+    weighted += score * w;
+    totalWeight += w;
+  }
+  if (!totalWeight) return null;
+  return Math.round(Math.min(Math.max(weighted / totalWeight, 0), 100));
+}
+
+// Opportunity from the trade's geometry rather than a judgement.
+// Deliberately anchored to the same things the Claude prompt describes, so
+// the two are answering one question by different means.
+function computeOpportunity(gov, composite) {
+  const entry = Number(gov.entry_price);
+  const stop  = Number(gov.stop_loss);
+  const tgt   = Number(gov.target_price);
+  const vol   = Number(gov.volatility_pct);
+  if (!entry || !stop || !tgt || !vol) return null;
+
+  const risk = Math.abs(entry - stop);
+  if (!risk) return null;
+
+  // Reward-to-risk. 2:1 is the baseline the stop rule produces, so anything
+  // at or below that earns nothing extra.
+  const rr = Math.abs(tgt - entry) / risk;
+  const rrPoints = Math.min(Math.max((rr - 1) * 20, 0), 35);
+
+  // How many typical moves the target sits away. Inside one move is noise;
+  // beyond four is a stretch. The band between is where trades live.
+  const moves = (Math.abs(tgt - entry) / entry * 100) / vol;
+  let movePoints;
+  if (moves < 1)       movePoints = moves * 10;          // too close to matter
+  else if (moves <= 3) movePoints = 10 + (moves - 1) * 12.5;  // the sweet spot
+  else                 movePoints = Math.max(35 - (moves - 3) * 8, 0);
+
+  // Directional conviction, symmetric — 20 is as tradable short as 80 is long
+  const conviction = composite >= 50 ? composite : (100 - composite);
+  const convPoints = Math.min(Math.max((conviction - 50) * 0.6, 0), 30);
+
+  return Math.round(Math.min(Math.max(rrPoints + movePoints + convPoints, 0), 100));
+}
+
+// Produces the deterministic view of a candidate, mirroring the Governor's
+// own direction rule so the two modes are comparable.
+function scoreDeterministic(gov) {
+  const composite = computeComposite(gov.algorithm_scores);
+  if (composite === null) return null;
+  const opportunity = computeOpportunity(gov, composite);
+  if (opportunity === null) return null;
+  const direction = composite > 60 ? 'LONG' : composite < 40 ? 'SHORT' : 'NONE';
+  return { composite, opportunity, direction };
+}
+
+// Applies the active mode. Claude's scores stay on the object either way, so
+// nothing downstream breaks and both are available to the shadow log.
+function applyScoringMode(gov) {
+  const det = scoreDeterministic(gov);
+  gov._det = det;
+
+  if (scoringMode === 'deterministic' && det) {
+    gov._claude = {
+      composite_score:   gov.composite_score,
+      opportunity_score: gov.opportunity_score,
+      direction:         gov.direction,
+    };
+    gov.composite_score   = det.composite;
+    gov.opportunity_score = det.opportunity;
+    gov.direction         = det.direction;
+  }
+  return gov;
+}
+
+let scoringMode = 'claude';
+
+async function loadScoringMode() {
+  try {
+    const { data } = await db.from('trading_settings').select('scoring_mode').limit(1);
+    if (data && data.length && data[0].scoring_mode) scoringMode = data[0].scoring_mode;
+  } catch (e) {}
+  renderScoringMode();
+}
+
+async function setScoringMode(mode) {
+  scoringMode = mode;
+  try {
+    const { data } = await db.from('trading_settings').select('id').limit(1);
+    if (data && data.length) {
+      await db.from('trading_settings').update({ scoring_mode: mode }).eq('id', data[0].id);
+    }
+  } catch (e) {}
+  renderScoringMode();
+}
+
+function renderScoringMode() {
+  const box = document.getElementById('scoring-buttons');
+  if (!box) return;
+  const modes = [
+    ['claude',        'CLAUDE',        'Model synthesis. Costs an API call per candidate.'],
+    ['deterministic', 'DETERMINISTIC', 'Weight matrix arithmetic. Free, reproducible, backtestable.'],
+    ['both',          'BOTH',          'Runs Claude, records both. Claude decides. Measures the gap.'],
+  ];
+  box.innerHTML = modes.map(([k, label]) => {
+    const on = k === scoringMode;
+    return '<button onclick="setScoringMode(\'' + k + '\')" style="flex:1;min-width:100px;background:' +
+      (on ? 'rgba(201,168,76,0.12)' : 'transparent') + ';border:1px solid ' +
+      (on ? 'rgba(201,168,76,0.6)' : 'rgba(107,101,96,0.35)') + ';color:' +
+      (on ? '#C9A84C' : '#6B6560') +
+      ";font-family:'DM Sans',sans-serif;font-size:0.66rem;letter-spacing:0.1em;padding:0.55rem;cursor:pointer;\">" +
+      label + '</button>';
+  }).join('');
+  const note = document.getElementById('scoring-note');
+  if (note) note.textContent = (modes.find(m => m[0] === scoringMode) || modes[0])[2];
+}
+
 async function countOpenPositions() {
   const { data } = await db.from('paper_trades').select('id').eq('status', 'open');
   return (data || []).length;
@@ -3007,7 +3304,8 @@ async function scoreTicker(ticker, balance) {
     if (!res.ok) return null;
     const g = await res.json();
     if (g.error || !g.entry_price) return null;
-    return g;
+    // Overlay the deterministic view; which one is authoritative depends on mode
+    return applyScoringMode(g);
   } catch(e) {
     return null;
   }
@@ -3232,7 +3530,13 @@ async function logShadowCandidates(scored, qualifiedSet) {
         algorithm_scores:  g.algorithm_scores || null,
         execution_mode:    g.execution_mode || null,
         algorithms_ran:    g.algorithms_executed ?? null,
-        passed_gate:       passed,
+        // Record BOTH scores regardless of which one traded — the gap between
+      // them is the measurement this whole exercise exists for.
+      scoring_mode:      scoringMode,
+      det_composite:     g._det ? g._det.composite   : null,
+      det_opportunity:   g._det ? g._det.opportunity : null,
+      det_direction:     g._det ? g._det.direction   : null,
+      passed_gate:       passed,
         reject_reason:     passed ? null : rejectionReason(g),
         scored_at:         new Date().toISOString(),
       };
