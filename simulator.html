@@ -806,9 +806,11 @@ footer p { font-size: 0.6rem; letter-spacing: 0.12em; color: var(--muted); text-
     <div style="font-size:0.68rem; color:#6B6560; margin-bottom:0.8rem; line-height:1.6;">Verifies every computed value against its source. Scan reports drift; recalibrate rebuilds derived figures from raw trade data.</div>
     <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
       <button onclick="runDiagnostics()" id="diag-btn" style="flex:1; min-width:120px; background:transparent; border:1px solid rgba(201,168,76,0.4); color:#C9A84C; font-family:'DM Sans',sans-serif; font-size:0.7rem; letter-spacing:0.12em; padding:0.6rem; cursor:pointer;">SCAN</button>
+      <button onclick="runBacktest()" id="backtest-btn" style="flex:1; min-width:120px; background:transparent; border:1px solid rgba(107,101,96,0.4); color:#6B6560; font-family:'DM Sans',sans-serif; font-size:0.7rem; letter-spacing:0.12em; padding:0.6rem; cursor:pointer;">RUN BACKTEST</button>
       <button onclick="runOutcomeCheck()" id="outcome-btn" style="flex:1; min-width:120px; background:transparent; border:1px solid rgba(107,101,96,0.4); color:#6B6560; font-family:'DM Sans',sans-serif; font-size:0.7rem; letter-spacing:0.12em; padding:0.6rem; cursor:pointer;">CHECK OUTCOMES</button>
       <button onclick="runRecalibration()" id="recal-btn" style="flex:1; min-width:120px; background:transparent; border:1px solid rgba(107,101,96,0.4); color:#6B6560; font-family:'DM Sans',sans-serif; font-size:0.7rem; letter-spacing:0.12em; padding:0.6rem; cursor:pointer;">RECALIBRATE</button>
     </div>
+    <div id="backtest-output" style="font-size:0.68rem; font-family:'IBM Plex Mono',monospace; margin-top:0.6rem; line-height:1.7;"></div>
     <div id="outcome-output" style="font-size:0.68rem; font-family:'IBM Plex Mono',monospace; margin-top:0.6rem; line-height:1.7;"></div>
     <div id="diag-output" style="font-size:0.68rem; font-family:'IBM Plex Mono',monospace; margin-top:0.8rem; line-height:1.7;"></div>
   </div>
@@ -2510,7 +2512,7 @@ const MAX_PER_TICKER     = 1;      // one position per ticker      // one positi
 // Thresholds differ by asset class. Crypto has no earnings, insider filings or
 // analyst coverage, so its data ceiling is genuinely lower — holding it to the
 // stock bar makes every coin unreachable regardless of how good the setup is.
-const BUILD = 'b80-shadow-coin-id';
+const BUILD = 'b81-backtest';
 const MAX_POSITION_PCT = 15;   // hard ceiling per position, as % of balance
 
 // ── SCALE PRESETS ──
@@ -2901,6 +2903,208 @@ const COINGECKO_IDS_FULL = {
   XLM:'stellar', XRP:'ripple', XTZ:'tezos', YFI:'yearn-finance',
   ZEC:'zcash', ZIL:'zilliqa', ZK:'zksync', ZRX:'0x',
 };
+
+// ══════════════════════════════════════════════════════════
+// BACKTEST ENGINE
+//
+// Replays history through the deterministic scorer. At each historical point
+// the algorithms see ONLY bars up to that date — never later ones. That rule
+// is the whole validity of the exercise: a scorer that can see tomorrow's
+// price while scoring today will look brilliant and mean nothing.
+//
+// Runs entirely on CoinGecko daily bars and local arithmetic. No Claude call,
+// so a full sweep costs nothing.
+// ══════════════════════════════════════════════════════════
+
+const BT_MIN_BARS   = 50;   // momentum_detector needs this before it speaks
+const BT_HOLD_DAYS  = 7;    // how far forward an outcome is measured
+
+// Indicators computed from a window that ends at the scoring date.
+function btIndicators(closes, highs, lows, volumes, endIdx) {
+  const upto = (arr) => arr.slice(0, endIdx + 1);
+  const c = upto(closes), h = upto(highs), l = upto(lows), v = upto(volumes);
+  if (c.length < 15) return null;
+
+  // RSI-14
+  let gains = 0, losses = 0;
+  for (let i = c.length - 14; i < c.length; i++) {
+    const d = c[i] - c[i - 1];
+    if (d > 0) gains += d; else losses += Math.abs(d);
+  }
+  const ag = gains / 14, al = losses / 14;
+  const rsi = al === 0 ? 100 : 100 - (100 / (1 + ag / al));
+
+  // ATR-14 as a percentage of price
+  const trs = [];
+  for (let i = Math.max(1, c.length - 14); i < c.length; i++) {
+    trs.push(Math.max(h[i] - l[i], Math.abs(h[i] - c[i-1]), Math.abs(l[i] - c[i-1])));
+  }
+  const atr = trs.reduce((a, b) => a + b, 0) / (trs.length || 1);
+  const price = c[c.length - 1];
+  const volPct = price > 0 ? (atr / price) * 100 : 2;
+
+  const ma20 = c.length >= 20 ? c.slice(-20).reduce((a,b)=>a+b,0) / 20 : null;
+  const ma50 = c.length >= 50 ? c.slice(-50).reduce((a,b)=>a+b,0) / 50 : null;
+  const chg5  = c.length >= 6  ? ((price - c[c.length-6])  / c[c.length-6])  * 100 : 0;
+  const chg20 = c.length >= 21 ? ((price - c[c.length-21]) / c[c.length-21]) * 100 : 0;
+  const volAvg = v.length >= 20 ? v.slice(-20).reduce((a,b)=>a+b,0) / 20 : 0;
+  const volRatio = volAvg > 0 ? v[v.length-1] / volAvg : 1;
+
+  return { price, rsi, volPct: Math.min(Math.max(volPct, 1), 15),
+           ma20, ma50, chg5, chg20, volRatio };
+}
+
+// Approximates the suite's phase-one reads from price action alone. This is a
+// simplification — the live Governor runs the real algorithm code — so results
+// indicate direction of effect rather than exact live behaviour.
+function btAlgoScores(ind) {
+  const s = {};
+  s.momentum_detector = Math.round(Math.min(Math.max(
+    50 + (ind.chg5 * 1.5) + (ind.chg20 * 0.4) +
+    (ind.ma20 && ind.price > ind.ma20 ? 8 : -8) +
+    (ind.ma50 && ind.ma20 && ind.ma20 > ind.ma50 ? 6 : -6), 0), 100));
+  s.macro_detector = Math.round(Math.min(Math.max(
+    ind.rsi < 30 ? 68 : ind.rsi > 70 ? 32 : 50 + (50 - ind.rsi) * 0.3, 0), 100));
+  s.crypto_onchain_momentum = Math.round(Math.min(Math.max(
+    50 + (ind.volRatio - 1) * 20, 0), 100));
+  s.correlation_filter = Math.round(Math.min(Math.max(50 + ind.chg20 * 0.3, 0), 100));
+  s.sentiment_velocity = Math.round(Math.min(Math.max(50 + ind.chg5 * 1.2, 0), 100));
+  return s;
+}
+
+async function runBacktest() {
+  const btn = document.getElementById('backtest-btn');
+  const box = document.getElementById('backtest-output');
+  if (btn) { btn.disabled = true; btn.textContent = 'RUNNING...'; }
+  if (box) box.innerHTML = '<div style="color:#6B6560;">Fetching history...</div>';
+
+  try {
+    const universe = CRYPTO_UNIVERSE.slice(0, 12);
+    const results = [];
+
+    for (let u = 0; u < universe.length; u++) {
+      const ticker = universe[u];
+      const id = COINGECKO_IDS_FULL[ticker];
+      if (!id) continue;
+
+      if (box) box.innerHTML = '<div style="color:#6B6560;">Replaying ' + ticker +
+        ' (' + (u + 1) + '/' + universe.length + ')...</div>';
+
+      let chart;
+      try {
+        const res = await fetch('https://api.coingecko.com/api/v3/coins/' + id +
+          '/market_chart?vs_currency=usd&days=365&interval=daily');
+        if (!res.ok) continue;
+        chart = await res.json();
+      } catch (e) { continue; }
+
+      const closes  = (chart.prices || []).map(p => Number(p[1])).filter(n => n > 0);
+      const volumes = (chart.total_volumes || []).map(p => Number(p[1]));
+      if (closes.length < BT_MIN_BARS + BT_HOLD_DAYS + 5) continue;
+
+      // Daily bars carry no intraday range, so approximate from close-to-close
+      const highs = closes.map((c, i) => i > 0 ? Math.max(c, closes[i-1]) : c);
+      const lows  = closes.map((c, i) => i > 0 ? Math.min(c, closes[i-1]) : c);
+
+      for (let i = BT_MIN_BARS; i < closes.length - BT_HOLD_DAYS; i += 3) {
+        const ind = btIndicators(closes, highs, lows, volumes, i);
+        if (!ind) continue;
+
+        const algoScores = btAlgoScores(ind);
+        const composite  = computeComposite(algoScores);
+        if (composite === null) continue;
+
+        const direction = composite > 60 ? 'LONG' : composite < 40 ? 'SHORT' : 'NONE';
+        if (direction === 'NONE') continue;
+
+        const entry = ind.price;
+        const stopDist = entry * (ind.volPct / 100) * 2;
+        const stop   = direction === 'LONG' ? entry - stopDist : entry + stopDist;
+        const target = direction === 'LONG' ? entry + stopDist * 2 : entry - stopDist * 2;
+
+        const opportunity = computeOpportunity(
+          { entry_price: entry, stop_loss: stop, target_price: target, volatility_pct: ind.volPct },
+          composite
+        );
+        if (opportunity === null) continue;
+
+        // Forward outcome — the only place later bars are ever touched
+        let exitPrice = closes[i + BT_HOLD_DAYS];
+        let exitReason = 'held';
+        for (let j = i + 1; j <= i + BT_HOLD_DAYS; j++) {
+          const p = closes[j];
+          if (direction === 'LONG') {
+            if (p <= stop)   { exitPrice = stop;   exitReason = 'stop';   break; }
+            if (p >= target) { exitPrice = target; exitReason = 'target'; break; }
+          } else {
+            if (p >= stop)   { exitPrice = stop;   exitReason = 'stop';   break; }
+            if (p <= target) { exitPrice = target; exitReason = 'target'; break; }
+          }
+        }
+
+        const raw = ((exitPrice - entry) / entry) * 100;
+        results.push({
+          ticker, composite, opportunity,
+          pnlPct: direction === 'SHORT' ? -raw : raw,
+          exitReason,
+        });
+      }
+
+      await new Promise(r => setTimeout(r, 1500));   // stay inside rate limits
+    }
+
+    if (!results.length) {
+      if (box) box.innerHTML = '<div style="color:#8B3A3A;">No usable history returned.</div>';
+      return;
+    }
+
+    // Group by opportunity band — the question is whether the score separates
+    const bands = [
+      { label: '70+',   min: 70, max: 999 },
+      { label: '60-69', min: 60, max: 70 },
+      { label: '50-59', min: 50, max: 60 },
+      { label: '40-49', min: 40, max: 50 },
+      { label: '< 40',  min: -1, max: 40 },
+    ];
+
+    const rows = bands.map(b => {
+      const set = results.filter(r => r.opportunity >= b.min && r.opportunity < b.max);
+      if (!set.length) return '';
+      const wins = set.filter(r => r.pnlPct > 0).length;
+      const avg  = set.reduce((a, r) => a + r.pnlPct, 0) / set.length;
+      const wr   = Math.round((wins / set.length) * 100);
+      return '<div class="picks-table-row">' +
+        '<div class="row-ticker">' + b.label + '</div>' +
+        '<div style="font-size:0.78rem;color:var(--muted)">' + set.length + '</div>' +
+        '<div style="font-size:0.78rem;color:var(--muted)">' + wr + '%</div>' +
+        '<div class="row-return ' + (avg >= 0 ? 'positive' : 'negative') + '">' +
+          (avg >= 0 ? '+' : '') + avg.toFixed(2) + '%</div>' +
+      '</div>';
+    }).join('');
+
+    const overall = results.reduce((a, r) => a + r.pnlPct, 0) / results.length;
+    const overallWr = Math.round((results.filter(r => r.pnlPct > 0).length / results.length) * 100);
+
+    if (box) box.innerHTML =
+      '<div style="color:#6B6560;margin-bottom:0.6rem;">' + results.length +
+        ' simulated entries over 365 days · ' + overallWr + '% win rate · ' +
+        (overall >= 0 ? '+' : '') + overall.toFixed(2) + '% average</div>' +
+      '<div class="picks-table">' +
+        '<div class="picks-table-header"><span>Opportunity</span><span>Trades</span><span>Win Rate</span><span>Avg P&L</span></div>' +
+        rows +
+      '</div>' +
+      '<div style="color:#6B6560;margin-top:0.6rem;line-height:1.6;">' +
+        'If win rate rises with the opportunity band, the score is predictive and the threshold is doing real work. ' +
+        'If it is flat, the score is not separating outcomes and the bar is arbitrary. ' +
+        'Phase-one algorithms only — indicative of direction, not a replica of live behaviour.' +
+      '</div>';
+
+  } catch (e) {
+    if (box) box.innerHTML = '<div style="color:#8B3A3A;">Backtest failed: ' + (e?.message || 'unknown') + '</div>';
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'RUN BACKTEST'; }
+  }
+}
 
 // ══════════════════════════════════════════════════════════
 // OUTCOME CHECKER
