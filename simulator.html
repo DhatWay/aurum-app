@@ -2510,7 +2510,7 @@ const MAX_PER_TICKER     = 1;      // one position per ticker      // one positi
 // Thresholds differ by asset class. Crypto has no earnings, insider filings or
 // analyst coverage, so its data ceiling is genuinely lower — holding it to the
 // stock bar makes every coin unreachable regardless of how good the setup is.
-const BUILD = 'b78-scoring-ui-fix';
+const BUILD = 'b79-outcome-both-modes';
 const MAX_POSITION_PCT = 15;   // hard ceiling per position, as % of balance
 
 // ── SCALE PRESETS ──
@@ -2932,21 +2932,48 @@ async function runOutcomeCheck() {
       return;
     }
 
-    // One bulk call covers every ticker rather than one call each
-    const tickers = [...new Set(rows.map(r => String(r.ticker).toUpperCase()))];
-    const ids = tickers.map(t => COINGECKO_IDS_FULL[t]).filter(Boolean);
+    // Route by asset class. The checker previously assumed CoinGecko for
+    // everything, so any row scored in stock mode failed as unpriceable —
+    // its ticker simply is not in the coin map.
+    const cryptoRows = rows.filter(r => (r.mode || 'crypto') === 'crypto');
+    const stockRows  = rows.filter(r => (r.mode || 'crypto') !== 'crypto');
     const live = {};
+    const failures = [];
+
+    // ── Crypto: CoinGecko, bulk ──
+    const cTickers = [...new Set(cryptoRows.map(r => String(r.ticker).toUpperCase()))];
+    const ids = cTickers.map(t => COINGECKO_IDS_FULL[t]).filter(Boolean);
+    const unmapped = cTickers.filter(t => !COINGECKO_IDS_FULL[t]);
+    if (unmapped.length) failures.push('no coin id: ' + unmapped.join(', '));
 
     for (let i = 0; i < ids.length; i += 100) {
       const slice = ids.slice(i, i + 100).join(',');
-      const res = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=' + slice + '&vs_currencies=usd');
-      if (!res.ok) continue;
-      const d = await res.json();
-      tickers.forEach(t => {
-        const id = COINGECKO_IDS_FULL[t];
-        if (id && d[id]) live[t] = d[id].usd;
-      });
+      try {
+        const res = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=' + slice + '&vs_currencies=usd');
+        if (!res.ok) { failures.push('CoinGecko HTTP ' + res.status); continue; }
+        const d = await res.json();
+        cTickers.forEach(t => {
+          const id = COINGECKO_IDS_FULL[t];
+          if (id && d[id] && d[id].usd) live[t] = d[id].usd;
+        });
+      } catch (e) { failures.push('CoinGecko: ' + (e?.message || 'failed')); }
       if (i + 100 < ids.length) await new Promise(r => setTimeout(r, 1200));
+    }
+
+    // ── Stocks: Finnhub, one call each ──
+    const sTickers = [...new Set(stockRows.map(r => String(r.ticker).toUpperCase()))];
+    if (sTickers.length) {
+      const FH = 'd8ipl11r01qtcvnt331gd8ipl11r01qtcvnt3320';
+      await Promise.all(sTickers.map(async t => {
+        try {
+          const res = await fetch('https://finnhub.io/api/v1/quote?symbol=' + t + '&token=' + FH);
+          if (!res.ok) return;
+          const q = await res.json();
+          if (q && q.c) live[t] = q.c;
+        } catch (e) {}
+      }));
+      const missed = sTickers.filter(t => live[t] === undefined);
+      if (missed.length) failures.push('no stock quote: ' + missed.join(', '));
     }
 
     let updated = 0, skipped = 0;
@@ -2986,8 +3013,11 @@ async function runOutcomeCheck() {
     }
 
     if (box) box.innerHTML =
-      '<div style="color:#3A6B4A;">Checked ' + updated + ' candidates' +
+      '<div style="color:' + (updated ? '#3A6B4A' : '#8B3A3A') + ';">Checked ' + updated + ' candidates' +
       (skipped ? ', ' + skipped + ' unpriceable' : '') + '.</div>' +
+      (failures.length
+        ? '<div style="color:#8B3A3A;margin-top:0.3rem;">' + failures.join(' · ') + '</div>'
+        : '') +
       '<div style="color:#6B6560;margin-top:0.3rem;">Outcomes are signed to the direction called, so a correct short reads positive.</div>';
   } catch (e) {
     if (box) box.innerHTML = '<div style="color:#8B3A3A;">Check failed: ' + (e?.message || 'unknown') + '</div>';
