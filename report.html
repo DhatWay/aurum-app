@@ -418,6 +418,20 @@
     <div id="switches-container"></div>
 
     <div class="gold-rule"></div>
+    <div class="section-label">Signal Evidence</div>
+    <div class="page-sub" style="margin-bottom:1rem;">Every candidate the Governor scored, taken or rejected, measured against what the price actually did afterwards. This is what tells you whether the opportunity score predicts anything — or whether the threshold is arbitrary.</div>
+    <div style="display:flex; gap:0.6rem; flex-wrap:wrap; margin-bottom:1rem;">
+      <button onclick="runSignalEvidence()" id="evidence-btn" style="background:transparent;border:1px solid rgba(201,168,76,0.4);color:var(--gold);font-family:'DM Sans',sans-serif;font-size:0.72rem;letter-spacing:0.15em;padding:0.6rem 1.2rem;cursor:pointer;">ANALYSE</button>
+      <button onclick="exportShadowCSV()" style="background:transparent;border:1px solid rgba(107,101,96,0.4);color:var(--muted);font-family:'DM Sans',sans-serif;font-size:0.72rem;letter-spacing:0.15em;padding:0.6rem 1.2rem;cursor:pointer;">EXPORT CSV</button>
+    </div>
+    <div id="evidence-container"></div>
+
+    <div class="gold-rule"></div>
+    <div class="section-label">Performance by Configuration</div>
+    <div class="page-sub" style="margin-bottom:1rem;">Closed trades split by which scorer chose them and which preset was active. A month mixing configurations is meaningless as a single number.</div>
+    <div id="config-breakdown"></div>
+
+    <div class="gold-rule"></div>
     <div class="section-label">Price Integrity Check</div>
     <div class="page-sub" style="margin-bottom:1rem;">Recorded position prices verified against live API sources. Confirms whether what the system stored matches what the market actually did, or whether it drifted.</div>
     <button onclick="runIntegrityCheck()" id="integrity-btn" style="background:transparent;border:1px solid rgba(201,168,76,0.4);color:var(--gold);font-family:'DM Sans',sans-serif;font-size:0.72rem;letter-spacing:0.15em;padding:0.6rem 1.2rem;cursor:pointer;margin-bottom:1rem;">RUN CHECK</button>
@@ -579,6 +593,7 @@
     } catch(e) {}
 
     reportData = { picks, ratings, trades, month };
+    renderConfigBreakdown(trades);
 
     if (!picks.length && !trades.length) {
       document.getElementById('report-content').style.display = 'none';
@@ -708,6 +723,164 @@
   // Archives every month that has data but no snapshot yet. Runs on load so
   // months are preserved without needing to remember the button. The current
   // month is re-archived each time so it stays current as trades close.
+  // ── SIGNAL EVIDENCE ──
+  // Joins shadow_log against what prices actually did. The point is the
+  // comparison between accepted and rejected candidates: if names scoring 45
+  // moved as well as names scoring 75, the score is noise and the threshold
+  // is arbitrary. Nothing else in the system can answer that.
+  const EV_CG = {
+    BTC:'bitcoin', ETH:'ethereum', SOL:'solana', BNB:'binancecoin', XRP:'ripple',
+    ADA:'cardano', AVAX:'avalanche-2', DOGE:'dogecoin', LINK:'chainlink',
+    DOT:'polkadot', MATIC:'matic-network', LTC:'litecoin', UNI:'uniswap',
+    ATOM:'cosmos', TRX:'tron', SHIB:'shiba-inu', HYPE:'hyperliquid',
+  };
+
+  async function runSignalEvidence() {
+    const btn = document.getElementById('evidence-btn');
+    const box = document.getElementById('evidence-container');
+    if (!box) return;
+    btn.disabled = true; btn.textContent = 'ANALYSING...';
+
+    try {
+      const { data: rows } = await db.from('shadow_log')
+        .select('*').order('scored_at', { ascending: false }).limit(500);
+
+      if (!rows || !rows.length) {
+        box.innerHTML = '<div class="empty-state">No scored candidates logged yet. Run a cycle and the funnel will populate this.</div>';
+        return;
+      }
+
+      // Current prices, so outcomes can be measured against the score
+      const tickers = [...new Set(rows.map(r => r.ticker.toUpperCase()))];
+      const live = {};
+      const ids = tickers.map(t => EV_CG[t]).filter(Boolean);
+      if (ids.length) {
+        try {
+          const r = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=' + ids.join(',') + '&vs_currencies=usd');
+          if (r.ok) {
+            const d = await r.json();
+            tickers.forEach(t => { const id = EV_CG[t]; if (d[id]) live[t] = d[id].usd; });
+          }
+        } catch(e) {}
+      }
+
+      // Bucket by opportunity score and measure realised movement in the
+      // direction the Governor called.
+      const buckets = {
+        '70+':   { taken:0, total:0, moves:[] },
+        '60-69': { taken:0, total:0, moves:[] },
+        '50-59': { taken:0, total:0, moves:[] },
+        '<50':   { taken:0, total:0, moves:[] },
+      };
+      const keyFor = (op) => op >= 70 ? '70+' : op >= 60 ? '60-69' : op >= 50 ? '50-59' : '<50';
+
+      let measurable = 0;
+      rows.forEach(r => {
+        const op = Number(r.opportunity_score);
+        if (!Number.isFinite(op)) return;
+        const b = buckets[keyFor(op)];
+        b.total++;
+        if (r.passed_gate) b.taken++;
+
+        const then = Number(r.price_at_score);
+        const now  = live[r.ticker.toUpperCase()];
+        if (then > 0 && now) {
+          // Signed by direction — a short that fell is a win
+          const raw = ((now - then) / then) * 100;
+          const dir = String(r.direction || '').toUpperCase();
+          b.moves.push(dir === 'SHORT' ? -raw : raw);
+          measurable++;
+        }
+      });
+
+      const fmt = (arr) => {
+        if (!arr.length) return { avg: null, win: null };
+        const avg = arr.reduce((a,b2)=>a+b2,0) / arr.length;
+        const win = (arr.filter(x => x > 0).length / arr.length) * 100;
+        return { avg, win };
+      };
+
+      const bucketRows = Object.entries(buckets).map(([label, b]) => {
+        const st = fmt(b.moves);
+        const avgTxt = st.avg === null ? '—' : (st.avg >= 0 ? '+' : '') + st.avg.toFixed(2) + '%';
+        const winTxt = st.win === null ? '—' : st.win.toFixed(0) + '%';
+        const cls = st.avg === null ? '' : (st.avg >= 0 ? 'positive' : 'negative');
+        return '<div class="picks-table-row">' +
+          '<div class="row-ticker">' + label + '</div>' +
+          '<div style="font-size:0.78rem;color:var(--muted)">' + b.total + '</div>' +
+          '<div style="font-size:0.78rem;color:var(--muted)">' + b.taken + '</div>' +
+          '<div class="row-return ' + cls + '">' + avgTxt + '</div>' +
+          '<div style="font-size:0.78rem;color:var(--muted)">' + winTxt + '</div></div>';
+      }).join('');
+
+      // The headline question: do high scores beat low ones?
+      const hi = fmt(buckets['70+'].moves);
+      const lo = fmt(buckets['<50'].moves);
+      let verdict;
+      if (hi.avg === null || lo.avg === null) {
+        verdict = 'Not enough measurable candidates yet in both bands. Needs more cycles.';
+      } else if (hi.avg > lo.avg + 0.5) {
+        verdict = 'High-opportunity candidates are outperforming low ones by ' +
+                  (hi.avg - lo.avg).toFixed(2) + ' points. The score is carrying signal.';
+      } else if (Math.abs(hi.avg - lo.avg) <= 0.5) {
+        verdict = 'High and low scores are performing within 0.5 points of each other. ' +
+                  'On this sample the score is not discriminating — the threshold may be arbitrary.';
+      } else {
+        verdict = 'Low-opportunity candidates are OUTPERFORMING high ones by ' +
+                  (lo.avg - hi.avg).toFixed(2) + ' points. Either the sample is too small, ' +
+                  'or the score is inverted.';
+      }
+
+      box.innerHTML =
+        '<div style="border:1px solid rgba(201,168,76,0.25);padding:1rem;margin-bottom:1rem;font-size:0.8rem;color:var(--white);line-height:1.6;">' +
+          verdict +
+        '</div>' +
+        '<div style="font-size:0.72rem;color:var(--muted);margin-bottom:0.8rem;font-family:\'IBM Plex Mono\',monospace;">' +
+          rows.length + ' scored · ' + measurable + ' measurable against live price · ' +
+          'move is signed by direction, so a short that fell counts as positive' +
+        '</div>' +
+        '<div class="picks-table">' +
+          '<div class="picks-table-header"><span>Opportunity</span><span>Scored</span><span>Taken</span><span>Avg move</span><span>Win rate</span></div>' +
+          bucketRows +
+        '</div>';
+
+    } catch(e) {
+      box.innerHTML = '<div class="empty-state">Analysis failed: ' + (e?.message || 'unknown') + '</div>';
+    } finally {
+      btn.disabled = false; btn.textContent = 'ANALYSE';
+    }
+  }
+
+  // Raw rows for spreadsheet analysis — PDF is unreadable at thousands of rows
+  async function exportShadowCSV() {
+    try {
+      const { data: rows } = await db.from('shadow_log')
+        .select('*').order('scored_at', { ascending: false }).limit(5000);
+      if (!rows || !rows.length) { alert('No shadow data to export yet.'); return; }
+
+      const cols = ['scored_at','ticker','mode','price_at_score','direction',
+                    'composite_score','opportunity_score','signal_quality','confidence',
+                    'volatility_pct','reward_risk','moves_to_target',
+                    'entry_price','stop_loss','target_price',
+                    'execution_mode','algorithms_ran','passed_gate','reject_reason'];
+      const esc = (v) => v === null || v === undefined ? ''
+        : (typeof v === 'string' && (v.includes(',') || v.includes('"'))
+            ? '"' + v.replace(/"/g,'""') + '"' : String(v));
+      const csv = [cols.join(',')]
+        .concat(rows.map(r => cols.map(c => esc(r[c])).join(',')))
+        .join('\n');
+
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'aurum-shadow-' + new Date().toISOString().slice(0,10) + '.csv';
+      a.click();
+      URL.revokeObjectURL(a.href);
+    } catch(e) {
+      alert('Export failed: ' + (e?.message || 'unknown'));
+    }
+  }
+
   // ── PRICE INTEGRITY CHECK ──
   // Re-fetches each position's price from the same API the Governor used and
   // compares it against what the system recorded. Answers whether the data
@@ -719,6 +892,68 @@
     ATOM:'cosmos', TRX:'tron', SHIB:'shiba-inu', HYPE:'hyperliquid',
   };
   const INTEGRITY_FINNHUB = 'd8ipl11r01qtcvnt331gd8ipl11r01qtcvnt3320';
+
+  // Splits the month's closed trades by the configuration that produced them.
+  // Reads paper_trades directly so it reflects live data rather than the last
+  // archive snapshot.
+  function renderConfigBreakdown(trades) {
+    const box = document.getElementById('config-breakdown');
+    if (!box) return;
+    const closed = (trades || []).filter(t => t.status === 'closed');
+
+    if (!closed.length) {
+      box.innerHTML = '<div class="empty-state">No closed trades this month.</div>';
+      return;
+    }
+
+    function group(keyFn, fallback) {
+      const g = {};
+      closed.forEach(t => {
+        const k = keyFn(t) || fallback;
+        g[k] = g[k] || { trades: 0, wins: 0, pl: 0 };
+        const gl = Number(t.gain_loss) || 0;
+        g[k].trades++;
+        if (gl > 0) g[k].wins++;
+        g[k].pl += gl;
+      });
+      return g;
+    }
+
+    function table(title, g, note) {
+      const keys = Object.keys(g);
+      if (!keys.length) return '';
+      const rows = keys.map(k => {
+        const d = g[k];
+        const wr = d.trades ? Math.round((d.wins / d.trades) * 100) : 0;
+        const avg = d.trades ? d.pl / d.trades : 0;
+        return '<div class="picks-table-row">' +
+          '<div class="row-ticker">' + k.toUpperCase() + '</div>' +
+          '<div style="font-size:0.78rem;color:var(--muted)">' + d.trades + '</div>' +
+          '<div style="font-size:0.78rem;color:var(--muted)">' + wr + '%</div>' +
+          '<div class="row-return ' + (d.pl >= 0 ? 'positive' : 'negative') + '">' +
+            (d.pl >= 0 ? '+' : '') + '$' + Math.abs(d.pl).toFixed(2) + '</div>' +
+          '<div class="row-return ' + (avg >= 0 ? 'positive' : 'negative') + '">' +
+            (avg >= 0 ? '+' : '') + '$' + Math.abs(avg).toFixed(2) + '</div>' +
+        '</div>';
+      }).join('');
+      return '<div style="margin-bottom:1.2rem;">' +
+        '<div style="font-size:0.65rem;letter-spacing:0.18em;color:var(--gold);font-family:\'IBM Plex Mono\',monospace;margin-bottom:0.5rem;">' + title + '</div>' +
+        (note ? '<div style="font-size:0.68rem;color:var(--muted);margin-bottom:0.5rem;">' + note + '</div>' : '') +
+        '<div class="picks-table">' +
+          '<div class="picks-table-header"><span>Config</span><span>Trades</span><span>Win Rate</span><span>Total P&L</span><span>Avg/Trade</span></div>' +
+          rows +
+        '</div></div>';
+    }
+
+    const byScorer = group(t => t.scoring_mode, 'claude');
+    const byPreset = group(t => t.scale_preset, 'conservative');
+
+    const single = Object.keys(byScorer).length < 2;
+    box.innerHTML =
+      table('BY SCORING MODE', byScorer,
+            single ? 'Only one scorer used so far — switch modes to build a comparison.' : null) +
+      table('BY SCALE PRESET', byPreset, null);
+  }
 
   async function runIntegrityCheck() {
     const btn = document.getElementById('integrity-btn');
@@ -870,7 +1105,7 @@
     // return percentage is not computed against a hardcoded guess.
     let settingsRow = null;
     try {
-      const { data: ts } = await db.from('trading_settings').select('scale_preset').limit(1);
+      const { data: ts } = await db.from('trading_settings').select('scale_preset, scoring_mode').limit(1);
       if (ts && ts.length) settingsRow = ts[0];
     } catch (e) {}
 
@@ -902,6 +1137,50 @@
         // Which configuration produced these results. Without this a month's
         // numbers cannot be attributed to the settings that generated them.
         scale_preset:    settingsRow?.scale_preset || 'conservative',
+        scoring_mode:    settingsRow?.scoring_mode || 'claude',
+
+        // Results split by which scorer chose each trade. A month that mixes
+        // modes is meaningless as one number — this is the comparison the
+        // switchable scorer exists to enable.
+        by_scorer: (function () {
+          const groups = {};
+          closed.forEach(t => {
+            const k = t.scoring_mode || 'claude';
+            groups[k] = groups[k] || { trades: 0, wins: 0, pl: 0, best: null, worst: null };
+            const gl = Number(t.gain_loss) || 0;
+            groups[k].trades++;
+            if (gl > 0) groups[k].wins++;
+            groups[k].pl += gl;
+            if (groups[k].best  === null || gl > groups[k].best)  groups[k].best  = gl;
+            if (groups[k].worst === null || gl < groups[k].worst) groups[k].worst = gl;
+          });
+          Object.keys(groups).forEach(k => {
+            const g = groups[k];
+            g.pl       = Math.round(g.pl * 100) / 100;
+            g.win_rate = g.trades ? Math.round((g.wins / g.trades) * 100) : 0;
+            g.avg_pl   = g.trades ? Math.round((g.pl / g.trades) * 100) / 100 : 0;
+          });
+          return groups;
+        })(),
+
+        // Same split by preset, so scale changes are attributable too
+        by_preset: (function () {
+          const groups = {};
+          closed.forEach(t => {
+            const k = t.scale_preset || settingsRow?.scale_preset || 'conservative';
+            groups[k] = groups[k] || { trades: 0, wins: 0, pl: 0 };
+            const gl = Number(t.gain_loss) || 0;
+            groups[k].trades++;
+            if (gl > 0) groups[k].wins++;
+            groups[k].pl += gl;
+          });
+          Object.keys(groups).forEach(k => {
+            const g = groups[k];
+            g.pl       = Math.round(g.pl * 100) / 100;
+            g.win_rate = g.trades ? Math.round((g.wins / g.trades) * 100) : 0;
+          });
+          return groups;
+        })(),
         closed_trades:   closed.length,
         open_at_archive: (reportData.trades || []).filter(t => t.status === 'open').length,
         realized_pl:     Math.round(realized * 100) / 100,
@@ -918,6 +1197,9 @@
           commission: t.commission, slippage: t.slippage_cost,
           entry_sq: t.entry_signal_quality, close_sq: t.close_signal_quality,
           close_reason: t.close_reason, note: t.note,
+          scoring_mode: t.scoring_mode || null,
+          det_composite: t.det_composite ?? null,
+          det_opportunity: t.det_opportunity ?? null,
           opened_at: t.opened_at, closed_at: t.closed_at,
         })),
       },
