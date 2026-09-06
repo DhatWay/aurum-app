@@ -657,6 +657,9 @@ footer p { font-size: 0.6rem; letter-spacing: 0.12em; color: var(--muted); text-
 </style>
 </head>
 <body>
+<div id="live-banner" style="display:none; position:sticky; top:0; z-index:2500; background:#2a0f0f; border-bottom:1px solid rgba(139,58,58,0.7); color:#E8C9C9; font-family:'IBM Plex Mono',monospace; font-size:0.7rem; letter-spacing:0.12em; text-align:center; padding:0.55rem 1rem;">
+  ● LIVE EXECUTION ARMED — POSITIONS OPEN WITH REAL FUNDS ON BASE
+</div>
 
 <header>
   <div class="logo">AU<span>PRIVATE INTELLIGENCE</span></div>
@@ -799,6 +802,12 @@ footer p { font-size: 0.6rem; letter-spacing: 0.12em; color: var(--muted); text-
     <div style="font-size:0.62rem; letter-spacing:0.2em; color:#C9A84C; font-family:'IBM Plex Mono',monospace; margin-bottom:0.5rem;">SCORING MODE</div>
     <div style="display:flex; gap:0.5rem; flex-wrap:wrap;" id="scoring-buttons"></div>
     <div id="scoring-note" style="font-size:0.66rem; color:#6B6560; font-family:'IBM Plex Mono',monospace; margin-top:0.5rem; line-height:1.6;"></div>
+
+    <div style="border-top:1px solid rgba(107,101,96,0.2); margin-top:0.9rem; padding-top:0.9rem;">
+      <div style="font-size:0.62rem; letter-spacing:0.2em; color:#C9A84C; font-family:'IBM Plex Mono',monospace; margin-bottom:0.5rem;">EXECUTION</div>
+      <button id="live-toggle" onclick="toggleLiveArmed()" style="width:100%; background:transparent; border:1px solid rgba(107,101,96,0.4); color:#6B6560; font-family:'DM Sans',sans-serif; font-size:0.72rem; letter-spacing:0.15em; padding:0.6rem; cursor:pointer;">PAPER MODE</button>
+      <div id="live-note" style="font-size:0.66rem; color:#6B6560; font-family:'IBM Plex Mono',monospace; margin-top:0.5rem; line-height:1.6;"></div>
+    </div>
 
     <div style="border-top:1px solid rgba(107,101,96,0.2); margin-top:0.9rem; padding-top:0.9rem;">
       <div style="font-size:0.62rem; letter-spacing:0.2em; color:#C9A84C; font-family:'IBM Plex Mono',monospace; margin-bottom:0.5rem;">SWING REVERSAL</div>
@@ -2518,7 +2527,7 @@ const MAX_PER_TICKER     = 1;      // one position per ticker      // one positi
 // Thresholds differ by asset class. Crypto has no earnings, insider filings or
 // analyst coverage, so its data ceiling is genuinely lower — holding it to the
 // stock bar makes every coin unreachable regardless of how good the setup is.
-const BUILD = 'b85-trailing-stop-check';
+const BUILD = 'b86-live-bridge';
 const MAX_POSITION_PCT = 15;   // hard ceiling per position, as % of balance
 
 // ── SCALE PRESETS ──
@@ -3761,6 +3770,107 @@ async function decideAllocations(scored, needed) {
 }
 
 // Insert an approved position directly. Bypasses the DOM form entirely.
+// ══════════════════════════════════════════════════════════
+// LIVE EXECUTION BRIDGE
+//
+// The gap between paper and live is deliberately NOT a single Supabase secret.
+// Arming is a visible switch here, because "am I trading real money right now"
+// should never be a question you have to check a dashboard to answer.
+//
+// Ordering matters: the swap must confirm BEFORE the trade row is written. A
+// paper row for a trade that did not execute is worse than no row — it would
+// corrupt every downstream number while looking correct.
+// ══════════════════════════════════════════════════════════
+
+const EXECUTOR_URL = 'https://zpcbbwynvvyldavxzjng.supabase.co/functions/v1/wallet-executor';
+
+let liveArmed = false;
+
+async function loadLiveArmed() {
+  try {
+    const { data } = await db.from('trading_settings').select('live_armed').limit(1);
+    liveArmed = !!(data && data.length && data[0].live_armed);
+  } catch (e) { liveArmed = false; }
+  renderLiveToggle();
+}
+
+async function toggleLiveArmed() {
+  // Arming requires an explicit confirmation. Disarming never does.
+  if (!liveArmed) {
+    const bal = await getPortfolioBalance();
+    const pct = preset().sizePct;
+    const size = (bal * pct / 100).toFixed(2);
+    const ok = confirm(
+      'ARM LIVE EXECUTION\n\n' +
+      'Trades will execute on Base using real funds from the burner wallet.\n\n' +
+      'Preset: ' + preset().label + ' — up to ' + preset().positions +
+      ' positions at ~$' + size + ' each.\n\n' +
+      'Swaps are irreversible. Continue?'
+    );
+    if (!ok) return;
+  }
+
+  liveArmed = !liveArmed;
+  try {
+    const { data } = await db.from('trading_settings').select('id').limit(1);
+    if (data && data.length) {
+      await db.from('trading_settings').update({ live_armed: liveArmed }).eq('id', data[0].id);
+    }
+  } catch (e) {}
+  renderLiveToggle();
+}
+
+function renderLiveToggle() {
+  const btn  = document.getElementById('live-toggle');
+  const note = document.getElementById('live-note');
+  const bar  = document.getElementById('live-banner');
+  if (btn) {
+    btn.textContent = liveArmed ? '● LIVE — REAL FUNDS' : 'PAPER MODE';
+    btn.style.color       = liveArmed ? '#E8C9C9' : '#6B6560';
+    btn.style.borderColor = liveArmed ? 'rgba(139,58,58,0.8)' : 'rgba(107,101,96,0.4)';
+    btn.style.background  = liveArmed ? 'rgba(139,58,58,0.18)' : 'transparent';
+  }
+  if (note) {
+    note.textContent = liveArmed
+      ? 'Every position opens with a real swap on Base. A trade is only recorded once its swap confirms.'
+      : 'Simulated only. No funds move. Arming requires confirmation.';
+  }
+  // Unmissable while armed — this should never be ambiguous
+  if (bar) bar.style.display = liveArmed ? 'block' : 'none';
+}
+
+// Executes the swap. Returns { ok, txHash, error }.
+async function executeLiveSwap(gov, direction, amountUsd) {
+  try {
+    const res = await fetchWithTimeout(EXECUTOR_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + GOVERNOR_ANON_KEY },
+      body: JSON.stringify({
+        action:     'swap',
+        direction:  direction.toUpperCase(),
+        amount_usd: amountUsd,
+        ticker:     gov.ticker,
+      })
+    }, 60000);   // swaps need longer than a scan
+
+    const data = await res.json().catch(() => null);
+    if (!data) return { ok: false, error: 'Executor returned no response' };
+
+    if (data.halted) return { ok: false, error: 'Guard halted execution: ' + (data.error || data.guard) };
+    if (!data.ok)    return { ok: false, error: data.error || 'Swap failed' };
+
+    // A dry-run response means EXECUTION_MODE is not live on the executor.
+    // Do NOT record a position — nothing actually moved.
+    if (data.broadcast === false) {
+      return { ok: false, error: 'Executor is in DRY RUN. Set EXECUTION_MODE=live in Supabase secrets to trade for real.' };
+    }
+
+    return { ok: true, txHash: data.tx_hash || null };
+  } catch (e) {
+    return { ok: false, error: e?.message || 'Executor unreachable' };
+  }
+}
+
 async function openPositionFromSignal(gov, why) {
   const slippagePct = 0.0005;
   const isCrypto    = activeMode === 'crypto';
@@ -3815,6 +3925,29 @@ async function openPositionFromSignal(gov, why) {
     gov.confidence || null,
   ].filter(Boolean).join(' · ');
 
+  // ── LIVE EXECUTION ──
+  // The swap must confirm before anything is recorded. If it fails, no row is
+  // written — a position that does not exist on-chain must not exist in the
+  // database either, or every downstream number is wrong.
+  let txHash = null;
+  if (liveArmed) {
+    const positionUsd = shares * effectiveEntry;
+    const swap = await executeLiveSwap(gov, direction, positionUsd);
+    if (!swap.ok) {
+      autoLog('LIVE SWAP FAILED · ' + gov.ticker + ' — ' + swap.error + '. No position recorded.');
+      try {
+        await db.from('position_alerts').insert({
+          alert_type: 'live_swap_failed',
+          ticker:     gov.ticker,
+          message:    'Live swap failed for ' + gov.ticker + ': ' + swap.error + '. No position was opened.',
+          read:       false,
+        });
+      } catch (e) {}
+      return false;
+    }
+    txHash = swap.txHash;
+  }
+
   const { error } = await db.from('paper_trades').insert({
     ticker:               gov.ticker,
     shares,
@@ -3850,6 +3983,8 @@ async function openPositionFromSignal(gov, why) {
     // mixing scorers or presets collapses into one meaningless number.
     scoring_mode:         scoringMode,
     scale_preset:         activePreset,
+    is_live:              liveArmed,
+    tx_hash:              txHash,
     det_composite:        gov._det ? gov._det.composite   : null,
     det_opportunity:      gov._det ? gov._det.opportunity : null
   });
@@ -4083,6 +4218,7 @@ loadHistory();
 loadPositionAlerts();
 loadScoringMode();
 loadSwingSetting();
+loadLiveArmed();
 </script>
 
 <script src="tickers.js"></script>
