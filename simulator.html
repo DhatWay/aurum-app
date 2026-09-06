@@ -2518,7 +2518,7 @@ const MAX_PER_TICKER     = 1;      // one position per ticker      // one positi
 // Thresholds differ by asset class. Crypto has no earnings, insider filings or
 // analyst coverage, so its data ceiling is genuinely lower — holding it to the
 // stock bar makes every coin unreachable regardless of how good the setup is.
-const BUILD = 'b82-swing-gated';
+const BUILD = 'b83-deterministic-free';
 const MAX_POSITION_PCT = 15;   // hard ceiling per position, as % of balance
 
 // ── SCALE PRESETS ──
@@ -3416,7 +3416,7 @@ function renderScoringMode() {
   if (!box) return;
   const modes = [
     ['claude',        'CLAUDE',        'Model synthesis. Costs an API call per candidate.'],
-    ['deterministic', 'DETERMINISTIC', 'Weight matrix arithmetic. Free, reproducible, backtestable.'],
+    ['deterministic', 'DETERMINISTIC', 'Weight matrix arithmetic. No Anthropic call at all — free, reproducible, and runs with no API key.'],
     ['both',          'BOTH',          'Runs Claude, records both. Claude decides. Measures the gap.'],
   ];
   box.innerHTML = modes.map(([k, label]) => {
@@ -3591,12 +3591,54 @@ async function scoreTicker(ticker, balance) {
         strategy:          currentStrategy,
         instrument:        activeMode === 'crypto' ? 'crypto' : 'stock',
         mode:              activeMode,
-        portfolio_balance: balance
+        portfolio_balance: balance,
+        // Deterministic scoring needs the raw algorithm outputs, not a model's
+        // reading of them. This skips the Anthropic call entirely, so the scan
+        // costs nothing and runs with no API key.
+        skip_ai:           scoringMode === 'deterministic'
       })
     }, 30000);
     if (!res.ok) return null;
     const g = await res.json();
     if (g.error || !g.entry_price) return null;
+
+    // In deterministic mode the Governor returns raw algorithm scores and no
+    // synthesis, so the scorer must supply direction, stops and targets before
+    // anything downstream can use it.
+    if (g.skip_ai) {
+      const det = scoreDeterministic({
+        algorithm_scores: g.algorithm_scores,
+        entry_price:      g.entry_price,
+        volatility_pct:   g.volatility_pct,
+        stop_loss:        null,
+        target_price:     null,
+      });
+      if (!det) return null;
+      if (det.direction === 'NONE') return null;
+
+      // Volatility-scaled stop, 2:1 target — the same geometry the Governor
+      // is instructed to produce.
+      const entry    = Number(g.entry_price);
+      const vol      = Number(g.volatility_pct) || 3;
+      const stopDist = entry * (vol / 100) * 2;
+      g.stop_loss    = det.direction === 'LONG' ? entry - stopDist : entry + stopDist;
+      g.target_price = det.direction === 'LONG' ? entry + stopDist * 2 : entry - stopDist * 2;
+
+      // Recompute opportunity now that real levels exist
+      const opp = computeOpportunity(g, det.composite);
+
+      g.direction         = det.direction;
+      g.composite_score   = det.composite;
+      g.opportunity_score = opp !== null ? opp : det.opportunity;
+      g.signal_quality    = Math.min(40 + (g.algorithms_executed || 0) * 2, 95);
+      g.confidence        = g.opportunity_score >= 70 ? 'High'
+                          : g.opportunity_score >= 55 ? 'Medium' : 'Low';
+      g.reward_risk       = 2.0;
+      g.moves_to_target   = vol > 0 ? Math.round((Math.abs(g.target_price - entry) / entry * 100 / vol) * 100) / 100 : null;
+      g._det              = { composite: det.composite, opportunity: g.opportunity_score, direction: det.direction };
+      return g;
+    }
+
     // Overlay the deterministic view; which one is authoritative depends on mode
     return applyScoringMode(g);
   } catch(e) {
