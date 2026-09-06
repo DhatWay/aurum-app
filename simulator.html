@@ -1737,6 +1737,15 @@ async function getClaudeSuggestion() {
           swing_signal:         gov.swing_signal         || false,
           swing_direction:      gov.swing_direction      || null,
           swing_confidence:     gov.swing_confidence     || null,
+          // These three were missing, so the override below had nothing to
+          // override with — Claude's fabricated entry price reached the UI
+          // unchallenged. The Governor's values are authoritative.
+          entry_price:          gov.entry_price          || null,
+          stop_loss:            gov.stop_loss            || null,
+          target_price:         gov.target_price         || null,
+          volatility_pct:       gov.volatility_pct       || null,
+          opportunity_score:    gov.opportunity_score    ?? null,
+          reward_risk:          gov.reward_risk          ?? null,
         };
         thinking.textContent = 'Governor complete — ' + governorMeta.algoCount + ' algorithms ran. Asking Claude...';
       }
@@ -1880,7 +1889,20 @@ ${jsonExample}`;
     // them and gets them wrong — it returned entry $15.53 for XRP while its own
     // prose said $1.37, the same failure as BTC at $34.32. Never let the model
     // carry a price it was only asked to repeat.
-    if (governorMeta.entry_price)  claudeSuggestion.entry_price  = Number(governorMeta.entry_price);
+    if (governorMeta.entry_price) {
+      const govEntry = Number(governorMeta.entry_price);
+      const modelEntry = Number(claudeSuggestion.entry_price);
+      // A large disagreement means one of them is wrong. Surface it rather
+      // than silently substituting — this is how $35.31 for BTC reached a card.
+      if (Number.isFinite(modelEntry) && modelEntry > 0 && govEntry > 0) {
+        const gap = Math.abs(modelEntry - govEntry) / govEntry;
+        if (gap > 0.05) {
+          console.warn('Entry mismatch on ' + (claudeSuggestion.ticker || '?') +
+            ': model said ' + modelEntry + ', Governor says ' + govEntry + '. Using Governor.');
+        }
+      }
+      claudeSuggestion.entry_price = govEntry;
+    }
     if (governorMeta.stop_loss)    claudeSuggestion.stop_loss    = Number(governorMeta.stop_loss);
     if (governorMeta.target_price) claudeSuggestion.target_price = Number(governorMeta.target_price);
     if (gov && gov.direction)      claudeSuggestion.direction    = String(gov.direction).toLowerCase();
@@ -2548,7 +2570,7 @@ const MAX_PER_TICKER     = 1;      // one position per ticker      // one positi
 // Thresholds differ by asset class. Crypto has no earnings, insider filings or
 // analyst coverage, so its data ceiling is genuinely lower — holding it to the
 // stock bar makes every coin unreachable regardless of how good the setup is.
-const BUILD = 'b87-timeout-fix';
+const BUILD = 'b88-entry-override-fix';
 const MAX_POSITION_PCT = 15;   // hard ceiling per position, as % of balance
 
 // ── SCALE PRESETS ──
