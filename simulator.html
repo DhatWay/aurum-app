@@ -2518,7 +2518,7 @@ const MAX_PER_TICKER     = 1;      // one position per ticker      // one positi
 // Thresholds differ by asset class. Crypto has no earnings, insider filings or
 // analyst coverage, so its data ceiling is genuinely lower — holding it to the
 // stock bar makes every coin unreachable regardless of how good the setup is.
-const BUILD = 'b83-deterministic-free';
+const BUILD = 'b84-cost-trims';
 const MAX_POSITION_PCT = 15;   // hard ceiling per position, as % of balance
 
 // ── SCALE PRESETS ──
@@ -3455,7 +3455,10 @@ async function countOpenPositions() {
 // ══════════════════════════════════════════════════════════
 
 const FUNNEL_SCAN_DEPTH = 1000;   // coins pulled before ranking
-const FUNNEL_SHORTLIST  = 40;     // survivors passed to the Governor
+const FUNNEL_SHORTLIST  = 25;     // survivors passed to the Governor.
+                                  // Was 40 at an ~11% pass rate — paying for 36
+                                  // rejections to find 4. The funnel already
+                                  // ranked these, so the cut drops the weakest.
 
 // Composite movement score. Pure arithmetic — this decides WHO gets looked at,
 // never whether a trade happens. That judgement stays with the Governor.
