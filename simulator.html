@@ -1564,14 +1564,20 @@ let lastDiagnostic = { governor: null, smoothService: null };
 // fetch with a hard timeout — prevents the button hanging forever on a stalled edge function
 async function fetchWithTimeout(url, options, timeoutMs) {
   const controller = new AbortController();
+  const started = Date.now();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     return await fetch(url, { ...options, signal: controller.signal });
   } catch(err) {
-    if (err.name === 'AbortError') {
-      throw new Error('Request timed out after ' + (timeoutMs / 1000) + 's. The edge function did not respond — likely a cold start or CPU limit on the Supabase plan.');
+    // Some mobile browsers surface an aborted fetch as TypeError('Failed to
+    // fetch') instead of AbortError, which made a timeout look like a network
+    // failure. Compare against elapsed time rather than trusting err.name.
+    const elapsed = Date.now() - started;
+    const likelyTimeout = err.name === 'AbortError' || elapsed >= timeoutMs - 250;
+    if (likelyTimeout) {
+      throw new Error('Timed out after ' + Math.round(elapsed / 1000) + 's. The Governor runs 33 algorithms plus a model call — on a cold start that can exceed the limit. Try again; the second call is usually much faster.');
     }
-    throw err;
+    throw new Error((err.message || 'Request failed') + ' (after ' + Math.round(elapsed / 1000) + 's)');
   } finally {
     clearTimeout(timer);
   }
@@ -1697,9 +1703,12 @@ async function getClaudeSuggestion() {
           // 'options', which the Governor does not expect.
           instrument: activeMode === 'crypto' ? 'crypto' : 'stock',
           mode: activeMode,
-          portfolio_balance: await getPortfolioBalance()
+          portfolio_balance: await getPortfolioBalance(),
+          // Match the autonomous path exactly — it was missing skip_ai, so
+          // deterministic mode still forced a model call here.
+          skip_ai: scoringMode === 'deterministic'
         })
-      }, 30000);
+      }, 60000);
 
       if (!govRes.ok) {
         // Capture the real reason instead of silently returning null
@@ -1954,6 +1963,18 @@ ${jsonExample}`;
 
     document.getElementById('suggestion-text').textContent =
       'FAILED AT: ' + failedAt + '\n\n' + (e.message || 'Unknown error');
+
+    // renderSuggestion never runs on failure, so the apply button kept its
+    // enabled state from a previous success — one tap from applying a trade
+    // that was never generated.
+    claudeSuggestion = null;
+    const applyBtn = document.querySelector('.apply-btn');
+    if (applyBtn) {
+      applyBtn.disabled = true;
+      applyBtn.style.opacity = '0.35';
+      applyBtn.style.cursor = 'not-allowed';
+      applyBtn.textContent = 'No Trade — Governor Failed';
+    }
 
     document.getElementById('suggestion-fields').innerHTML =
       '<div style="grid-column:1/-1; border:1px solid rgba(139,58,58,0.4); padding:0.8rem 1rem;">' +
@@ -2527,7 +2548,7 @@ const MAX_PER_TICKER     = 1;      // one position per ticker      // one positi
 // Thresholds differ by asset class. Crypto has no earnings, insider filings or
 // analyst coverage, so its data ceiling is genuinely lower — holding it to the
 // stock bar makes every coin unreachable regardless of how good the setup is.
-const BUILD = 'b86-live-bridge';
+const BUILD = 'b87-timeout-fix';
 const MAX_POSITION_PCT = 15;   // hard ceiling per position, as % of balance
 
 // ── SCALE PRESETS ──
