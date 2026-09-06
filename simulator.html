@@ -2518,7 +2518,7 @@ const MAX_PER_TICKER     = 1;      // one position per ticker      // one positi
 // Thresholds differ by asset class. Crypto has no earnings, insider filings or
 // analyst coverage, so its data ceiling is genuinely lower — holding it to the
 // stock bar makes every coin unreachable regardless of how good the setup is.
-const BUILD = 'b84-cost-trims';
+const BUILD = 'b85-trailing-stop-check';
 const MAX_POSITION_PCT = 15;   // hard ceiling per position, as % of balance
 
 // ── SCALE PRESETS ──
@@ -2739,15 +2739,29 @@ async function collectDiagnostics() {
   if (noBasis.length) issues.push('no_basis');
 
   // 5. Stops must sit on the profitable side of entry, or they fire instantly.
+  // A stop must sit below the CURRENT price for a long, not below entry.
+  // Once a trailing stop locks in gains it moves ABOVE entry deliberately —
+  // that is the feature working, not a fault. The real invariant is that a
+  // stop above current price would fire instantly.
   const badStops = open.filter(t => {
+    const cur  = Number(t.current_price);
+    const stop = Number(t.stop_loss);
+    if (!cur || !stop) return false;
+    return String(t.direction).toLowerCase() === 'short' ? stop < cur : stop > cur;
+  });
+
+  // Locked-in profit is worth surfacing, but as information rather than an error
+  const lockedIn = open.filter(t => {
     const entry = Number(t.effective_entry || t.entry_price);
     const stop  = Number(t.stop_loss);
     if (!entry || !stop) return false;
     return String(t.direction).toLowerCase() === 'short' ? stop < entry : stop > entry;
   });
   out.push(badStops.length
-    ? diagLine('fail', 'Stop placement', badStops.map(t => t.ticker).join(', ') + ' on wrong side of entry')
-    : diagLine('ok', 'Stop placement', 'all correct side'));
+    ? diagLine('fail', 'Stop placement', badStops.map(t => t.ticker).join(', ') + ' above current price — would fire immediately')
+    : diagLine('ok', 'Stop placement', lockedIn.length
+        ? 'all valid · ' + lockedIn.map(t => t.ticker).join(', ') + ' trailing above entry, profit locked'
+        : 'all valid'));
   if (badStops.length) issues.push('bad_stops');
 
   // 6. Accounting identity: cash + deployed = start + realised
