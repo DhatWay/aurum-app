@@ -1,4 +1,4 @@
-const CACHE_NAME = 'aurum-v2';
+const CACHE_NAME = 'aurum-v1';
 const STATIC_ASSETS = [
   '/aurum-app/tickers.js',
   '/aurum-app/manifest.json',
@@ -19,6 +19,7 @@ const HTML_PAGES = [
   '/aurum-app/history.html',
   '/aurum-app/options.html',
   '/aurum-app/report.html',
+  '/aurum-app/intelligence.html',
   '/aurum-app/ipo.html',
   '/aurum-app/tutorial.html',
   '/aurum-app/help.html'
