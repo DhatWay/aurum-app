@@ -27,11 +27,11 @@ header { display: flex; justify-content: space-between; align-items: center; pad
 .logo { font-family: 'Cormorant Garamond', serif; font-size: 1.8rem; font-weight: 600; letter-spacing: 0.3em; color: var(--gold); line-height: 1; }
 .logo span { display: block; font-size: 0.6rem; letter-spacing: 0.2em; color: var(--white); opacity: 0.3; margin-top: 2px; }
 .hamburger { background: transparent; border: 1px solid var(--rule); color: var(--gold); font-size: 1.1rem; padding: 0.4rem 0.8rem; cursor: pointer; z-index: 1001; }
-.nav-overlay { position: fixed; inset: 0; background: rgba(8,8,8,0.97); z-index: 1000; display: none; flex-direction: column; justify-content: center; align-items: center; gap: 1.5rem; padding: 4rem 2rem; overflow-y: auto; }
-.nav-overlay.open { display: flex; }
-.nav-overlay a { font-family: 'Cormorant Garamond', serif; font-size: 2rem; font-weight: 300; color: var(--muted); text-decoration: none; letter-spacing: 0.2em; transition: color 0.3s; }
-.nav-overlay a:hover, .nav-overlay a.active { color: var(--gold); }
-.nav-close { position: fixed; top: 1.5rem; right: 2rem; background: transparent; border: none; color: var(--muted); font-size: 1.5rem; cursor: pointer; z-index: 1002; }
+@@_nav-overlay@@
+@@_nav-overlay_open@@
+@@_nav-overlay_a@@
+.nav-overlay a:hover, @@_nav-overlay_a_active@@
+@@_nav-close@@
 
 /* PRICE FEED BAR */
 .price-feed-bar { display: flex; align-items: center; gap: 1.5rem; padding: 0.6rem 1.5rem; border-bottom: 1px solid var(--rule); overflow-x: auto; background: rgba(201,168,76,0.01); scrollbar-width: none; }
@@ -209,6 +209,55 @@ footer p { font-size: 0.62rem; letter-spacing: 0.12em; color: var(--muted); text
   .order-fields { grid-template-columns: 1fr 1fr; }
   .result-params { grid-template-columns: 1fr 1fr; }
   .log-header, .log-row { grid-template-columns: auto 1fr auto auto; }
+}
+.nav-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(8,8,8,0.97);
+  z-index: 1000;
+  display: none;
+  flex-direction: column;
+  /* flex-start, not center. With 15 items the list exceeds the viewport, and
+     centring pushes the first entries above the scroll origin where they
+     cannot be reached. */
+  justify-content: flex-start;
+  align-items: center;
+  gap: 1.1rem;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 4.5rem 2rem 3rem;
+}
+.nav-overlay.open { display: flex; }
+.nav-overlay a {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 1.7rem;
+  font-weight: 300;
+  color: var(--muted);
+  text-decoration: none;
+  letter-spacing: 0.2em;
+  transition: color 0.3s;
+  flex-shrink: 0;
+  line-height: 1.2;
+}
+.nav-overlay a.active { color: var(--gold); }
+.nav-close {
+  position: fixed;
+  /* Left, not right. The menu button sits top-right, so a close button there
+     lands directly under the finger that just opened it. */
+  top: 1.4rem;
+  left: 1.5rem;
+  background: transparent;
+  border: 1px solid var(--rule);
+  color: var(--gold);
+  font-size: 1.2rem;
+  line-height: 1;
+  padding: 0.35rem 0.6rem;
+  cursor: pointer;
+  z-index: 1002;
+}
+@media (max-height: 700px) {
+  .nav-overlay a { font-size: 1.4rem; }
+  .nav-overlay   { gap: 0.85rem; }
 }
 </style>
 </head>
