@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AURUM — Intelligence</title>
+<link rel="manifest" href="/aurum-app/manifest.json">
+<meta name="theme-color" content="#C9A84C">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;600&family=DM+Sans:wght@300;400;500&family=IBM+Plex+Mono:wght@300;400&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="auth-guard.js"></script>
+<style>
+  :root {
+    --black: #080808;
+    --gold: #C9A84C;
+    --white: #F0EDE6;
+    --muted: #6B6560;
+    --danger: #8B3A3A;
+    --positive: #3A6B4A;
+    --rule: rgba(201,168,76,0.2);
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    background: var(--black);
+    color: var(--white);
+    font-family: 'DM Sans', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    padding-bottom: 4rem;
+  }
+  header {
+    display:flex; justify-content:space-between; align-items:center;
+    padding:1.2rem 1.5rem; border-bottom:1px solid var(--rule);
+  }
+  .brand { font-family:'Cormorant Garamond',serif; font-size:1.5rem; color:var(--gold); letter-spacing:0.05em; }
+  .brand small { display:block; font-family:'IBM Plex Mono',monospace; font-size:0.52rem; letter-spacing:0.3em; color:var(--muted); }
+  .menu-btn { background:transparent; border:1px solid var(--rule); color:var(--gold); font-size:1.1rem; padding:0.4rem 0.7rem; cursor:pointer; }
+
+  .nav-overlay {
+    display:none; position:fixed; inset:0; background:rgba(8,8,8,0.97); z-index:1000;
+    flex-direction:column; align-items:center; justify-content:center; gap:1.1rem;
+  }
+  .nav-overlay.open { display:flex; }
+  .nav-overlay a { color:var(--white); text-decoration:none; font-size:1.05rem; letter-spacing:0.1em; }
+  .nav-overlay a.active { color:var(--gold); }
+  .nav-close { position:absolute; top:1.2rem; right:1.5rem; background:transparent; border:none; color:var(--gold); font-size:1.4rem; cursor:pointer; }
+
+  main { padding:1.5rem; max-width:1400px; margin:0 auto; }
+  .page-title { font-family:'Cormorant Garamond',serif; font-size:2.4rem; font-weight:300; margin-bottom:0.3rem; }
+  .page-title em { color:var(--gold); font-style:normal; }
+  .page-sub { color:var(--muted); font-size:0.85rem; line-height:1.7; margin-bottom:1.8rem; max-width:640px; }
+
+  .section-label {
+    font-family:'IBM Plex Mono',monospace; font-size:0.62rem; letter-spacing:0.25em;
+    color:var(--gold); text-transform:uppercase; margin-bottom:0.9rem;
+  }
+  .gold-rule { height:1px; background:var(--rule); margin:2rem 0 1.5rem; }
+
+  /* Summary cards */
+  .summary-grid {
+    display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+    border:1px solid var(--rule); margin-bottom:1.5rem;
+  }
+  .summary-cell { padding:1rem 1.2rem; border-right:1px solid var(--rule); border-bottom:1px solid var(--rule); }
+  .summary-label { font-family:'IBM Plex Mono',monospace; font-size:0.58rem; letter-spacing:0.18em; color:var(--muted); text-transform:uppercase; margin-bottom:0.4rem; }
+  .summary-value { font-family:'Cormorant Garamond',serif; font-size:1.6rem; color:var(--gold); }
+  .summary-value.pos { color:var(--positive); }
+  .summary-value.neg { color:var(--danger); }
+  .summary-sub { font-family:'IBM Plex Mono',monospace; font-size:0.6rem; color:var(--muted); margin-top:0.2rem; }
+
+  /* Controls */
+  .controls { display:flex; gap:0.5rem; flex-wrap:wrap; margin-bottom:1rem; }
+  .ctl {
+    background:transparent; border:1px solid rgba(107,101,96,0.4); color:var(--muted);
+    font-family:'DM Sans',sans-serif; font-size:0.68rem; letter-spacing:0.1em;
+    padding:0.5rem 0.9rem; cursor:pointer;
+  }
+  .ctl.on { border-color:rgba(201,168,76,0.6); color:var(--gold); background:rgba(201,168,76,0.08); }
+  .ctl.export { border-color:rgba(201,168,76,0.5); color:var(--gold); }
+
+  /* Data table */
+  .table-wrap { border:1px solid var(--rule); overflow-x:auto; -webkit-overflow-scrolling:touch; }
+  table { border-collapse:collapse; width:100%; min-width:1100px; }
+  th {
+    font-family:'IBM Plex Mono',monospace; font-size:0.56rem; letter-spacing:0.14em;
+    color:var(--gold); text-transform:uppercase; text-align:left; font-weight:400;
+    padding:0.7rem 0.6rem; border-bottom:1px solid var(--rule); white-space:nowrap;
+    cursor:pointer; user-select:none; position:sticky; top:0; background:#0d0d0d;
+  }
+  th:hover { color:var(--white); }
+  th .arrow { color:var(--muted); font-size:0.5rem; margin-left:0.2rem; }
+  td {
+    font-family:'IBM Plex Mono',monospace; font-size:0.7rem; color:var(--white);
+    padding:0.55rem 0.6rem; border-bottom:1px solid rgba(201,168,76,0.07); white-space:nowrap;
+  }
+  tr:hover td { background:rgba(201,168,76,0.03); }
+  td.muted { color:var(--muted); }
+  td.pos { color:var(--positive); }
+  td.neg { color:var(--danger); }
+  .badge {
+    font-size:0.55rem; letter-spacing:0.1em; padding:0.15rem 0.4rem;
+    border:1px solid currentColor; text-transform:uppercase;
+  }
+  .badge.traded { color:var(--gold); }
+  .badge.passed { color:var(--positive); }
+  .badge.rejected { color:var(--muted); }
+
+  .empty-state { padding:2.5rem 1rem; text-align:center; color:var(--muted); font-size:0.82rem; }
+  .note { font-family:'IBM Plex Mono',monospace; font-size:0.66rem; color:var(--muted); line-height:1.7; margin-top:0.7rem; }
+
+  @media (max-width:640px) {
+    main { padding:1rem; }
+    .page-title { font-size:1.9rem; }
+    .summary-value { font-size:1.3rem; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">A U<small>Private Intelligence</small></div>
+  <button class="menu-btn" onclick="openNav()">☰</button>
+</header>
+
+<div class="nav-overlay" id="nav-overlay">
+  <button class="nav-close" onclick="closeNav()">✕</button>
+  <a href="index.html">Brief</a>
+  <a href="news.html">News</a>
+  <a href="history.html">History</a>
+  <a href="sectors.html">Sectors</a>
+  <a href="simulator.html">Simulator</a>
+  <a href="options.html">Options</a>
+  <a href="report.html">Report</a>
+  <a href="intelligence.html" class="active">Intelligence</a>
+  <a href="tutorial.html">Tutorial</a>
+  <a href="help.html">Help</a>
+  <a href="assistant.html">Assistant</a>
+  <a href="admin.html">Admin</a>
+  <a href="ipo.html">Ipo</a>
+  <a href="trading.html">Trading</a>
+  <a href="brokerage.html">Brokerage</a>
+</div>
+
+<main>
+  <div class="page-title">Signal <em>Intelligence.</em></div>
+  <div class="page-sub">
+    Every candidate the Governor has scored — taken or rejected — with what happened afterward.
+    Sort any column, filter to what you need, or export the whole thing and ask your own questions of it.
+  </div>
+
+  <div class="section-label">At a glance</div>
+  <div class="summary-grid" id="summary"></div>
+
+  <div class="gold-rule"></div>
+
+  <div class="section-label">Does opportunity separate outcomes?</div>
+  <div class="table-wrap" style="min-width:0;">
+    <table style="min-width:0;">
+      <thead><tr>
+        <th>Band</th><th>Candidates</th><th>Traded</th><th>Avg 24h</th><th>Win rate</th>
+      </tr></thead>
+      <tbody id="band-body"></tbody>
+    </table>
+  </div>
+  <div class="note" id="band-note"></div>
+
+  <div class="gold-rule"></div>
+
+  <div class="section-label">Every scored candidate</div>
+  <div class="controls">
+    <button class="ctl on"  data-filter="all"      onclick="setFilter('all', this)">ALL</button>
+    <button class="ctl"     data-filter="traded"   onclick="setFilter('traded', this)">TRADED</button>
+    <button class="ctl"     data-filter="passed"   onclick="setFilter('passed', this)">PASSED, NOT TAKEN</button>
+    <button class="ctl"     data-filter="rejected" onclick="setFilter('rejected', this)">REJECTED</button>
+    <button class="ctl"     data-filter="outcome"  onclick="setFilter('outcome', this)">HAS OUTCOME</button>
+    <button class="ctl export" onclick="exportCsv()">EXPORT CSV</button>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr id="head-row"></tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+  </div>
+  <div class="note" id="table-note"></div>
+
+</main>
+
+<script>
+const SUPABASE_URL = 'https://zpcbbwynvvyldavxzjng.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_K80lcfk8LsQNqo5enznRRA_lrzf2U9K';
+
+let db = null;
+(function initClient() {
+  try {
+    if (typeof supabase === 'undefined' || !supabase.createClient) throw new Error('no lib');
+    db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  } catch (e) { db = null; }
+})();
+
+function openNav()  { document.getElementById('nav-overlay').classList.add('open'); }
+function closeNav() { document.getElementById('nav-overlay').classList.remove('open'); }
+
+// Column definitions drive the header, the body and the export, so those three
+// can never drift out of step with one another.
+const COLUMNS = [
+  { key:'scored_at',         label:'Scored',      fmt:v => v ? new Date(v).toLocaleString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}) : '—' },
+  { key:'ticker',            label:'Ticker' },
+  { key:'mode',              label:'Mode' },
+  { key:'direction',         label:'Dir' },
+  { key:'opportunity_score', label:'Opp',    num:true },
+  { key:'composite_score',   label:'Comp',   num:true },
+  { key:'signal_quality',    label:'SQ',     num:true },
+  { key:'det_composite',     label:'Det C',  num:true },
+  { key:'det_opportunity',   label:'Det Opp',num:true },
+  { key:'volatility_pct',    label:'Vol %',  num:true, fmt:v => v==null?'—':Number(v).toFixed(2) },
+  { key:'reward_risk',       label:'R:R',    num:true, fmt:v => v==null?'—':Number(v).toFixed(2) },
+  { key:'price_at_score',    label:'Price',  num:true, fmt:v => v==null?'—':'$'+Number(v).toFixed(Number(v)<1?6:2) },
+  { key:'outcome_24h_pct',   label:'24h %',  num:true, signed:true, fmt:v => v==null?'—':(v>=0?'+':'')+Number(v).toFixed(2) },
+  { key:'outcome_7d_pct',    label:'7d %',   num:true, signed:true, fmt:v => v==null?'—':(v>=0?'+':'')+Number(v).toFixed(2) },
+  { key:'status',            label:'Status' },
+  { key:'reject_reason',     label:'Why rejected' },
+  { key:'scoring_mode',      label:'Scorer' },
+  { key:'algorithms_ran',    label:'Algos',  num:true },
+];
+
+let allRows = [];
+let filtered = [];
+let sortKey = 'scored_at';
+let sortAsc = false;
+let activeFilter = 'all';
+
+async function load() {
+  if (!db) {
+    document.getElementById('rows').innerHTML =
+      '<tr><td colspan="18" class="empty-state">Database not connected.</td></tr>';
+    return;
+  }
+
+  const [{ data: shadow }, { data: trades }] = await Promise.all([
+    db.from('shadow_log').select('*').order('scored_at', { ascending:false }).limit(2000),
+    db.from('paper_trades').select('ticker, status, gain_loss, gain_loss_pct, opened_at, scoring_mode, scale_preset'),
+  ]);
+
+  // A shadow row counts as traded if a position in the same ticker opened
+  // within an hour of it being scored. Shadow rows carry no trade_id when the
+  // position is created by the autonomous engine.
+  const tradeIndex = {};
+  (trades || []).forEach(t => {
+    const k = String(t.ticker).toUpperCase();
+    (tradeIndex[k] = tradeIndex[k] || []).push(t);
+  });
+
+  allRows = (shadow || []).map(r => {
+    const k = String(r.ticker).toUpperCase();
+    const scoredAt = r.scored_at ? new Date(r.scored_at).getTime() : 0;
+    const match = (tradeIndex[k] || []).find(t => {
+      const o = t.opened_at ? new Date(t.opened_at).getTime() : 0;
+      return o && Math.abs(o - scoredAt) < 60 * 60 * 1000;
+    });
+    return {
+      ...r,
+      status: match ? 'traded' : (r.passed_gate ? 'passed' : 'rejected'),
+      trade_pl: match ? Number(match.gain_loss) : null,
+    };
+  });
+
+  renderSummary(allRows, trades || []);
+  renderBands(allRows);
+  applyFilter();
+}
+
+function renderSummary(rows, trades) {
+  const withOutcome = rows.filter(r => r.outcome_24h_pct != null);
+  const passed  = rows.filter(r => r.passed_gate);
+  const closed  = trades.filter(t => t.status === 'closed');
+  const wins    = closed.filter(t => Number(t.gain_loss) > 0);
+  const realised = closed.reduce((a,t) => a + (Number(t.gain_loss)||0), 0);
+
+  const avgPassed   = avg(passed.filter(r => r.outcome_24h_pct != null).map(r => r.outcome_24h_pct));
+  const avgRejected = avg(rows.filter(r => !r.passed_gate && r.outcome_24h_pct != null).map(r => r.outcome_24h_pct));
+
+  const cells = [
+    ['Candidates scored', rows.length, 'all time'],
+    ['Cleared the gate', passed.length, rows.length ? Math.round(passed.length/rows.length*100) + '% pass rate' : '—'],
+    ['With outcomes', withOutcome.length, withOutcome.length ? 'measurable' : 'run CHECK OUTCOMES'],
+    ['Closed trades', closed.length, closed.length ? Math.round(wins.length/closed.length*100) + '% win rate' : 'none yet'],
+    ['Realised P&L', (realised>=0?'+$':'-$') + Math.abs(realised).toFixed(2), 'closed only', realised>=0?'pos':'neg'],
+    ['Gate edge', avgPassed==null||avgRejected==null ? '—' : ((avgPassed-avgRejected)>=0?'+':'') + (avgPassed-avgRejected).toFixed(2) + '%',
+      'passed vs rejected, 24h', avgPassed!=null&&avgRejected!=null ? ((avgPassed-avgRejected)>=0?'pos':'neg') : ''],
+  ];
+
+  document.getElementById('summary').innerHTML = cells.map(([l,v,s,cls]) =>
+    '<div class="summary-cell">' +
+      '<div class="summary-label">' + l + '</div>' +
+      '<div class="summary-value ' + (cls||'') + '">' + v + '</div>' +
+      '<div class="summary-sub">' + s + '</div>' +
+    '</div>'
+  ).join('');
+}
+
+function avg(a) { return a.length ? a.reduce((x,y)=>x+Number(y),0)/a.length : null; }
+
+// The question the whole exercise exists to answer: do higher opportunity
+// scores actually produce better outcomes, or is the threshold arbitrary?
+function renderBands(rows) {
+  const bands = [
+    { label:'70+',   lo:70,  hi:1e9 },
+    { label:'60-69', lo:60,  hi:70 },
+    { label:'50-59', lo:50,  hi:60 },
+    { label:'40-49', lo:40,  hi:50 },
+    { label:'< 40',  lo:-1,  hi:40 },
+  ];
+
+  let anyOutcome = false;
+  const html = bands.map(b => {
+    const set = rows.filter(r => {
+      const o = Number(r.opportunity_score);
+      return Number.isFinite(o) && o >= b.lo && o < b.hi;
+    });
+    if (!set.length) return '';
+    const traded = set.filter(r => r.status === 'traded').length;
+    const out = set.filter(r => r.outcome_24h_pct != null);
+    if (out.length) anyOutcome = true;
+    const a = avg(out.map(r => r.outcome_24h_pct));
+    const wr = out.length ? Math.round(out.filter(r => Number(r.outcome_24h_pct) > 0).length / out.length * 100) : null;
+
+    return '<tr>' +
+      '<td>' + b.label + '</td>' +
+      '<td class="muted">' + set.length + '</td>' +
+      '<td class="muted">' + traded + '</td>' +
+      '<td class="' + (a==null?'muted':(a>=0?'pos':'neg')) + '">' + (a==null?'—':(a>=0?'+':'')+a.toFixed(2)+'%') + '</td>' +
+      '<td class="muted">' + (wr==null?'—':wr+'%') + '</td>' +
+    '</tr>';
+  }).join('');
+
+  document.getElementById('band-body').innerHTML = html || '<tr><td colspan="5" class="empty-state">No scored candidates yet.</td></tr>';
+  document.getElementById('band-note').textContent = anyOutcome
+    ? 'If average return rises with the band, the score is predictive and the threshold is doing real work. If it is flat, the score is not separating outcomes.'
+    : 'Outcome columns are empty until CHECK OUTCOMES has run on rows older than 24 hours. Run it from the Simulator.';
+}
+
+function setFilter(f, btn) {
+  activeFilter = f;
+  document.querySelectorAll('.ctl[data-filter]').forEach(b => b.classList.remove('on'));
+  if (btn) btn.classList.add('on');
+  applyFilter();
+}
+
+function applyFilter() {
+  filtered = allRows.filter(r => {
+    if (activeFilter === 'all')      return true;
+    if (activeFilter === 'outcome')  return r.outcome_24h_pct != null;
+    return r.status === activeFilter;
+  });
+  sortRows();
+}
+
+function sortRows() {
+  const col = COLUMNS.find(c => c.key === sortKey);
+  filtered.sort((a,b) => {
+    let x = a[sortKey], y = b[sortKey];
+    if (col && col.num) { x = Number(x); y = Number(y); }
+    if (x == null || (col&&col.num&&!Number.isFinite(x))) return 1;   // blanks last, either direction
+    if (y == null || (col&&col.num&&!Number.isFinite(y))) return -1;
+    if (x < y) return sortAsc ? -1 : 1;
+    if (x > y) return sortAsc ? 1 : -1;
+    return 0;
+  });
+  renderTable();
+}
+
+function toggleSort(key) {
+  if (sortKey === key) sortAsc = !sortAsc;
+  else { sortKey = key; sortAsc = false; }
+  sortRows();
+}
+
+function renderTable() {
+  document.getElementById('head-row').innerHTML = COLUMNS.map(c =>
+    '<th onclick="toggleSort(\'' + c.key + '\')">' + c.label +
+    (sortKey === c.key ? '<span class="arrow">' + (sortAsc ? '▲' : '▼') + '</span>' : '') + '</th>'
+  ).join('');
+
+  const body = document.getElementById('rows');
+  if (!filtered.length) {
+    body.innerHTML = '<tr><td colspan="' + COLUMNS.length + '" class="empty-state">Nothing matches this filter.</td></tr>';
+    document.getElementById('table-note').textContent = '';
+    return;
+  }
+
+  body.innerHTML = filtered.slice(0, 500).map(r =>
+    '<tr>' + COLUMNS.map(c => {
+      let v = r[c.key];
+      if (c.key === 'status') {
+        return '<td><span class="badge ' + v + '">' + v + '</span></td>';
+      }
+      const txt = c.fmt ? c.fmt(v) : (v == null || v === '' ? '—' : String(v));
+      let cls = (v == null || v === '') ? 'muted' : '';
+      if (c.signed && v != null) cls = Number(v) >= 0 ? 'pos' : 'neg';
+      return '<td class="' + cls + '">' + txt + '</td>';
+    }).join('') + '</tr>'
+  ).join('');
+
+  document.getElementById('table-note').textContent =
+    'Showing ' + Math.min(filtered.length, 500) + ' of ' + filtered.length + ' rows' +
+    (filtered.length > 500 ? ' — export for the full set.' : '.') +
+    ' Tap any column heading to sort.';
+}
+
+// Exports the FILTERED set, so what you see is what you get. Uses the same
+// COLUMNS definition as the table, so the two cannot disagree.
+function exportCsv() {
+  if (!filtered.length) return;
+  const esc = v => {
+    const s = (v == null ? '' : String(v));
+    return /[",\n]/.test(s) ? '"' + s.replace(/"/g,'""') + '"' : s;
+  };
+  const header = COLUMNS.map(c => esc(c.label)).join(',');
+  const lines = filtered.map(r => COLUMNS.map(c => esc(r[c.key])).join(','));
+  const csv = [header, ...lines].join('\n');
+
+  const blob = new Blob([csv], { type:'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'aurum-intelligence-' + new Date().toISOString().slice(0,10) + '.csv';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+if (db) load();
+</script>
+
+</body>
+</html>
