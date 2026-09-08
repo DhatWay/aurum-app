@@ -830,6 +830,10 @@ footer p { font-size: 0.6rem; letter-spacing: 0.12em; color: var(--muted); text-
     </div>
 
     <div style="border-top:1px solid rgba(107,101,96,0.2); margin-top:0.9rem; padding-top:0.9rem;">
+      <div style="font-size:0.62rem; letter-spacing:0.2em; color:#C9A84C; font-family:'IBM Plex Mono',monospace; margin-bottom:0.5rem;">REGIME PHYSICS</div>
+      <button id="physics-toggle" onclick="togglePhysics()" style="width:100%; background:transparent; border:1px solid rgba(107,101,96,0.4); color:#6B6560; font-family:'DM Sans',sans-serif; font-size:0.7rem; letter-spacing:0.12em; padding:0.55rem; cursor:pointer;">REGIME: OFF</button>
+      <div id="physics-note" style="font-size:0.66rem; color:#6B6560; font-family:'IBM Plex Mono',monospace; margin-top:0.5rem; margin-bottom:0.9rem; line-height:1.6;"></div>
+
       <div style="font-size:0.62rem; letter-spacing:0.2em; color:#C9A84C; font-family:'IBM Plex Mono',monospace; margin-bottom:0.5rem;">SWING REVERSAL</div>
       <button id="swing-toggle" onclick="toggleSwing()" style="width:100%; background:transparent; border:1px solid rgba(107,101,96,0.4); color:#6B6560; font-family:'DM Sans',sans-serif; font-size:0.7rem; letter-spacing:0.12em; padding:0.55rem; cursor:pointer;">SWING: OFF</button>
       <div id="swing-note" style="font-size:0.66rem; color:#6B6560; font-family:'IBM Plex Mono',monospace; margin-top:0.5rem; line-height:1.6;"></div>
@@ -2590,7 +2594,7 @@ const MAX_PER_TICKER     = 1;      // one position per ticker      // one positi
 // Thresholds differ by asset class. Crypto has no earnings, insider filings or
 // analyst coverage, so its data ceiling is genuinely lower — holding it to the
 // stock bar makes every coin unreachable regardless of how good the setup is.
-const BUILD = 'b88-entry-override-fix';
+const BUILD = 'b90-physics-toggle';
 const MAX_POSITION_PCT = 15;   // hard ceiling per position, as % of balance
 
 // ── SCALE PRESETS ──
@@ -3358,14 +3362,57 @@ const ALGO_WEIGHTS = {
   crypto_derivatives_flow: 2.2, crypto_whale_tracker: 2.0, crypto_protocol_events: 1.3,
   crypto_regulatory_signals: 0.7, crypto_onchain_momentum: 1.8, crypto_market_cycle_detector: 1.6,
   new_listing_detector: 1.6,
+  // Regime carries real weight: a reading that contradicts a momentum signal
+  // should override it, since it says whether that signal means anything.
+  // Weight applied only when the toggle is on — see physicsEnabled below.
+  market_regime_physics: 1.8,
 };
 
 // Weighted mean of the algorithm scores. Straight arithmetic — the same
 // synthesis Claude performs, without the variance.
+let physicsEnabled = false;
+
+async function loadPhysicsSetting() {
+  try {
+    const { data } = await db.from('trading_settings').select('physics_enabled').limit(1);
+    physicsEnabled = !!(data && data.length && data[0].physics_enabled);
+  } catch (e) { physicsEnabled = false; }
+  renderPhysicsToggle();
+}
+
+async function togglePhysics() {
+  physicsEnabled = !physicsEnabled;
+  try {
+    const { data } = await db.from('trading_settings').select('id').limit(1);
+    if (data && data.length) {
+      await db.from('trading_settings').update({ physics_enabled: physicsEnabled }).eq('id', data[0].id);
+    }
+  } catch (e) {}
+  renderPhysicsToggle();
+}
+
+function renderPhysicsToggle() {
+  const btn  = document.getElementById('physics-toggle');
+  const note = document.getElementById('physics-note');
+  if (btn) {
+    btn.textContent = physicsEnabled ? 'REGIME: ON' : 'REGIME: OFF';
+    btn.style.color       = physicsEnabled ? '#C9A84C' : '#6B6560';
+    btn.style.borderColor = physicsEnabled ? 'rgba(201,168,76,0.6)' : 'rgba(107,101,96,0.4)';
+    btn.style.background  = physicsEnabled ? 'rgba(201,168,76,0.08)' : 'transparent';
+  }
+  if (note) {
+    note.textContent = physicsEnabled
+      ? 'Hurst, entropy and tail risk weighted at 1.8x. Momentum signals gain weight in a trending regime and lose it in a mean-reverting one.'
+      : 'Off. The reading is still computed and logged to shadow_log for evaluation, but carries no weight in any scoring mode.';
+  }
+}
+
 function computeComposite(algoScores) {
   if (!algoScores || typeof algoScores !== 'object') return null;
   let weighted = 0, totalWeight = 0;
   for (const [name, raw] of Object.entries(algoScores)) {
+    // Logged either way; weighted only when armed.
+    if (name === 'market_regime_physics' && !physicsEnabled) continue;
     const score = Number(raw);
     if (!Number.isFinite(score)) continue;
     const w = ALGO_WEIGHTS[name] ?? 1.0;
@@ -4282,6 +4329,7 @@ loadPositionAlerts();
 loadScoringMode();
 loadSwingSetting();
 loadLiveArmed();
+loadPhysicsSetting();
 </script>
 
 <script src="tickers.js"></script>
