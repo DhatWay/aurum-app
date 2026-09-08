@@ -2594,7 +2594,7 @@ const MAX_PER_TICKER     = 1;      // one position per ticker      // one positi
 // Thresholds differ by asset class. Crypto has no earnings, insider filings or
 // analyst coverage, so its data ceiling is genuinely lower — holding it to the
 // stock bar makes every coin unreachable regardless of how good the setup is.
-const BUILD = 'b90-physics-toggle';
+const BUILD = 'b91-batch-scoring';
 const MAX_POSITION_PCT = 15;   // hard ceiling per position, as % of balance
 
 // ── SCALE PRESETS ──
@@ -3782,6 +3782,38 @@ async function scoreTicker(ticker, balance) {
   }
 }
 
+// Fetches computed algorithm scores WITHOUT a model call. Free, and the input
+// to batch judging.
+async function scoreAllCandidatesRaw(tickers, balance) {
+  const out = [];
+  for (let i = 0; i < tickers.length; i += GOVERNOR_BATCH) {
+    const slice = tickers.slice(i, i + GOVERNOR_BATCH);
+    autoLog('Running algorithms ' + (i + 1) + '-' + Math.min(i + GOVERNOR_BATCH, tickers.length) + ' of ' + tickers.length + '...');
+    const got = await Promise.all(slice.map(async (t) => {
+      try {
+        const res = await fetchWithTimeout(GOVERNOR_EDGE_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + GOVERNOR_ANON_KEY },
+          body: JSON.stringify({
+            ticker: t,
+            coingecko_id: (window._funnelIds && window._funnelIds[t]) || null,
+            strategy: currentStrategy,
+            instrument: activeMode === 'crypto' ? 'crypto' : 'stock',
+            mode: activeMode,
+            portfolio_balance: balance,
+            skip_ai: true,
+          })
+        }, 30000);
+        if (!res.ok) return null;
+        const g = await res.json();
+        return (g.error || !g.entry_price) ? null : g;
+      } catch (e) { return null; }
+    }));
+    got.forEach(g => { if (g) out.push(g); });
+  }
+  return out;
+}
+
 // Score candidates in small batches to avoid hammering the API
 async function scoreAllCandidates(tickers, balance) {
   const results = [];
@@ -3835,6 +3867,100 @@ function rejectionReason(g) {
   if (conviction < L.direction) return 'weak direction ' + composite;
   const op = Number(g.opportunity_score);
   return 'opportunity ' + (Number.isFinite(op) ? op : 'missing');
+}
+
+// ══════════════════════════════════════════════════════════
+// BATCH SCORING
+//
+// The Governor was called once per candidate — 25 separate Opus calls to score
+// a single wave. But the expensive part is judgement, not computation: the
+// algorithms run locally and cost nothing.
+//
+// So run every candidate through skip_ai (free), collect the computed scores,
+// then send all of them to Opus in ONE call. Same model, same quality of
+// judgement, roughly a twentieth of the cost.
+// ══════════════════════════════════════════════════════════
+
+async function scoreBatchWithClaude(candidates) {
+  if (!candidates.length) return [];
+
+  const briefs = candidates.map((g, i) => {
+    const scores = g.algorithm_scores
+      ? Object.entries(g.algorithm_scores).map(([k, v]) => k + '=' + v).join(', ')
+      : 'none';
+    return (i + 1) + '. ' + g.ticker +
+      ' | price ' + g.entry_price +
+      ' | vol ' + (g.volatility_pct ?? '?') + '%' +
+      (g.is_new_listing ? ' | NEW LISTING, ' + g.listing_age_days + ' days' : '') +
+      '\n   algorithms: ' + scores;
+  }).join('\n\n');
+
+  const prompt = 'You are the AURUM Governor scoring ' + candidates.length +
+    ' candidates in ' + activeMode.toUpperCase() + ' mode.\n\n' +
+    'Their algorithms have ALREADY RUN — these are real computed scores, not\n' +
+    'estimates. Judge them; do not re-derive them.\n\n' + briefs + '\n\n' +
+    'For EACH candidate return one object. Score independently — c, op and sq\n' +
+    'measure different things and identical values mean you have not judged\n' +
+    'them separately.\n\n' +
+    '  t  = ticker\n' +
+    '  d  = LONG if c>60, SHORT if c<40, NONE if 40-60. NONE is expected and correct.\n' +
+    '  c  = directional conviction 0-100. Use the full range.\n' +
+    '  op = opportunity 0-100 — is this worth taking at all, given the expected\n' +
+    '       move against its volatility and the reward-to-risk of a stop placed\n' +
+    '       2x volatility away with a 2:1 target. Independent of c.\n' +
+    '  sq = signal quality 0-100 — how far the DATA can be trusted.\n' +
+    '  cf = High, Medium or Low.\n' +
+    '  bp = position size 1-10.\n\n' +
+    'Return ONLY this JSON, no other text:\n' +
+    '{"results":[{"t":"BTC","d":"LONG","c":72,"op":68,"sq":78,"cf":"Medium","bp":5}]}';
+
+  const res = await fetchWithTimeout('https://zpcbbwynvvyldavxzjng.supabase.co/functions/v1/smooth-service', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + GOVERNOR_ANON_KEY },
+    body: JSON.stringify({
+      prompt,
+      model: 'claude-opus-4-6',        // Opus judges; never downgraded
+      max_tokens: Math.min(400 + candidates.length * 120, 8000),
+    })
+  }, 90000);
+
+  if (!res.ok) throw new Error('Batch scoring returned HTTP ' + res.status + ': ' + await readErrorBody(res));
+  const data = await res.json();
+  if (data.error) throw new Error('Batch scoring error: ' + data.error);
+
+  const text = data.content?.[0]?.text || data.text || '';
+  const match = text.match(/\{[\s\S]*\}/);
+  if (!match) throw new Error('Batch scoring did not return JSON');
+  const results = JSON.parse(match[0]).results || [];
+
+  // Merge the verdicts back onto the candidates, deriving levels from the
+  // volatility the Governor already computed.
+  const byTicker = {};
+  results.forEach(r => { byTicker[String(r.t).toUpperCase()] = r; });
+
+  return candidates.map(g => {
+    const v = byTicker[String(g.ticker).toUpperCase()];
+    if (!v) return null;
+
+    const entry = Number(g.entry_price);
+    const vol   = Number(g.volatility_pct) || 3;
+    const dir   = String(v.d || 'NONE').toUpperCase();
+    if (dir !== 'LONG' && dir !== 'SHORT') return null;
+
+    const stopDist = entry * (vol / 100) * 2;
+    g.stop_loss    = dir === 'LONG' ? entry - stopDist : entry + stopDist;
+    g.target_price = dir === 'LONG' ? entry + stopDist * 2 : entry - stopDist * 2;
+
+    g.direction                = dir;
+    g.composite_score          = Number(v.c);
+    g.opportunity_score        = Number(v.op);
+    g.signal_quality           = Number(v.sq);
+    g.confidence               = v.cf || 'Low';
+    g.recommended_position_pct = Number(v.bp) || 5;
+    g.reward_risk              = 2.0;
+    g.moves_to_target          = Math.round((Math.abs(g.target_price - entry) / entry * 100 / vol) * 100) / 100;
+    return applyScoringMode(g);
+  }).filter(Boolean);
 }
 
 // One Claude call receives every qualifying brief and returns a yes/no per ticker
@@ -4227,8 +4353,23 @@ async function runAutonomousCycle(manualTrigger) {
 
       autoLog('Wave ' + wave + ' — scoring ' + batch.length + ' tickers, need ' + needed + ' more (' + openCount + '/' + preset().positions + ' open)');
 
-      const scored = await scoreAllCandidates(batch, balance);
-      if (!scored.length) continue;
+      // Run algorithms for the whole batch via skip_ai — free, no model call —
+      // then judge them all in ONE Opus call rather than one per candidate.
+      // In Deterministic mode there is no judgement call at all.
+      let scored;
+      if (scoringMode === 'deterministic') {
+        scored = await scoreAllCandidates(batch, balance);
+      } else {
+        const raw = await scoreAllCandidatesRaw(batch, balance);
+        if (!raw.length) continue;
+        try {
+          scored = await scoreBatchWithClaude(raw);
+        } catch (e) {
+          autoLog('Batch scoring failed: ' + e.message + ' — falling back to per-candidate.');
+          scored = await scoreAllCandidates(batch, balance);
+        }
+      }
+      if (!scored || !scored.length) continue;
 
       // Hard filter before spending a Claude call
       const qualified = scored.filter(passesConviction);
