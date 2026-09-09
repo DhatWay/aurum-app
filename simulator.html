@@ -2594,7 +2594,7 @@ const MAX_PER_TICKER     = 1;      // one position per ticker      // one positi
 // Thresholds differ by asset class. Crypto has no earnings, insider filings or
 // analyst coverage, so its data ceiling is genuinely lower — holding it to the
 // stock bar makes every coin unreachable regardless of how good the setup is.
-const BUILD = 'b91-batch-scoring';
+const BUILD = 'b93-physics-controlled';
 const MAX_POSITION_PCT = 15;   // hard ceiling per position, as % of balance
 
 // ── SCALE PRESETS ──
@@ -3402,17 +3402,20 @@ function renderPhysicsToggle() {
   }
   if (note) {
     note.textContent = physicsEnabled
-      ? 'Hurst, entropy and tail risk weighted at 1.8x. Momentum signals gain weight in a trending regime and lose it in a mean-reverting one.'
-      : 'Off. The reading is still computed and logged to shadow_log for evaluation, but carries no weight in any scoring mode.';
+      ? 'Claude receives the regime reading alongside the other algorithms. Always weighted at 1.8x in the deterministic formula regardless of this switch.'
+      : 'Withheld from Claude. Still computed, logged, and weighted at 1.8x in the deterministic formula — so the formula has it and Claude does not.';
   }
 }
 
-function computeComposite(algoScores) {
+// includePhysics lets the same formula be computed both ways on the same
+// candidate. Logging both means the regime layer can be evaluated without the
+// formula becoming a moving target — otherwise older and newer rows would be
+// scored by different formulas and no comparison would be attributable.
+function computeComposite(algoScores, includePhysics = true) {
   if (!algoScores || typeof algoScores !== 'object') return null;
   let weighted = 0, totalWeight = 0;
   for (const [name, raw] of Object.entries(algoScores)) {
-    // Logged either way; weighted only when armed.
-    if (name === 'market_regime_physics' && !physicsEnabled) continue;
+    if (name === 'market_regime_physics' && !includePhysics) continue;
     const score = Number(raw);
     if (!Number.isFinite(score)) continue;
     const w = ALGO_WEIGHTS[name] ?? 1.0;
@@ -3459,12 +3462,24 @@ function computeOpportunity(gov, composite) {
 // Produces the deterministic view of a candidate, mirroring the Governor's
 // own direction rule so the two modes are comparable.
 function scoreDeterministic(gov) {
-  const composite = computeComposite(gov.algorithm_scores);
+  const composite = computeComposite(gov.algorithm_scores, true);
   if (composite === null) return null;
   const opportunity = computeOpportunity(gov, composite);
   if (opportunity === null) return null;
   const direction = composite > 60 ? 'LONG' : composite < 40 ? 'SHORT' : 'NONE';
-  return { composite, opportunity, direction };
+
+  // The same formula without the regime layer, so its contribution is
+  // measurable on the same candidate rather than across different periods.
+  const baseComposite = computeComposite(gov.algorithm_scores, false);
+  const baseOpportunity = baseComposite === null ? null : computeOpportunity(gov, baseComposite);
+
+  return {
+    composite, opportunity, direction,
+    baseComposite,
+    baseOpportunity,
+    baseDirection: baseComposite === null ? null
+      : (baseComposite > 60 ? 'LONG' : baseComposite < 40 ? 'SHORT' : 'NONE'),
+  };
 }
 
 // Applies the active mode. Claude's scores stay on the object either way, so
@@ -4270,6 +4285,9 @@ async function logShadowCandidates(scored, qualifiedSet) {
       det_composite:     g._det ? g._det.composite   : null,
       det_opportunity:   g._det ? g._det.opportunity : null,
       det_direction:     g._det ? g._det.direction   : null,
+      // Same formula, regime layer excluded — the control for measuring it
+      det_base_composite:   g._det ? g._det.baseComposite   : null,
+      det_base_opportunity: g._det ? g._det.baseOpportunity : null,
       passed_gate:       passed,
         reject_reason:     passed ? null : rejectionReason(g),
         scored_at:         new Date().toISOString(),
@@ -4341,6 +4359,12 @@ async function runAutonomousCycle(manualTrigger) {
     let lowConviction = 0;
     let wave          = 0;
     const rejectLog   = [];   // ticker + why, so thresholds can be set from evidence
+    // Consecutive waves that yield nothing. Scanning the whole universe to
+    // find two picks is how a fill costs a dollar — after three barren waves
+    // the market is simply not offering setups, and further scanning buys
+    // nothing but Opus calls.
+    let barrenWaves = 0;
+    const MAX_BARREN = 3;
 
     // Keep pulling waves of candidates until the block is full or we run dry.
     // A single wave rarely fills 10, since the allocator rejects weak signals.
@@ -4382,9 +4406,18 @@ async function runAutonomousCycle(manualTrigger) {
       lowConviction += (scored.length - qualified.length);
 
       if (!qualified.length) {
-        autoLog('Wave ' + wave + ' — none of ' + scored.length + ' cleared opportunity ' + limits().opportunity + '. Scanning further...');
+        barrenWaves++;
+        if (barrenWaves >= MAX_BARREN) {
+          autoLog('Stopped after ' + barrenWaves + ' waves with nothing clearing opportunity ' +
+                  limits().opportunity + '. ' + openCount + '/' + preset().positions + ' open. ' +
+                  'Further scanning would cost without finding — the setups are not there right now.');
+          break;
+        }
+        autoLog('Wave ' + wave + ' — none of ' + scored.length + ' cleared opportunity ' +
+                limits().opportunity + '. ' + (MAX_BARREN - barrenWaves) + ' more wave(s) before stopping.');
         continue;
       }
+      barrenWaves = 0;
 
       autoLog('Wave ' + wave + ' — ' + qualified.length + ' of ' + scored.length + ' cleared conviction. Claude deciding...');
       let decisions = [];
