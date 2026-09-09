@@ -248,17 +248,6 @@
   </div>
   <div class="note" id="mode-note"></div>
 
-  <div class="section-label" style="margin-top:1.6rem;">Where the two disagree</div>
-  <div class="table-wrap" style="min-width:0;">
-    <table style="min-width:0;">
-      <thead><tr>
-        <th>Agreement</th><th>Candidates</th><th>Avg 24h</th><th>Win rate</th>
-      </tr></thead>
-      <tbody id="agree-body"></tbody>
-    </table>
-  </div>
-  <div class="note" id="agree-note"></div>
-
   <div class="gold-rule"></div>
 
   <div class="section-label">Every scored candidate</div>
@@ -576,9 +565,9 @@ function renderAgreement(rows) {
   );
 
   if (!both.length) {
-    document.getElementById('agree-body').innerHTML =
+    document.getElementById('disagree-body').innerHTML =
       '<tr><td colspan="4" class="empty-state">No candidates carry both scores yet.</td></tr>';
-    document.getElementById('agree-note').textContent =
+    document.getElementById('disagree-note').textContent =
       'Deterministic scores are recorded alongside Claude\'s on every candidate. This fills as scans run.';
     return;
   }
@@ -590,7 +579,7 @@ function renderAgreement(rows) {
     { label: 'Formula yes, Claude no',    f: r => Number(r.opportunity_score) <  50 && Number(r.det_opportunity) >= 50 },
   ];
 
-  document.getElementById('agree-body').innerHTML = buckets.map(b => {
+  document.getElementById('disagree-body').innerHTML = buckets.map(b => {
     const set = both.filter(b.f);
     if (!set.length) return '';
     const out = set.filter(r => r.outcome_24h_pct != null);
@@ -604,7 +593,7 @@ function renderAgreement(rows) {
     '</tr>';
   }).join('') || '<tr><td colspan="4" class="empty-state">Not enough overlap yet.</td></tr>';
 
-  document.getElementById('agree-note').textContent =
+  document.getElementById('disagree-note').textContent =
     'The two disagreement rows are the ones that matter. Whichever performs better when they split is the scorer worth trusting.';
 }
 
