@@ -211,6 +211,56 @@
 
   <div class="gold-rule"></div>
 
+  <div class="section-label">Claude versus the formula</div>
+  <div class="table-wrap" style="min-width:0;">
+    <table style="min-width:0;">
+      <thead><tr>
+        <th>Scorer</th><th>Scored</th><th>Passed</th><th>Traded</th><th>Avg 24h</th><th>Win rate</th><th>Realised</th>
+      </tr></thead>
+      <tbody id="mode-body"></tbody>
+    </table>
+  </div>
+  <div class="note" id="mode-note"></div>
+
+  <div class="gold-rule"></div>
+
+  <div class="section-label">Where the two disagree</div>
+  <div class="table-wrap" style="min-width:0;">
+    <table style="min-width:0;">
+      <thead><tr>
+        <th>Gap</th><th>Candidates</th><th>Avg 24h</th><th>Claude higher</th><th>Formula higher</th>
+      </tr></thead>
+      <tbody id="disagree-body"></tbody>
+    </table>
+  </div>
+  <div class="note" id="disagree-note"></div>
+
+  <div class="gold-rule"></div>
+
+  <div class="section-label">Scorer comparison</div>
+  <div class="table-wrap" style="min-width:0;">
+    <table style="min-width:0;">
+      <thead><tr>
+        <th>Scorer</th><th>Scored</th><th>Passed</th><th>Traded</th><th>Avg 24h</th><th>Win rate</th><th>Realised P&L</th>
+      </tr></thead>
+      <tbody id="mode-body"></tbody>
+    </table>
+  </div>
+  <div class="note" id="mode-note"></div>
+
+  <div class="section-label" style="margin-top:1.6rem;">Where the two disagree</div>
+  <div class="table-wrap" style="min-width:0;">
+    <table style="min-width:0;">
+      <thead><tr>
+        <th>Agreement</th><th>Candidates</th><th>Avg 24h</th><th>Win rate</th>
+      </tr></thead>
+      <tbody id="agree-body"></tbody>
+    </table>
+  </div>
+  <div class="note" id="agree-note"></div>
+
+  <div class="gold-rule"></div>
+
   <div class="section-label">Every scored candidate</div>
   <div class="controls">
     <button class="ctl on"  data-filter="all"      onclick="setFilter('all', this)">ALL</button>
@@ -312,6 +362,10 @@ async function load() {
 
   renderSummary(allRows, trades || []);
   renderBands(allRows);
+  renderModes(allRows, trades || []);
+  renderAgreement(allRows);
+  renderModes(allRows, trades || []);
+  renderDisagreement(allRows);
   applyFilter();
 }
 
@@ -383,6 +437,175 @@ function renderBands(rows) {
   document.getElementById('band-note').textContent = anyOutcome
     ? 'If average return rises with the band, the score is predictive and the threshold is doing real work. If it is flat, the score is not separating outcomes.'
     : 'Outcome columns are empty until CHECK OUTCOMES has run on rows older than 24 hours. Run it from the Simulator.';
+}
+
+// Performance split by which scorer was authoritative. A month mixing modes
+// is meaningless as one number — this is the comparison the switchable scorer
+// was built to enable.
+function renderModes(rows, trades) {
+  const modes = {};
+  rows.forEach(r => {
+    const k = r.scoring_mode || 'claude';
+    modes[k] = modes[k] || { scored:0, passed:0, traded:0, outcomes:[], pl:0, closed:0, wins:0 };
+    modes[k].scored++;
+    if (r.passed_gate) modes[k].passed++;
+    if (r.status === 'traded') modes[k].traded++;
+    if (r.outcome_24h_pct != null) modes[k].outcomes.push(Number(r.outcome_24h_pct));
+  });
+
+  trades.filter(t => t.status === 'closed').forEach(t => {
+    const k = t.scoring_mode || 'claude';
+    modes[k] = modes[k] || { scored:0, passed:0, traded:0, outcomes:[], pl:0, closed:0, wins:0 };
+    const gl = Number(t.gain_loss) || 0;
+    modes[k].pl += gl;
+    modes[k].closed++;
+    if (gl > 0) modes[k].wins++;
+  });
+
+  const keys = Object.keys(modes);
+  const html = keys.map(k => {
+    const m = modes[k];
+    const a = avg(m.outcomes);
+    const wr = m.closed ? Math.round(m.wins / m.closed * 100) : null;
+    return '<tr>' +
+      '<td>' + k.toUpperCase() + '</td>' +
+      '<td class="muted">' + m.scored + '</td>' +
+      '<td class="muted">' + m.passed + '</td>' +
+      '<td class="muted">' + m.traded + '</td>' +
+      '<td class="' + (a==null?'muted':(a>=0?'pos':'neg')) + '">' + (a==null?'—':(a>=0?'+':'')+a.toFixed(2)+'%') + '</td>' +
+      '<td class="muted">' + (wr==null?'—':wr+'%') + '</td>' +
+      '<td class="' + (m.pl>=0?'pos':'neg') + '">' + (m.pl>=0?'+$':'-$') + Math.abs(m.pl).toFixed(2) + '</td>' +
+    '</tr>';
+  }).join('');
+
+  document.getElementById('mode-body').innerHTML = html ||
+    '<tr><td colspan="7" class="empty-state">No scored candidates yet.</td></tr>';
+  document.getElementById('mode-note').textContent = keys.length < 2
+    ? 'Only ' + (keys[0] || 'one').toUpperCase() + ' has been used. Switch modes in the Simulator to build a comparison.'
+    : 'Avg 24h covers every candidate scored under that mode, taken or not — a cleaner read than realised P&L, which only reflects what was traded.';
+}
+
+// The direct comparison: same candidate, both scorers, one outcome. Stronger
+// than comparing across periods, because market conditions are held constant.
+function renderDisagreement(rows) {
+  const both = rows.filter(r =>
+    r.det_opportunity != null && r.opportunity_score != null && r.outcome_24h_pct != null);
+
+  if (!both.length) {
+    document.getElementById('disagree-body').innerHTML =
+      '<tr><td colspan="5" class="empty-state">Needs candidates scored by both, with outcomes. Run BOTH mode, then CHECK OUTCOMES.</td></tr>';
+    document.getElementById('disagree-note').textContent =
+      'Both mode records the formula alongside Claude on the same candidate, so this compares them on identical inputs.';
+    return;
+  }
+
+  const buckets = [
+    { label:'agree within 5',  lo:0,  hi:5 },
+    { label:'differ 5-15',     lo:5,  hi:15 },
+    { label:'differ 15-30',    lo:15, hi:30 },
+    { label:'differ 30+',      lo:30, hi:1e9 },
+  ];
+
+  document.getElementById('disagree-body').innerHTML = buckets.map(b => {
+    const set = both.filter(r => {
+      const gap = Math.abs(Number(r.opportunity_score) - Number(r.det_opportunity));
+      return gap >= b.lo && gap < b.hi;
+    });
+    if (!set.length) return '';
+    const a = avg(set.map(r => Number(r.outcome_24h_pct)));
+    const cHigh = set.filter(r => Number(r.opportunity_score) > Number(r.det_opportunity)).length;
+    return '<tr>' +
+      '<td>' + b.label + '</td>' +
+      '<td class="muted">' + set.length + '</td>' +
+      '<td class="' + (a>=0?'pos':'neg') + '">' + (a>=0?'+':'') + a.toFixed(2) + '%</td>' +
+      '<td class="muted">' + cHigh + '</td>' +
+      '<td class="muted">' + (set.length - cHigh) + '</td>' +
+    '</tr>';
+  }).join('') || '<tr><td colspan="5" class="empty-state">No overlap yet.</td></tr>';
+
+  document.getElementById('disagree-note').textContent =
+    'When they disagree sharply, one is wrong. If those candidates underperform, the disagreement itself is a warning worth acting on.';
+}
+
+// Performance split by which scorer produced the reading. Claude and the
+// deterministic formula both write to every row, so this compares them on the
+// same candidates rather than across different market conditions.
+function renderModes(rows, trades) {
+  const modes = ['claude','deterministic','both'];
+  let any = false;
+
+  const html = modes.map(m => {
+    const set = rows.filter(r => (r.scoring_mode || 'claude') === m);
+    if (!set.length) return '';
+    any = true;
+    const passed = set.filter(r => r.passed_gate).length;
+    const traded = set.filter(r => r.status === 'traded').length;
+    const out    = set.filter(r => r.outcome_24h_pct != null);
+    const a      = avg(out.map(r => r.outcome_24h_pct));
+    const wr     = out.length ? Math.round(out.filter(r => Number(r.outcome_24h_pct) > 0).length / out.length * 100) : null;
+
+    const closed = trades.filter(t => t.status === 'closed' && (t.scoring_mode || 'claude') === m);
+    const pl     = closed.reduce((x,t) => x + (Number(t.gain_loss)||0), 0);
+
+    return '<tr>' +
+      '<td>' + m.toUpperCase() + '</td>' +
+      '<td class="muted">' + set.length + '</td>' +
+      '<td class="muted">' + passed + '</td>' +
+      '<td class="muted">' + traded + '</td>' +
+      '<td class="' + (a==null?'muted':(a>=0?'pos':'neg')) + '">' + (a==null?'—':(a>=0?'+':'')+a.toFixed(2)+'%') + '</td>' +
+      '<td class="muted">' + (wr==null?'—':wr+'%') + '</td>' +
+      '<td class="' + (closed.length ? (pl>=0?'pos':'neg') : 'muted') + '">' +
+        (closed.length ? (pl>=0?'+$':'-$') + Math.abs(pl).toFixed(2) : '—') + '</td>' +
+    '</tr>';
+  }).join('');
+
+  document.getElementById('mode-body').innerHTML = html ||
+    '<tr><td colspan="7" class="empty-state">No scored candidates yet.</td></tr>';
+  document.getElementById('mode-note').textContent = any
+    ? 'Run in Both mode for a while to build a fair comparison — the same candidates scored by each, so the difference is the scorer rather than the market.'
+    : '';
+}
+
+// The interesting rows are where the model and the formula reached different
+// conclusions. If one is consistently right when they disagree, that is the
+// clearest evidence available about which to trust.
+function renderAgreement(rows) {
+  const both = rows.filter(r =>
+    Number.isFinite(Number(r.opportunity_score)) &&
+    Number.isFinite(Number(r.det_opportunity))
+  );
+
+  if (!both.length) {
+    document.getElementById('agree-body').innerHTML =
+      '<tr><td colspan="4" class="empty-state">No candidates carry both scores yet.</td></tr>';
+    document.getElementById('agree-note').textContent =
+      'Deterministic scores are recorded alongside Claude\'s on every candidate. This fills as scans run.';
+    return;
+  }
+
+  const buckets = [
+    { label: 'Agree — both would take',   f: r => Number(r.opportunity_score) >= 50 && Number(r.det_opportunity) >= 50 },
+    { label: 'Agree — both would skip',   f: r => Number(r.opportunity_score) <  50 && Number(r.det_opportunity) <  50 },
+    { label: 'Claude yes, formula no',    f: r => Number(r.opportunity_score) >= 50 && Number(r.det_opportunity) <  50 },
+    { label: 'Formula yes, Claude no',    f: r => Number(r.opportunity_score) <  50 && Number(r.det_opportunity) >= 50 },
+  ];
+
+  document.getElementById('agree-body').innerHTML = buckets.map(b => {
+    const set = both.filter(b.f);
+    if (!set.length) return '';
+    const out = set.filter(r => r.outcome_24h_pct != null);
+    const a   = avg(out.map(r => r.outcome_24h_pct));
+    const wr  = out.length ? Math.round(out.filter(r => Number(r.outcome_24h_pct) > 0).length / out.length * 100) : null;
+    return '<tr>' +
+      '<td>' + b.label + '</td>' +
+      '<td class="muted">' + set.length + '</td>' +
+      '<td class="' + (a==null?'muted':(a>=0?'pos':'neg')) + '">' + (a==null?'—':(a>=0?'+':'')+a.toFixed(2)+'%') + '</td>' +
+      '<td class="muted">' + (wr==null?'—':wr+'%') + '</td>' +
+    '</tr>';
+  }).join('') || '<tr><td colspan="4" class="empty-state">Not enough overlap yet.</td></tr>';
+
+  document.getElementById('agree-note').textContent =
+    'The two disagreement rows are the ones that matter. Whichever performs better when they split is the scorer worth trusting.';
 }
 
 function setFilter(f, btn) {
