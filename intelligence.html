@@ -297,6 +297,11 @@ const COLUMNS = [
   { key:'signal_quality',    label:'SQ',     num:true },
   { key:'det_composite',     label:'Det C',  num:true },
   { key:'det_opportunity',   label:'Det Opp',num:true },
+  { key:'det_base_opportunity', label:'Det Opp No Phys', num:true },
+  // The same formula with the regime layer removed — the control for
+  // measuring whether physics actually improves it.
+  { key:'det_base_opportunity', label:'Det Opp (no phys)', num:true },
+  { key:'det_base_composite',   label:'Det C (no phys)',   num:true },
   { key:'volatility_pct',    label:'Vol %',  num:true, fmt:v => v==null?'—':Number(v).toFixed(2) },
   { key:'reward_risk',       label:'R:R',    num:true, fmt:v => v==null?'—':Number(v).toFixed(2) },
   { key:'price_at_score',    label:'Price',  num:true, fmt:v => v==null?'—':'$'+Number(v).toFixed(Number(v)<1?6:2) },
