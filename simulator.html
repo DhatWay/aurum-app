@@ -1053,11 +1053,6 @@ footer p { font-size: 0.6rem; letter-spacing: 0.12em; color: var(--muted); text-
 <script>
 const SUPABASE_URL = 'https://zpcbbwynvvyldavxzjng.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_K80lcfk8LsQNqo5enznRRA_lrzf2U9K';
-// CoinGecko Demo key. Read-only market data, so the exposure is quota
-// theft rather than anything dangerous — same class as the anon key above.
-const CG_DEMO_KEY = 'PASTE_YOUR_COINGECKO_KEY_HERE';
-const cgHeaders = CG_DEMO_KEY && !CG_DEMO_KEY.startsWith('PASTE')
-  ? { 'x-cg-demo-api-key': CG_DEMO_KEY } : {};
 const { createClient } = supabase;
 const db = createClient(SUPABASE_URL, SUPABASE_KEY);
 
@@ -2599,7 +2594,7 @@ const MAX_PER_TICKER     = 1;      // one position per ticker      // one positi
 // Thresholds differ by asset class. Crypto has no earnings, insider filings or
 // analyst coverage, so its data ceiling is genuinely lower — holding it to the
 // stock bar makes every coin unreachable regardless of how good the setup is.
-const BUILD = 'b95-caching-batched';
+const BUILD = 'b97-computed-sq';
 const MAX_POSITION_PCT = 15;   // hard ceiling per position, as % of balance
 
 // ── SCALE PRESETS ──
@@ -3094,7 +3089,7 @@ async function runBacktest() {
       let chart;
       try {
         const res = await fetch('https://api.coingecko.com/api/v3/coins/' + id +
-          '/market_chart?vs_currency=usd&days=365&interval=daily', { headers: cgHeaders });
+          '/market_chart?vs_currency=usd&days=365&interval=daily');
         if (!res.ok) continue;
         chart = await res.json();
       } catch (e) { continue; }
@@ -3260,7 +3255,7 @@ async function runOutcomeCheck() {
     for (let i = 0; i < ids.length; i += 100) {
       const slice = ids.slice(i, i + 100).join(',');
       try {
-        const res = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=' + slice + '&vs_currencies=usd', { headers: cgHeaders });
+        const res = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=' + slice + '&vs_currencies=usd');
         if (!res.ok) { failures.push('CoinGecko HTTP ' + res.status); continue; }
         const d = await res.json();
         cTickers.forEach(t => {
@@ -3652,7 +3647,7 @@ async function screenCryptoUniverse() {
       const res = await fetch('https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd' +
         '&order=market_cap_desc&per_page=' + perPage + '&page=' + p +
         '&price_change_percentage=24h'
-      , { headers: cgHeaders }, { headers: cgHeaders });
+      );
       if (!res.ok) break;
       const rows = await res.json();
       if (!Array.isArray(rows) || !rows.length) break;
@@ -3927,13 +3922,12 @@ async function scoreBatchWithClaude(candidates) {
     '  op = opportunity 0-100 — is this worth taking at all, given the expected\n' +
     '       move against its volatility and the reward-to-risk of a stop placed\n' +
     '       2x volatility away with a 2:1 target. Independent of c.\n' +
-    '  sq = signal quality 0-100 — how far the DATA can be trusted.\n' +
     '  cf = High, Medium or Low.\n' +
     '  bp = position size 1-10.\n\n' +
     'Their algorithms have ALREADY RUN — the scores given are real computed\n' +
     'values, not estimates. Judge them; do not re-derive them.\n\n' +
     'Return ONLY this JSON, no other text:\n' +
-    '{"results":[{"t":"BTC","d":"LONG","c":72,"op":68,"sq":78,"cf":"Medium","bp":5}]}';
+    '{"results":[{"t":"BTC","d":"LONG","c":72,"op":68,"cf":"Medium","bp":5}]}';
 
   const prompt = 'You are the AURUM Governor scoring ' + candidates.length +
     ' candidates in ' + activeMode.toUpperCase() + ' mode.\n\n' +
@@ -3948,11 +3942,10 @@ async function scoreBatchWithClaude(candidates) {
     '  op = opportunity 0-100 — is this worth taking at all, given the expected\n' +
     '       move against its volatility and the reward-to-risk of a stop placed\n' +
     '       2x volatility away with a 2:1 target. Independent of c.\n' +
-    '  sq = signal quality 0-100 — how far the DATA can be trusted.\n' +
     '  cf = High, Medium or Low.\n' +
     '  bp = position size 1-10.\n\n' +
     'Return ONLY this JSON, no other text:\n' +
-    '{"results":[{"t":"BTC","d":"LONG","c":72,"op":68,"sq":78,"cf":"Medium","bp":5}]}';
+    '{"results":[{"t":"BTC","d":"LONG","c":72,"op":68,"cf":"Medium","bp":5}]}';
 
   const res = await fetchWithTimeout('https://zpcbbwynvvyldavxzjng.supabase.co/functions/v1/smooth-service', {
     method: 'POST',
@@ -3995,7 +3988,23 @@ async function scoreBatchWithClaude(candidates) {
     g.direction                = dir;
     g.composite_score          = Number(v.c);
     g.opportunity_score        = Number(v.op);
-    g.signal_quality           = Number(v.sq);
+    // Signal quality is data COMPLETENESS, which is countable rather than a
+    // judgement. In batch mode Claude sees only computed scores, never the
+    // underlying feeds, so it could not assess completeness and defaulted low —
+    // LINK read 37 where the per-candidate path gave 62.
+    //
+    // Both inputs are already returned by skip_ai: how many algorithms produced
+    // a real value, and how much price history existed.
+    const ranCount = Number(g.algorithms_executed) || 0;
+    const expected = activeMode === 'crypto' ? 23 : 26;
+    const algoCoverage = Math.min(ranCount / expected, 1);
+    const barCoverage  = Math.min((Number(g.price_bars) || 0) / 120, 1);
+
+    // A new listing cannot have history, so it is capped rather than punished
+    // for a gap that reflects its age instead of a data failure.
+    let sq = Math.round((algoCoverage * 0.65 + barCoverage * 0.35) * 100);
+    if (g.is_new_listing) sq = Math.min(sq, 65);
+    g.signal_quality = Math.max(0, Math.min(100, sq));
     g.confidence               = v.cf || 'Low';
     g.recommended_position_pct = Number(v.bp) || 5;
     g.reward_risk              = 2.0;
