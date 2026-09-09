@@ -1053,6 +1053,11 @@ footer p { font-size: 0.6rem; letter-spacing: 0.12em; color: var(--muted); text-
 <script>
 const SUPABASE_URL = 'https://zpcbbwynvvyldavxzjng.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_K80lcfk8LsQNqo5enznRRA_lrzf2U9K';
+// CoinGecko Demo key. Read-only market data, so the exposure is quota
+// theft rather than anything dangerous — same class as the anon key above.
+const CG_DEMO_KEY = 'PASTE_YOUR_COINGECKO_KEY_HERE';
+const cgHeaders = CG_DEMO_KEY && !CG_DEMO_KEY.startsWith('PASTE')
+  ? { 'x-cg-demo-api-key': CG_DEMO_KEY } : {};
 const { createClient } = supabase;
 const db = createClient(SUPABASE_URL, SUPABASE_KEY);
 
@@ -2594,7 +2599,7 @@ const MAX_PER_TICKER     = 1;      // one position per ticker      // one positi
 // Thresholds differ by asset class. Crypto has no earnings, insider filings or
 // analyst coverage, so its data ceiling is genuinely lower — holding it to the
 // stock bar makes every coin unreachable regardless of how good the setup is.
-const BUILD = 'b93-physics-controlled';
+const BUILD = 'b95-caching-batched';
 const MAX_POSITION_PCT = 15;   // hard ceiling per position, as % of balance
 
 // ── SCALE PRESETS ──
@@ -3089,7 +3094,7 @@ async function runBacktest() {
       let chart;
       try {
         const res = await fetch('https://api.coingecko.com/api/v3/coins/' + id +
-          '/market_chart?vs_currency=usd&days=365&interval=daily');
+          '/market_chart?vs_currency=usd&days=365&interval=daily', { headers: cgHeaders });
         if (!res.ok) continue;
         chart = await res.json();
       } catch (e) { continue; }
@@ -3255,7 +3260,7 @@ async function runOutcomeCheck() {
     for (let i = 0; i < ids.length; i += 100) {
       const slice = ids.slice(i, i + 100).join(',');
       try {
-        const res = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=' + slice + '&vs_currencies=usd');
+        const res = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=' + slice + '&vs_currencies=usd', { headers: cgHeaders });
         if (!res.ok) { failures.push('CoinGecko HTTP ' + res.status); continue; }
         const d = await res.json();
         cTickers.forEach(t => {
@@ -3644,11 +3649,10 @@ async function screenCryptoUniverse() {
 
   for (let p = 1; p <= pages; p++) {
     try {
-      const res = await fetch(
-        'https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd' +
+      const res = await fetch('https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd' +
         '&order=market_cap_desc&per_page=' + perPage + '&page=' + p +
         '&price_change_percentage=24h'
-      );
+      , { headers: cgHeaders }, { headers: cgHeaders });
       if (!res.ok) break;
       const rows = await res.json();
       if (!Array.isArray(rows) || !rows.length) break;
@@ -3910,6 +3914,27 @@ async function scoreBatchWithClaude(candidates) {
       '\n   algorithms: ' + scores;
   }).join('\n\n');
 
+  // Split into a fixed instruction block and the per-wave data. The fixed part
+  // is byte-identical every time, so it is cached and billed at 10% after the
+  // first call of a session.
+  const CACHE_PREFIX =
+    'You are the AURUM Governor. For EACH candidate return one object.\n' +
+    'Score independently — c, op and sq measure different things and identical\n' +
+    'values mean you have not judged them separately.\n\n' +
+    '  t  = ticker\n' +
+    '  d  = LONG if c>60, SHORT if c<40, NONE if 40-60. NONE is expected and correct.\n' +
+    '  c  = directional conviction 0-100. Use the full range.\n' +
+    '  op = opportunity 0-100 — is this worth taking at all, given the expected\n' +
+    '       move against its volatility and the reward-to-risk of a stop placed\n' +
+    '       2x volatility away with a 2:1 target. Independent of c.\n' +
+    '  sq = signal quality 0-100 — how far the DATA can be trusted.\n' +
+    '  cf = High, Medium or Low.\n' +
+    '  bp = position size 1-10.\n\n' +
+    'Their algorithms have ALREADY RUN — the scores given are real computed\n' +
+    'values, not estimates. Judge them; do not re-derive them.\n\n' +
+    'Return ONLY this JSON, no other text:\n' +
+    '{"results":[{"t":"BTC","d":"LONG","c":72,"op":68,"sq":78,"cf":"Medium","bp":5}]}';
+
   const prompt = 'You are the AURUM Governor scoring ' + candidates.length +
     ' candidates in ' + activeMode.toUpperCase() + ' mode.\n\n' +
     'Their algorithms have ALREADY RUN — these are real computed scores, not\n' +
@@ -3934,6 +3959,7 @@ async function scoreBatchWithClaude(candidates) {
     headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + GOVERNOR_ANON_KEY },
     body: JSON.stringify({
       prompt,
+      cache_prefix: CACHE_PREFIX,
       model: 'claude-opus-4-6',        // Opus judges; never downgraded
       max_tokens: Math.min(400 + candidates.length * 120, 8000),
     })
