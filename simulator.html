@@ -2594,7 +2594,7 @@ const MAX_PER_TICKER     = 1;      // one position per ticker      // one positi
 // Thresholds differ by asset class. Crypto has no earnings, insider filings or
 // analyst coverage, so its data ceiling is genuinely lower — holding it to the
 // stock bar makes every coin unreachable regardless of how good the setup is.
-const BUILD = 'b91-batch-scoring';
+const BUILD = 'pre-batch-restored';
 const MAX_POSITION_PCT = 15;   // hard ceiling per position, as % of balance
 
 // ── SCALE PRESETS ──
@@ -4353,23 +4353,8 @@ async function runAutonomousCycle(manualTrigger) {
 
       autoLog('Wave ' + wave + ' — scoring ' + batch.length + ' tickers, need ' + needed + ' more (' + openCount + '/' + preset().positions + ' open)');
 
-      // Run algorithms for the whole batch via skip_ai — free, no model call —
-      // then judge them all in ONE Opus call rather than one per candidate.
-      // In Deterministic mode there is no judgement call at all.
-      let scored;
-      if (scoringMode === 'deterministic') {
-        scored = await scoreAllCandidates(batch, balance);
-      } else {
-        const raw = await scoreAllCandidatesRaw(batch, balance);
-        if (!raw.length) continue;
-        try {
-          scored = await scoreBatchWithClaude(raw);
-        } catch (e) {
-          autoLog('Batch scoring failed: ' + e.message + ' — falling back to per-candidate.');
-          scored = await scoreAllCandidates(batch, balance);
-        }
-      }
-      if (!scored || !scored.length) continue;
+      const scored = await scoreAllCandidates(batch, balance);
+      if (!scored.length) continue;
 
       // Hard filter before spending a Claude call
       const qualified = scored.filter(passesConviction);
