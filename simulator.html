@@ -2594,7 +2594,7 @@ const MAX_PER_TICKER     = 1;      // one position per ticker      // one positi
 // Thresholds differ by asset class. Crypto has no earnings, insider filings or
 // analyst coverage, so its data ceiling is genuinely lower — holding it to the
 // stock bar makes every coin unreachable regardless of how good the setup is.
-const BUILD = 'b97-computed-sq';
+const BUILD = 'b91-batch-scoring';
 const MAX_POSITION_PCT = 15;   // hard ceiling per position, as % of balance
 
 // ── SCALE PRESETS ──
@@ -3402,20 +3402,17 @@ function renderPhysicsToggle() {
   }
   if (note) {
     note.textContent = physicsEnabled
-      ? 'Claude receives the regime reading alongside the other algorithms. Always weighted at 1.8x in the deterministic formula regardless of this switch.'
-      : 'Withheld from Claude. Still computed, logged, and weighted at 1.8x in the deterministic formula — so the formula has it and Claude does not.';
+      ? 'Hurst, entropy and tail risk weighted at 1.8x. Momentum signals gain weight in a trending regime and lose it in a mean-reverting one.'
+      : 'Off. The reading is still computed and logged to shadow_log for evaluation, but carries no weight in any scoring mode.';
   }
 }
 
-// includePhysics lets the same formula be computed both ways on the same
-// candidate. Logging both means the regime layer can be evaluated without the
-// formula becoming a moving target — otherwise older and newer rows would be
-// scored by different formulas and no comparison would be attributable.
-function computeComposite(algoScores, includePhysics = true) {
+function computeComposite(algoScores) {
   if (!algoScores || typeof algoScores !== 'object') return null;
   let weighted = 0, totalWeight = 0;
   for (const [name, raw] of Object.entries(algoScores)) {
-    if (name === 'market_regime_physics' && !includePhysics) continue;
+    // Logged either way; weighted only when armed.
+    if (name === 'market_regime_physics' && !physicsEnabled) continue;
     const score = Number(raw);
     if (!Number.isFinite(score)) continue;
     const w = ALGO_WEIGHTS[name] ?? 1.0;
@@ -3462,24 +3459,12 @@ function computeOpportunity(gov, composite) {
 // Produces the deterministic view of a candidate, mirroring the Governor's
 // own direction rule so the two modes are comparable.
 function scoreDeterministic(gov) {
-  const composite = computeComposite(gov.algorithm_scores, true);
+  const composite = computeComposite(gov.algorithm_scores);
   if (composite === null) return null;
   const opportunity = computeOpportunity(gov, composite);
   if (opportunity === null) return null;
   const direction = composite > 60 ? 'LONG' : composite < 40 ? 'SHORT' : 'NONE';
-
-  // The same formula without the regime layer, so its contribution is
-  // measurable on the same candidate rather than across different periods.
-  const baseComposite = computeComposite(gov.algorithm_scores, false);
-  const baseOpportunity = baseComposite === null ? null : computeOpportunity(gov, baseComposite);
-
-  return {
-    composite, opportunity, direction,
-    baseComposite,
-    baseOpportunity,
-    baseDirection: baseComposite === null ? null
-      : (baseComposite > 60 ? 'LONG' : baseComposite < 40 ? 'SHORT' : 'NONE'),
-  };
+  return { composite, opportunity, direction };
 }
 
 // Applies the active mode. Claude's scores stay on the object either way, so
@@ -3644,7 +3629,8 @@ async function screenCryptoUniverse() {
 
   for (let p = 1; p <= pages; p++) {
     try {
-      const res = await fetch('https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd' +
+      const res = await fetch(
+        'https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd' +
         '&order=market_cap_desc&per_page=' + perPage + '&page=' + p +
         '&price_change_percentage=24h'
       );
@@ -3909,26 +3895,6 @@ async function scoreBatchWithClaude(candidates) {
       '\n   algorithms: ' + scores;
   }).join('\n\n');
 
-  // Split into a fixed instruction block and the per-wave data. The fixed part
-  // is byte-identical every time, so it is cached and billed at 10% after the
-  // first call of a session.
-  const CACHE_PREFIX =
-    'You are the AURUM Governor. For EACH candidate return one object.\n' +
-    'Score independently — c, op and sq measure different things and identical\n' +
-    'values mean you have not judged them separately.\n\n' +
-    '  t  = ticker\n' +
-    '  d  = LONG if c>60, SHORT if c<40, NONE if 40-60. NONE is expected and correct.\n' +
-    '  c  = directional conviction 0-100. Use the full range.\n' +
-    '  op = opportunity 0-100 — is this worth taking at all, given the expected\n' +
-    '       move against its volatility and the reward-to-risk of a stop placed\n' +
-    '       2x volatility away with a 2:1 target. Independent of c.\n' +
-    '  cf = High, Medium or Low.\n' +
-    '  bp = position size 1-10.\n\n' +
-    'Their algorithms have ALREADY RUN — the scores given are real computed\n' +
-    'values, not estimates. Judge them; do not re-derive them.\n\n' +
-    'Return ONLY this JSON, no other text:\n' +
-    '{"results":[{"t":"BTC","d":"LONG","c":72,"op":68,"cf":"Medium","bp":5}]}';
-
   const prompt = 'You are the AURUM Governor scoring ' + candidates.length +
     ' candidates in ' + activeMode.toUpperCase() + ' mode.\n\n' +
     'Their algorithms have ALREADY RUN — these are real computed scores, not\n' +
@@ -3942,17 +3908,17 @@ async function scoreBatchWithClaude(candidates) {
     '  op = opportunity 0-100 — is this worth taking at all, given the expected\n' +
     '       move against its volatility and the reward-to-risk of a stop placed\n' +
     '       2x volatility away with a 2:1 target. Independent of c.\n' +
+    '  sq = signal quality 0-100 — how far the DATA can be trusted.\n' +
     '  cf = High, Medium or Low.\n' +
     '  bp = position size 1-10.\n\n' +
     'Return ONLY this JSON, no other text:\n' +
-    '{"results":[{"t":"BTC","d":"LONG","c":72,"op":68,"cf":"Medium","bp":5}]}';
+    '{"results":[{"t":"BTC","d":"LONG","c":72,"op":68,"sq":78,"cf":"Medium","bp":5}]}';
 
   const res = await fetchWithTimeout('https://zpcbbwynvvyldavxzjng.supabase.co/functions/v1/smooth-service', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + GOVERNOR_ANON_KEY },
     body: JSON.stringify({
       prompt,
-      cache_prefix: CACHE_PREFIX,
       model: 'claude-opus-4-6',        // Opus judges; never downgraded
       max_tokens: Math.min(400 + candidates.length * 120, 8000),
     })
@@ -3988,23 +3954,7 @@ async function scoreBatchWithClaude(candidates) {
     g.direction                = dir;
     g.composite_score          = Number(v.c);
     g.opportunity_score        = Number(v.op);
-    // Signal quality is data COMPLETENESS, which is countable rather than a
-    // judgement. In batch mode Claude sees only computed scores, never the
-    // underlying feeds, so it could not assess completeness and defaulted low —
-    // LINK read 37 where the per-candidate path gave 62.
-    //
-    // Both inputs are already returned by skip_ai: how many algorithms produced
-    // a real value, and how much price history existed.
-    const ranCount = Number(g.algorithms_executed) || 0;
-    const expected = activeMode === 'crypto' ? 23 : 26;
-    const algoCoverage = Math.min(ranCount / expected, 1);
-    const barCoverage  = Math.min((Number(g.price_bars) || 0) / 120, 1);
-
-    // A new listing cannot have history, so it is capped rather than punished
-    // for a gap that reflects its age instead of a data failure.
-    let sq = Math.round((algoCoverage * 0.65 + barCoverage * 0.35) * 100);
-    if (g.is_new_listing) sq = Math.min(sq, 65);
-    g.signal_quality = Math.max(0, Math.min(100, sq));
+    g.signal_quality           = Number(v.sq);
     g.confidence               = v.cf || 'Low';
     g.recommended_position_pct = Number(v.bp) || 5;
     g.reward_risk              = 2.0;
@@ -4320,9 +4270,6 @@ async function logShadowCandidates(scored, qualifiedSet) {
       det_composite:     g._det ? g._det.composite   : null,
       det_opportunity:   g._det ? g._det.opportunity : null,
       det_direction:     g._det ? g._det.direction   : null,
-      // Same formula, regime layer excluded — the control for measuring it
-      det_base_composite:   g._det ? g._det.baseComposite   : null,
-      det_base_opportunity: g._det ? g._det.baseOpportunity : null,
       passed_gate:       passed,
         reject_reason:     passed ? null : rejectionReason(g),
         scored_at:         new Date().toISOString(),
@@ -4394,12 +4341,6 @@ async function runAutonomousCycle(manualTrigger) {
     let lowConviction = 0;
     let wave          = 0;
     const rejectLog   = [];   // ticker + why, so thresholds can be set from evidence
-    // Consecutive waves that yield nothing. Scanning the whole universe to
-    // find two picks is how a fill costs a dollar — after three barren waves
-    // the market is simply not offering setups, and further scanning buys
-    // nothing but Opus calls.
-    let barrenWaves = 0;
-    const MAX_BARREN = 3;
 
     // Keep pulling waves of candidates until the block is full or we run dry.
     // A single wave rarely fills 10, since the allocator rejects weak signals.
@@ -4441,18 +4382,9 @@ async function runAutonomousCycle(manualTrigger) {
       lowConviction += (scored.length - qualified.length);
 
       if (!qualified.length) {
-        barrenWaves++;
-        if (barrenWaves >= MAX_BARREN) {
-          autoLog('Stopped after ' + barrenWaves + ' waves with nothing clearing opportunity ' +
-                  limits().opportunity + '. ' + openCount + '/' + preset().positions + ' open. ' +
-                  'Further scanning would cost without finding — the setups are not there right now.');
-          break;
-        }
-        autoLog('Wave ' + wave + ' — none of ' + scored.length + ' cleared opportunity ' +
-                limits().opportunity + '. ' + (MAX_BARREN - barrenWaves) + ' more wave(s) before stopping.');
+        autoLog('Wave ' + wave + ' — none of ' + scored.length + ' cleared opportunity ' + limits().opportunity + '. Scanning further...');
         continue;
       }
-      barrenWaves = 0;
 
       autoLog('Wave ' + wave + ' — ' + qualified.length + ' of ' + scored.length + ' cleared conviction. Claude deciding...');
       let decisions = [];
