@@ -3217,114 +3217,42 @@ async function runOutcomeCheck() {
   const btn = document.getElementById('outcome-btn');
   const box = document.getElementById('outcome-output');
   if (btn) { btn.disabled = true; btn.textContent = 'CHECKING...'; }
-  if (box) box.innerHTML = '<div style="color:#6B6560;">Fetching outcomes...</div>';
+  if (box) box.innerHTML = '<div style="color:#6B6560;">Running outcome checker...</div>';
+
+  // The checker moved to a scheduled edge function. It runs hourly on its
+  // own; this button only triggers it early. The old client-side version
+  // fetched the CURRENT price whenever pressed and wrote it as a 24-hour
+  // outcome, which is why no row in shadow_log ever carried a real one.
+  //
+  // Change this if you named the function something other than
+  // outcome-checker.
+  const OUTCOME_FN_URL = SUPABASE_URL + '/functions/v1/outcome-checker';
 
   try {
-    const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-    const { data: rows } = await db.from('shadow_log')
-      .select('id, ticker, price_at_score, scored_at, direction, mode, coingecko_id')
-      .is('outcome_checked_at', null)
-      .lt('scored_at', cutoff)
-      .limit(200);
+    const res = await fetch(OUTCOME_FN_URL, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + SUPABASE_KEY },
+      body:    '{}',
+    });
+    const d = await res.json();
 
-    if (!rows || !rows.length) {
-      if (box) box.innerHTML = '<div style="color:#6B6560;">Nothing ready — rows must be 24h old before an outcome means anything.</div>';
+    if (!res.ok || !d.ok) {
+      if (box) box.innerHTML = '<div style="color:#8B3A3A;">Checker failed: ' +
+        ((d && d.error) || ('HTTP ' + res.status)) + '</div>';
       return;
     }
 
-    // Route by asset class. The checker previously assumed CoinGecko for
-    // everything, so any row scored in stock mode failed as unpriceable —
-    // its ticker simply is not in the coin map.
-    const cryptoRows = rows.filter(r => (r.mode || 'crypto') === 'crypto');
-    const stockRows  = rows.filter(r => (r.mode || 'crypto') !== 'crypto');
-    const live = {};
-    const failures = [];
+    const lines = (d.passes || []).map(p =>
+      p.pass + ': ' + (p.resolved || 0) + ' resolved' +
+      (p.unpriceable ? ', ' + p.unpriceable + ' unpriceable' : '') +
+      (p.error ? ' — ' + p.error : '')
+    ).join('<br>');
 
-    // ── Crypto: CoinGecko, bulk ──
-    const cTickers = [...new Set(cryptoRows.map(r => String(r.ticker).toUpperCase()))];
-    // Prefer the id stored at scoring time; fall back to the static map.
-    const idByTicker = {};
-    cryptoRows.forEach(r => {
-      const t = String(r.ticker).toUpperCase();
-      if (!idByTicker[t]) idByTicker[t] = r.coingecko_id || COINGECKO_IDS_FULL[t] || null;
-    });
-    const ids = cTickers.map(t => idByTicker[t]).filter(Boolean);
-    const unmapped = cTickers.filter(t => !idByTicker[t]);
-    if (unmapped.length) failures.push('no coin id: ' + unmapped.join(', '));
-
-    for (let i = 0; i < ids.length; i += 100) {
-      const slice = ids.slice(i, i + 100).join(',');
-      try {
-        const res = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=' + slice + '&vs_currencies=usd');
-        if (!res.ok) { failures.push('CoinGecko HTTP ' + res.status); continue; }
-        const d = await res.json();
-        cTickers.forEach(t => {
-          const id = idByTicker[t];
-          if (id && d[id] && d[id].usd) live[t] = d[id].usd;
-        });
-      } catch (e) { failures.push('CoinGecko: ' + (e?.message || 'failed')); }
-      if (i + 100 < ids.length) await new Promise(r => setTimeout(r, 1200));
-    }
-
-    // ── Stocks: Finnhub, one call each ──
-    const sTickers = [...new Set(stockRows.map(r => String(r.ticker).toUpperCase()))];
-    if (sTickers.length) {
-      const FH = 'd8ipl11r01qtcvnt331gd8ipl11r01qtcvnt3320';
-      await Promise.all(sTickers.map(async t => {
-        try {
-          const res = await fetch('https://finnhub.io/api/v1/quote?symbol=' + t + '&token=' + FH);
-          if (!res.ok) return;
-          const q = await res.json();
-          if (q && q.c) live[t] = q.c;
-        } catch (e) {}
-      }));
-      const missed = sTickers.filter(t => live[t] === undefined);
-      if (missed.length) failures.push('no stock quote: ' + missed.join(', '));
-    }
-
-    let updated = 0, skipped = 0;
-    const now = new Date().toISOString();
-
-    for (const r of rows) {
-      const tk = String(r.ticker).toUpperCase();
-      const then = Number(r.price_at_score);
-      const nowPrice = live[tk];
-
-      if (!then || nowPrice === undefined) {
-        await db.from('shadow_log').update({
-          outcome_checked_at: now,
-          outcome_error: nowPrice === undefined ? 'no price available' : 'no scoring price',
-        }).eq('id', r.id);
-        skipped++;
-        continue;
-      }
-
-      // Signed to the direction called, so a correct short reads positive
-      const rawPct = ((nowPrice - then) / then) * 100;
-      const signed = String(r.direction).toUpperCase() === 'SHORT' ? -rawPct : rawPct;
-      const ageH = (Date.now() - new Date(r.scored_at).getTime()) / 3600000;
-
-      const patch = {
-        outcome_checked_at: now,
-        outcome_error: null,
-        price_24h: nowPrice,
-        outcome_24h_pct: Math.round(signed * 100) / 100,
-      };
-      if (ageH >= 168) {
-        patch.price_7d = nowPrice;
-        patch.outcome_7d_pct = Math.round(signed * 100) / 100;
-      }
-      await db.from('shadow_log').update(patch).eq('id', r.id);
-      updated++;
-    }
+    const total = (d.passes || []).reduce((s, p) => s + (p.resolved || 0), 0);
 
     if (box) box.innerHTML =
-      '<div style="color:' + (updated ? '#3A6B4A' : '#8B3A3A') + ';">Checked ' + updated + ' candidates' +
-      (skipped ? ', ' + skipped + ' unpriceable' : '') + '.</div>' +
-      (failures.length
-        ? '<div style="color:#8B3A3A;margin-top:0.3rem;">' + failures.join(' · ') + '</div>'
-        : '') +
-      '<div style="color:#6B6560;margin-top:0.3rem;">Outcomes are signed to the direction called, so a correct short reads positive.</div>';
+      '<div style="color:' + (total ? '#3A6B4A' : '#6B6560') + ';">' + lines + '</div>' +
+      '<div style="color:#6B6560;margin-top:0.3rem;">Only rows currently inside their horizon window are resolved — 24-30h and 168-180h. Nothing outside it is touched, because a late reading would not be that horizon.</div>';
   } catch (e) {
     if (box) box.innerHTML = '<div style="color:#8B3A3A;">Check failed: ' + (e?.message || 'unknown') + '</div>';
   } finally {
