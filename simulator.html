@@ -3107,7 +3107,7 @@ async function runBacktest() {
         if (!ind) continue;
 
         const algoScores = btAlgoScores(ind);
-        const composite  = computeComposite(algoScores);
+        const composite = computeComposite(gov.algorithm_scores, gov.algorithm_supplied);
         if (composite === null) continue;
 
         const direction = composite > 60 ? 'LONG' : composite < 40 ? 'SHORT' : 'NONE';
@@ -3335,12 +3335,19 @@ function renderPhysicsToggle() {
   }
 }
 
-function computeComposite(algoScores) {
+function computeComposite(algoScores, supplied) {
   if (!algoScores || typeof algoScores !== 'object') return null;
   let weighted = 0, totalWeight = 0;
   for (const [name, raw] of Object.entries(algoScores)) {
     // Logged either way; weighted only when armed.
     if (name === 'market_regime_physics' && !physicsEnabled) continue;
+    // An algorithm the Governor could not feed is absent, not neutral.
+    // Its 50 would otherwise be weighted identically to a real balanced
+    // read — options_flow at 2.2x and insider at 2.0x anchoring the
+    // composite toward the middle on data that was never gathered.
+    // Omitted supplied map means every score counts, which is what the
+    // backtest wants since it computes its own.
+    if (supplied && supplied[name] === false) continue;
     const score = Number(raw);
     if (!Number.isFinite(score)) continue;
     const w = ALGO_WEIGHTS[name] ?? 1.0;
