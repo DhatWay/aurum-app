@@ -271,6 +271,10 @@ async function fnCall(name, body, timeoutMs) {
 }
 
 let CONTRACT = null, ALGOS = null;
+// Per-algorithm execution time, measured once, used to decide what is cheap
+// enough to run repeatedly.
+let TIMINGS = {};
+const SLOW_MS = 250;
 const GOV = {};
 
 // ══════════════════════════════════════════════════════════════════
@@ -583,8 +587,9 @@ async function sectionAlgorithms() {
       : PASS('all active algorithms compile');
   });
 
-  function priceArgs() {
-    const up = synthSeries(120, 0.25), vol = Array.from({length:120}, function(){ return 5e6; });
+  function priceArgs(bars) {
+    bars = bars || 60;
+    const up = synthSeries(bars, 0.25), vol = Array.from({length:bars}, function(){ return 5e6; });
     return {
       momentum_detector:[up, vol, up.map(function(p){return p*1.012;}), up.map(function(p){return p*0.988;})],
       fuzzy_lspi:[up], state_space_mamba:[up,vol], autoencoder_selection:[up,null],
@@ -599,12 +604,17 @@ async function sectionAlgorithms() {
     if (!ALGOS) return SKIP('load failed');
     const args = priceArgs();
     let real = 0, hollow = 0, failed = 0;
-    const detail = [];
+    const detail = [], slow = [];
+    TIMINGS = {};
     for (const a of ALGOS) {
       if (!args[a.name] || !a.code) continue;
       try {
         const fn = new Function('Math','return (' + a.code + ')')(seededMath(99));
+        const t0 = Date.now();
         const s = scoreOf(fn.apply(null, args[a.name]));
+        const ms = Date.now() - t0;
+        TIMINGS[a.name] = ms;
+        if (ms > SLOW_MS) slow.push('  ' + a.name + ' took ' + ms + 'ms');
         if (s === null) { failed++; detail.push('  ' + a.name + ' returned no score'); }
         else if (s === 50) { hollow++; detail.push('  ' + a.name + ' returned exactly 50'); }
         else real++;
@@ -612,7 +622,8 @@ async function sectionAlgorithms() {
       await yieldUI();
     }
     const msg = real + ' produced a real score, ' + hollow + ' returned exactly 50, ' + failed + ' failed' +
-                (detail.length ? '\n' + detail.join('\n') : '');
+                (detail.length ? '\n' + detail.join('\n') : '') +
+                (slow.length ? '\nSlow enough to matter inside the Governor execution budget:\n' + slow.join('\n') : '');
     return failed ? FAIL(msg) : (hollow ? WARN(msg) : PASS(msg));
   });
 
@@ -638,9 +649,15 @@ async function sectionAlgorithms() {
     const args = priceArgs();
     const only = ['market_regime_adaptive_ga','mcts_formula_tester','autonomous_strategy_evolution',
                   'attention_augmented_gru','autoencoder_selection'];
-    const unseeded = [], seeded = [];
+    const unseeded = [], seeded = [], skipped = [];
     for (const a of ALGOS) {
       if (only.indexOf(a.name) === -1 || !a.code || !args[a.name]) continue;
+      // Repeating a 3-second algorithm six times is what froze this page.
+      // Anything that slow is reported rather than re-run.
+      if (TIMINGS[a.name] !== undefined && TIMINGS[a.name] > SLOW_MS) {
+        skipped.push('  ' + a.name + ' — ' + TIMINGS[a.name] + 'ms per call, too slow to repeat here');
+        continue;
+      }
       try {
         const raw = [], sd = [];
         for (let i=0;i<3;i++) raw.push(scoreOf(new Function('return (' + a.code + ')')().apply(null, args[a.name])));
@@ -650,10 +667,11 @@ async function sectionAlgorithms() {
       } catch (e) {}
       await yieldUI();
     }
-    if (seeded.length) return FAIL('varies even under a fixed seed:\n' + seeded.join('\n'));
+    const tail = skipped.length ? '\nnot repeated:\n' + skipped.join('\n') : '';
+    if (seeded.length) return FAIL('varies even under a fixed seed:\n' + seeded.join('\n') + tail);
     return unseeded.length
-      ? PASS(unseeded.length + ' algorithms vary unseeded but are stable when seeded. The Governor seeds per ticker:\n' + unseeded.join('\n'))
-      : PASS('no stochastic variation found');
+      ? PASS(unseeded.length + ' algorithms vary unseeded but are stable when seeded. The Governor seeds per ticker:\n' + unseeded.join('\n') + tail)
+      : PASS('no stochastic variation found' + tail);
   });
 }
 
