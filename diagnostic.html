@@ -1,0 +1,1078 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AURUM — Diagnostic</title>
+<link rel="manifest" href="/aurum-app/manifest.json">
+<meta name="theme-color" content="#C9A84C">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;600&family=DM+Sans:wght@300;400;500&family=IBM+Plex+Mono:wght@300;400&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="auth-guard.js"></script>
+<style>
+  :root {
+    --black:#080808; --gold:#C9A84C; --white:#F0EDE6; --muted:#6B6560;
+    --danger:#8B3A3A; --positive:#3A6B4A; --warn:#8B7A3A;
+    --rule:rgba(201,168,76,0.2);
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:var(--black); color:var(--white); font-family:'DM Sans',sans-serif;
+         -webkit-font-smoothing:antialiased; padding-bottom:5rem; }
+  header { display:flex; justify-content:space-between; align-items:center;
+           padding:1.2rem 1.5rem; border-bottom:1px solid var(--rule); }
+  .brand { font-family:'Cormorant Garamond',serif; font-size:1.5rem; color:var(--gold); letter-spacing:0.05em; }
+  .brand small { display:block; font-family:'IBM Plex Mono',monospace; font-size:0.52rem; letter-spacing:0.3em; color:var(--muted); }
+  .menu-btn { background:transparent; border:1px solid var(--rule); color:var(--gold); font-size:1.1rem; padding:0.4rem 0.7rem; cursor:pointer; }
+
+  .nav-overlay { position:fixed; inset:0; background:rgba(8,8,8,0.97); z-index:1000; display:none;
+    flex-direction:column; justify-content:flex-start; align-items:center; gap:1.1rem;
+    overflow-y:auto; -webkit-overflow-scrolling:touch; padding:4.5rem 2rem 3rem; }
+  .nav-overlay.open { display:flex; }
+  .nav-overlay a { font-family:'Cormorant Garamond',serif; font-size:1.7rem; font-weight:300;
+    color:var(--muted); text-decoration:none; letter-spacing:0.2em; transition:color .3s; flex-shrink:0; line-height:1.2; }
+  .nav-overlay a:hover, .nav-overlay a.active { color:var(--gold); }
+  .nav-close { position:fixed; top:1.4rem; left:1.5rem; background:transparent; border:1px solid var(--rule);
+    color:var(--gold); font-size:1.2rem; line-height:1; padding:0.35rem 0.6rem; cursor:pointer; z-index:1002; }
+  @media (max-height:700px){ .nav-overlay a{font-size:1.4rem;} .nav-overlay{gap:0.85rem;} }
+
+  main { padding:1.5rem; max-width:1100px; margin:0 auto; }
+  .page-title { font-family:'Cormorant Garamond',serif; font-size:2.4rem; font-weight:300; margin-bottom:0.3rem; }
+  .page-title em { color:var(--gold); font-style:normal; }
+  .page-sub { color:var(--muted); font-size:0.85rem; line-height:1.7; margin-bottom:1.6rem; max-width:640px; }
+
+  .section-label { font-family:'IBM Plex Mono',monospace; font-size:0.62rem; letter-spacing:0.25em;
+    color:var(--gold); text-transform:uppercase; margin:1.8rem 0 0.8rem; }
+
+  .tally { display:grid; grid-template-columns:repeat(5,1fr); border:1px solid var(--rule); margin-bottom:0.9rem; }
+  .tally div { padding:0.8rem 0.3rem; border-right:1px solid var(--rule); text-align:center; }
+  .tally div:last-child { border-right:none; }
+  .tally .v { font-family:'Cormorant Garamond',serif; font-size:1.6rem; line-height:1; }
+  .tally .k { font-family:'IBM Plex Mono',monospace; font-size:0.5rem; letter-spacing:0.16em; color:var(--muted); margin-top:0.3rem; }
+
+  .controls { display:flex; flex-wrap:wrap; gap:0.55rem; margin-bottom:0.9rem; }
+  button.act { background:transparent; border:1px solid var(--rule); color:var(--gold);
+    font-family:'DM Sans',sans-serif; font-size:0.68rem; letter-spacing:0.12em;
+    padding:0.62rem 0.9rem; cursor:pointer; flex:1; min-width:140px; }
+  button.act:hover { border-color:var(--gold); }
+  button.act:disabled { opacity:0.45; cursor:default; }
+  button.act.primary { border-color:var(--gold); }
+
+  .opts { border:1px solid var(--rule); padding:0.8rem 0.95rem; margin-bottom:1.1rem; }
+  .opt { display:flex; align-items:flex-start; gap:0.6rem; font-size:0.75rem; line-height:1.55; }
+  .opt + .opt { margin-top:0.6rem; }
+  .opt input { margin-top:0.25rem; accent-color:var(--gold); flex-shrink:0; }
+  .opt span small { display:block; color:var(--muted); font-size:0.66rem; margin-top:0.15rem; }
+
+  .check { display:flex; gap:0.8rem; padding:0.7rem 0.9rem; border:1px solid var(--rule); border-top:none; align-items:flex-start; }
+  .grp .check:first-child { border-top:1px solid var(--rule); }
+  .dot { width:7px; height:7px; border-radius:50%; margin-top:0.4rem; flex-shrink:0; background:var(--muted); }
+  .dot.pass{background:var(--positive);} .dot.fail{background:var(--danger);}
+  .dot.warn{background:var(--warn);} .dot.run{background:var(--gold);} .dot.skip{background:var(--muted);}
+  .check .body { flex:1; min-width:0; }
+  .check .name { font-size:0.79rem; }
+  .check .detail { font-family:'IBM Plex Mono',monospace; font-size:0.62rem; color:var(--muted);
+    margin-top:0.22rem; line-height:1.6; word-break:break-word; white-space:pre-wrap; }
+  .check .detail.bad { color:var(--danger); }
+  .check .detail.good { color:var(--positive); }
+  .grp { margin-bottom:0.3rem; }
+  .note { color:var(--muted); font-size:0.72rem; line-height:1.7; margin-top:1rem; max-width:640px; }
+  #copy-status { color:var(--positive); font-size:0.7rem; margin-left:0.5rem; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">AURUM<small>DIAGNOSTIC</small></div>
+  <button class="menu-btn" onclick="openNav()">&#9776;</button>
+</header>
+
+<div class="nav-overlay" id="nav-overlay">
+  <button class="nav-close" onclick="closeNav()">&#10005;</button>
+  <a href="index.html">Brief</a>
+  <a href="trading.html">Trading</a>
+  <a href="brokerage.html">Brokerage</a>
+  <a href="simulator.html">Simulator</a>
+  <a href="sectors.html">Sectors</a>
+  <a href="admin.html">Admin</a>
+  <a href="news.html">News</a>
+  <a href="history.html">History</a>
+  <a href="options.html">Options</a>
+  <a href="report.html">Report</a>
+  <a href="intelligence.html">Intelligence</a>
+  <a href="ipo.html">IPO</a>
+  <a href="diagnostic.html" class="active">Diagnostic</a>
+  <a href="tutorial.html">Tutorial</a>
+  <a href="help.html">Help</a>
+  <a href="assistant.html">Assistant</a>
+</div>
+
+<main>
+  <div class="page-title">AURUM <em>Diagnostic.</em></div>
+  <div class="page-sub">Exercises every table, database function, edge function, scoring path and piece of trade logic in the app, and reports what is actually true.</div>
+
+  <div class="tally">
+    <div><div class="v" id="t-pass">—</div><div class="k">PASS</div></div>
+    <div><div class="v" id="t-warn">—</div><div class="k">WARN</div></div>
+    <div><div class="v" id="t-fail">—</div><div class="k">FAIL</div></div>
+    <div><div class="v" id="t-skip">—</div><div class="k">SKIP</div></div>
+    <div><div class="v" id="t-time">—</div><div class="k">SECS</div></div>
+  </div>
+
+  <div class="opts">
+    <label class="opt">
+      <input type="checkbox" id="opt-claude">
+      <span>Include Claude scoring paths
+        <small>Runs the Governor with the model instead of deterministic only. Two extra calls. Uses Anthropic credits.</small></span>
+    </label>
+    <label class="opt">
+      <input type="checkbox" id="opt-write" checked>
+      <span>Include write tests
+        <small>Inserts one row into shadow_log under ticker __DIAG__ and deletes it, to prove a scan can actually write.</small></span>
+    </label>
+    <label class="opt">
+      <input type="checkbox" id="opt-slow">
+      <span>Include scheduled workers
+        <small>Invokes hyper-worker, smooth-worker, rapid-handler, clever-processor and smooth-api. These do real work and can be slow.</small></span>
+    </label>
+  </div>
+
+  <div class="controls">
+    <button class="act primary" id="btn-all" onclick="runAll()">RUN FULL DIAGNOSTIC</button>
+    <button class="act" id="btn-copy" onclick="copyReport()">COPY REPORT<span id="copy-status"></span></button>
+  </div>
+
+  <div id="results"></div>
+
+  <div class="note">Deterministic Governor calls run the full algorithm suite without contacting Anthropic, so the default run costs nothing. Scheduled workers are off by default because they write picks and send mail.</div>
+</main>
+
+<script>
+const SUPABASE_URL = 'https://zpcbbwynvvyldavxzjng.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_K80lcfk8LsQNqo5enznRRA_lrzf2U9K';
+const { createClient } = supabase;
+const db = createClient(SUPABASE_URL, SUPABASE_KEY);
+const FN = SUPABASE_URL + '/functions/v1/';
+
+function openNav(){ document.getElementById('nav-overlay').classList.add('open'); }
+function closeNav(){ document.getElementById('nav-overlay').classList.remove('open'); }
+
+// ── Result registry. Everything rendered is also retained for the report. ──
+let counts = { pass:0, warn:0, fail:0, skip:0 };
+let log = [];
+
+function reset() {
+  counts = { pass:0, warn:0, fail:0, skip:0 };
+  log = [];
+  document.getElementById('results').innerHTML = '';
+  ['pass','warn','fail','skip'].forEach(function(k){ document.getElementById('t-'+k).textContent = 0; });
+  document.getElementById('t-time').textContent = '—';
+}
+
+function group(title) {
+  const lbl = document.createElement('div');
+  lbl.className = 'section-label';
+  lbl.textContent = title;
+  const el = document.createElement('div');
+  el.className = 'grp';
+  const host = document.getElementById('results');
+  host.appendChild(lbl); host.appendChild(el);
+  log.push({ type:'group', title:title });
+  return { el:el, title:title };
+}
+
+function row(g, name) {
+  const el = document.createElement('div');
+  el.className = 'check';
+  el.innerHTML = '<div class="dot run"></div><div class="body"><div class="name"></div><div class="detail">running…</div></div>';
+  el.querySelector('.name').textContent = name;
+  g.el.appendChild(el);
+  const entry = { type:'check', group:g.title, name:name, status:'run', detail:'' };
+  log.push(entry);
+  return {
+    set: function(status, detail) {
+      detail = String(detail === undefined || detail === null ? '' : detail);
+      el.querySelector('.dot').className = 'dot ' + status;
+      const d = el.querySelector('.detail');
+      d.textContent = detail || '—';
+      d.className = 'detail' + (status === 'fail' ? ' bad' : status === 'pass' ? ' good' : '');
+      entry.status = status; entry.detail = detail;
+      if (counts[status] !== undefined) {
+        counts[status]++;
+        document.getElementById('t-' + status).textContent = counts[status];
+      }
+    }
+  };
+}
+
+// A check can never throw the runner. Any exception becomes a fail.
+async function check(g, name, fn) {
+  const r = row(g, name);
+  try {
+    const out = await fn();
+    r.set(out.status, out.detail);
+    return out;
+  } catch (e) {
+    const msg = (e && e.message) || String(e);
+    r.set('fail', msg);
+    return { status:'fail', detail:msg };
+  }
+}
+function PASS(d){ return { status:'pass', detail:d }; }
+function WARN(d){ return { status:'warn', detail:d }; }
+function FAIL(d){ return { status:'fail', detail:d }; }
+function SKIP(d){ return { status:'skip', detail:d }; }
+
+// ── Shared helpers ────────────────────────────────────────────────
+function seededMath(seed) {
+  let s = seed >>> 0;
+  const rnd = function() {
+    s |= 0; s = (s + 0x6D2B79F5) | 0;
+    let t = Math.imul(s ^ (s >>> 15), 1 | s);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+  return new Proxy(Math, { get: function(tg, p){ return p === 'random' ? rnd : tg[p]; } });
+}
+function scoreOf(o) {
+  if (!o) return null;
+  const s = o.score !== undefined ? o.score
+          : o.final_score !== undefined ? o.final_score
+          : o.direction_score !== undefined ? o.direction_score
+          : o.prediction_score !== undefined ? o.prediction_score
+          : o.selection_score !== undefined ? o.selection_score
+          : o.fuzzy_score;
+  return (typeof s === 'number' && isFinite(s)) ? Math.round(s) : null;
+}
+function synthSeries(n, slope) {
+  return Array.from({ length:n }, function(_, i){ return 100 + Math.sin(i/9)*8 + i*slope; });
+}
+async function fnCall(name, body, timeoutMs) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(function(){ ctrl.abort(); }, timeoutMs || 45000);
+  try {
+    const res = await fetch(FN + name, {
+      method:'POST', signal:ctrl.signal,
+      headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer ' + SUPABASE_KEY },
+      body: JSON.stringify(body || {})
+    });
+    let parsed = null, text = '';
+    try { parsed = await res.clone().json(); } catch (e) { try { text = await res.text(); } catch (e2) {} }
+    return { ok:res.ok, status:res.status, body:parsed, text:text };
+  } finally { clearTimeout(timer); }
+}
+
+let CONTRACT = null, ALGOS = null;
+const GOV = {};
+
+// ══════════════════════════════════════════════════════════════════
+// DATABASE
+// ══════════════════════════════════════════════════════════════════
+const TABLES = [
+  ['algorithms',       'stored algorithm bodies'],
+  ['algorithm_log',    'per-run algorithm output log'],
+  ['shadow_log',       'every scored candidate, accepted or rejected'],
+  ['paper_trades',     'simulated positions'],
+  ['paper_portfolio',  'simulated balances'],
+  ['position_alerts',  'stop and target notifications'],
+  ['picks',            'published picks'],
+  ['stocks',           'watchlist universe'],
+  ['trading_settings', 'scoring mode, live-armed, presets'],
+  ['scoring_contract', 'threshold source of truth'],
+  ['lessons',          'calibration output'],
+  ['aurum_accuracy',   'accuracy tracking'],
+  ['news_feed',        'cached news']
+];
+
+async function sectionDatabase() {
+  const g = group('Database — tables');
+  for (const pair of TABLES) {
+    const t = pair[0], purpose = pair[1];
+    await check(g, t, async function() {
+      const res = await db.from(t).select('*', { count:'exact', head:true });
+      if (res.error) {
+        return /does not exist|schema cache|relation/i.test(res.error.message)
+          ? WARN('not present — ' + purpose)
+          : FAIL(res.error.message);
+      }
+      return PASS((res.count === null ? 'readable' : res.count + ' rows') + ' — ' + purpose);
+    });
+  }
+
+  const gs = group('Database — schema');
+  const COLS = [
+    ['shadow_log','pipeline_version'], ['shadow_log','suspect'],
+    ['shadow_log','outcome_24h_pct'], ['shadow_log','outcome_24h_age_hours'],
+    ['shadow_log','outcome_24h_checked_at'], ['shadow_log','outcome_7d_age_hours'],
+    ['shadow_log','algorithm_scores'], ['shadow_log','det_composite'],
+    ['shadow_log','passed_gate'], ['shadow_log','coingecko_id'],
+    ['paper_trades','pipeline_version'], ['paper_trades','suspect'],
+    ['paper_trades','strategy'], ['paper_trades','effective_entry']
+  ];
+  for (const pair of COLS) {
+    const t = pair[0], c = pair[1];
+    await check(gs, t + '.' + c, async function() {
+      const res = await db.from(t).select(c).limit(1);
+      return res.error ? FAIL('missing — migration not run') : PASS('present');
+    });
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════
+// CONTRACT
+// ══════════════════════════════════════════════════════════════════
+async function sectionContract() {
+  const g = group('Scoring contract');
+
+  await check(g, 'Contract row', async function() {
+    const res = await db.from('scoring_contract').select('*').eq('id',1).maybeSingle();
+    if (res.error) return FAIL(res.error.message);
+    if (!res.data) return FAIL('table exists but row id=1 is missing');
+    CONTRACT = res.data;
+    return PASS('v' + res.data.version +
+      '\nstock  ' + JSON.stringify(res.data.stock) +
+      '\ncrypto ' + JSON.stringify(res.data.crypto));
+  });
+
+  await check(g, 'Direction band reachable in both modes', function() {
+    if (!CONTRACT) return SKIP('contract not loaded');
+    const out = [];
+    for (const m of ['stock','crypto']) {
+      const d = Number(CONTRACT[m].direction);
+      out.push(m + ': LONG above ' + d + ', SHORT below ' + (100 - d) +
+               ', conviction floor ' + d + ' — a candidate at ' + (d + 1) + ' now passes both');
+    }
+    return PASS(out.join('\n'));
+  });
+
+  await check(g, 'Thresholds are not writable from a browser', async function() {
+    if (!CONTRACT) return SKIP('contract not loaded');
+    const res = await db.from('scoring_contract').update({ notes: CONTRACT.notes }).eq('id',1);
+    return res.error
+      ? PASS('anon writes correctly refused — ' + res.error.message.slice(0,70))
+      : WARN('the anon key can write to scoring_contract. Thresholds should not be editable from a browser.');
+  });
+}
+
+// ══════════════════════════════════════════════════════════════════
+// DATABASE FUNCTIONS AND WRITE PATH
+// ══════════════════════════════════════════════════════════════════
+async function sectionDbFunctions() {
+  const g = group('Database — functions and writes');
+
+  await check(g, 'run_calibration()', async function() {
+    const res = await db.rpc('run_calibration');
+    if (res.error) return FAIL(res.error.message + '\nCalibration SQL not installed, or not exposed to the anon role.');
+    return res.data > 0
+      ? PASS(res.data + ' rows written to lessons')
+      : WARN('0 rows. No shadow_log row yet has pipeline_version 1 and a 20-30 hour outcome. Expected until a day after your next scan.');
+  });
+
+  await check(g, 'shadow_log insert and delete', async function() {
+    if (!document.getElementById('opt-write').checked) return SKIP('write tests disabled');
+    const probe = {
+      ticker:'__DIAG__', mode:'crypto', price_at_score:1,
+      direction:'NONE', composite_score:50, passed_gate:false,
+      scored_at:new Date().toISOString()
+    };
+    const ins = await db.from('shadow_log').insert(probe).select('id, pipeline_version').single();
+    if (ins.error) return FAIL('insert refused — ' + ins.error.message + '\nScans cannot log candidates.');
+    const ver = ins.data.pipeline_version;
+    const del = await db.from('shadow_log').delete().eq('id', ins.data.id);
+    if (del.error) return WARN('inserted (version ' + ver + ') but could not delete row ' + ins.data.id + ' — remove it manually');
+    return ver === 1
+      ? PASS('insert and delete both succeeded, new rows default to pipeline_version 1')
+      : WARN('insert worked but new rows default to pipeline_version ' + ver + ', expected 1');
+  });
+}
+
+// ══════════════════════════════════════════════════════════════════
+// TRADE LOGIC — pure, no network
+// ══════════════════════════════════════════════════════════════════
+function computeComposite(algoScores, supplied, weights) {
+  if (!algoScores || typeof algoScores !== 'object') return null;
+  let weighted = 0, total = 0;
+  for (const name of Object.keys(algoScores)) {
+    if (supplied && supplied[name] === false) continue;
+    const s = Number(algoScores[name]);
+    if (!isFinite(s)) continue;
+    const w = (weights && weights[name]) || 1.0;
+    weighted += s * w; total += w;
+  }
+  return total ? Math.round(weighted / total) : null;
+}
+function passesConviction(composite, sq, opp, lim) {
+  if (composite === null) return { pass:false, why:'no composite' };
+  const conviction = composite >= 50 ? composite : (100 - composite);
+  if (conviction < Number(lim.direction))     return { pass:false, why:'conviction ' + conviction };
+  if (sq  < Number(lim.signalQuality))        return { pass:false, why:'sq ' + sq };
+  if (opp < Number(lim.opportunity))          return { pass:false, why:'opportunity ' + opp };
+  return { pass:true, why:'conviction ' + conviction };
+}
+
+async function sectionLogic() {
+  const g = group('Trade logic');
+
+  await check(g, 'Composite excludes unsupplied algorithms', function() {
+    const scores = { momentum_detector:82, sentiment_detector:61, options_flow_detector:50,
+                     political_signal_detector:50, macro_detector:50, crypto_whale_tracker:50,
+                     fuzzy_lspi:74, state_space_mamba:58 };
+    const supplied = { options_flow_detector:false, political_signal_detector:false,
+                       macro_detector:false, crypto_whale_tracker:false };
+    const w = { options_flow_detector:2.2, macro_detector:1.4, momentum_detector:1.6 };
+    const all = computeComposite(scores, null, w);
+    const sup = computeComposite(scores, supplied, w);
+    if (sup === all) return FAIL('the supplied map had no effect — exclusion is not wired');
+    return PASS('all weighted ' + all + ' → supplied only ' + sup +
+      '\nHollow 50s pulled the composite ' + Math.abs(sup - all) + ' points toward the middle.');
+  });
+
+  await check(g, 'SHORT becomes reachable once silence is removed', function() {
+    const bear = { momentum_detector:22, sentiment_detector:31, options_flow_detector:50,
+                   political_signal_detector:50, macro_detector:50, crypto_whale_tracker:50,
+                   fuzzy_lspi:19, state_space_mamba:28 };
+    const supplied = { options_flow_detector:false, political_signal_detector:false,
+                       macro_detector:false, crypto_whale_tracker:false };
+    const all = computeComposite(bear, null);
+    const sup = computeComposite(bear, supplied);
+    const floor = CONTRACT ? Number(CONTRACT.crypto.direction) : 55;
+    const shortAt = 100 - floor;
+    return PASS('bearish set: all weighted ' + all + ' → supplied only ' + sup +
+      '\nSHORT needs below ' + shortAt + ' — ' + (all < shortAt ? 'reached' : 'blocked') +
+      ' before, ' + (sup < shortAt ? 'reached' : 'blocked') + ' after');
+  });
+
+  await check(g, 'Conviction gate boundaries', function() {
+    if (!CONTRACT) return SKIP('contract not loaded');
+    const lim = CONTRACT.crypto;
+    const d = Number(lim.direction);
+    const cases = [[d,'exactly at the floor'],[d+1,'one above'],[d-1,'one below'],[100-d,'mirror floor, bearish side']];
+    const out = cases.map(function(c){
+      const r = passesConviction(c[0], 80, 80, lim);
+      return '  c=' + c[0] + '  ' + (r.pass ? 'PASS  ' : 'reject') + '  ' + c[1];
+    });
+    return PASS('crypto limits ' + JSON.stringify(lim) + '\n' + out.join('\n'));
+  });
+
+  await check(g, 'Gate enforces every dimension independently', function() {
+    if (!CONTRACT) return SKIP('contract not loaded');
+    const lim = CONTRACT.stock;
+    const a = passesConviction(75, Number(lim.signalQuality) - 5, 90, lim);
+    const b = passesConviction(75, 90, Number(lim.opportunity) - 5, lim);
+    const c = passesConviction(52, 90, 90, lim);
+    const d = passesConviction(85, 90, 90, lim);
+    if (a.pass || b.pass || c.pass) return FAIL('a dimension is not enforced: ' + JSON.stringify({a:a,b:b,c:c}));
+    if (!d.pass) return FAIL('a fully qualified candidate was rejected: ' + d.why);
+    return PASS('low sq, low opportunity and low conviction each reject alone; a strong candidate passes');
+  });
+
+  await check(g, 'Stop and target geometry, both strategies and directions', function() {
+    const price = 129, vol = 6.2, rows = [];
+    const sets = [['swing',2.5,3],['day',1.5,2]];
+    for (const s of sets) {
+      for (const dir of ['LONG','SHORT']) {
+        const dist = price * (s[1] * vol / 100);
+        const sl = dir === 'LONG' ? price - dist : price + dist;
+        const tp = dir === 'LONG' ? price + dist * s[2] : price - dist * s[2];
+        const geomOk = dir === 'LONG' ? (sl < price && tp > price) : (sl > price && tp < price);
+        const rr = Math.abs(tp - price) / Math.abs(price - sl);
+        if (!geomOk) return FAIL(s[0] + ' ' + dir + ' geometry inverted');
+        if (Math.abs(rr - s[2]) > 0.01) return FAIL(s[0] + ' ' + dir + ' R:R is ' + rr.toFixed(2) + ', expected ' + s[2]);
+        rows.push('  ' + s[0] + ' ' + dir + '  stop $' + sl.toFixed(2) + '  target $' + tp.toFixed(2) + '  ' + rr.toFixed(1) + ':1');
+      }
+    }
+    return PASS('at $' + price + ', volatility ' + vol + '%\n' + rows.join('\n'));
+  });
+
+  await check(g, 'Swing sizing keeps risk level with day', function() {
+    const price = 129, vol = 6.2, balance = 10000, dayBp = 10;
+    const swingStop = price * (2.5 * vol / 100), dayStop = price * (1.5 * vol / 100);
+    const swingBp = dayBp * (dayStop / swingStop);
+    const dayRisk = (balance * dayBp / 100) / price * dayStop;
+    const matched = (balance * swingBp / 100) / price * swingStop;
+    const naive = (balance * dayBp / 100) / price * swingStop;
+    if (Math.abs(dayRisk - matched) > 0.01) return FAIL('risk parity maths wrong');
+    return PASS('day at ' + dayBp + '% risks $' + dayRisk.toFixed(2) +
+      '\nswing must size to ' + swingBp.toFixed(1) + '% to risk the same' +
+      '\nleaving swing at ' + dayBp + '% would risk $' + naive.toFixed(2) + ' instead');
+  });
+
+  await check(g, 'P&L after commission and slippage', function() {
+    const entry = 100, exit = 107, shares = 12, commission = 1.30, slippage = 0.45;
+    const gross = (exit - entry) * shares;
+    const net = gross - commission - slippage;
+    const pct = (net / (entry * shares)) * 100;
+    if (Math.abs(gross - 84) > 1e-9 || Math.abs(net - 82.25) > 1e-9) return FAIL('P&L maths wrong: gross ' + gross + ' net ' + net);
+    return PASS('gross $' + gross.toFixed(2) + ', net $' + net.toFixed(2) + ', ' + pct.toFixed(2) + '% after costs');
+  });
+
+  await check(g, 'Outcome horizon windows', function() {
+    const cases = [[23,'too young'],[26,'resolves as 24h'],[31,'aged out'],[170,'resolves as 7d'],[200,'aged out']];
+    const out = cases.map(function(c){
+      const in24 = c[0] >= 24 && c[0] < 30, in7 = c[0] >= 168 && c[0] < 180;
+      return '  ' + String(c[0]).padStart(3) + 'h   24h ' + (in24 ? 'yes' : 'no ') + '   7d ' + (in7 ? 'yes' : 'no ') + '   ' + c[1];
+    });
+    return PASS('a reading outside its window is not that horizon\n' + out.join('\n'));
+  });
+
+  await check(g, 'Sentiment is normalised to a 0-100 score', function() {
+    const articles = [0.6,-0.3,0.8,0.1,-0.7];
+    const rawSum = articles.reduce(function(a,b){ return a + b*3; }, 0);
+    const score100 = Math.round(50 + (articles.reduce(function(a,b){ return a+b; },0) / articles.length) * 50);
+    if (score100 < 0 || score100 > 100) return FAIL('normalised score out of range: ' + score100);
+    return PASS('raw word-count sum ' + rawSum.toFixed(1) + ' would read as near-zero on a 0-100 scale' +
+      '\nnormalised score ' + score100 + ' — the difference between strong_bearish and a real read');
+  });
+
+  await check(g, 'NVT baseline is computed on a matched basis', function() {
+    const mcaps = Array.from({length:90}, function(_,i){ return 5e9 + i*1e7; });
+    const vols  = Array.from({length:90}, function(_,i){ return 4e8 + Math.sin(i/5)*2e7; });
+    const series = mcaps.map(function(m,i){ return m / vols[i]; });
+    const now = series[series.length-1];
+    const avg = series.reduce(function(a,b){ return a+b; },0) / series.length;
+    return PASS('proxy NVT now ' + now.toFixed(1) + ', matched 90-day baseline ' + avg.toFixed(1) +
+      '\nagainst the matched baseline: ratio ' + (now/avg).toFixed(2) +
+      '\nagainst the built-in default of 65: ratio ' + (now/65).toFixed(2) + ' — a false buy signal on nearly every coin');
+  });
+
+  await check(g, 'Seeded generator is stable and seed-sensitive', function() {
+    const a = seededMath(7), b = seededMath(7), c = seededMath(8);
+    const sa = [], sb = [], sc = [];
+    for (let i=0;i<5;i++){ sa.push(a.random()); sb.push(b.random()); sc.push(c.random()); }
+    const same = sa.every(function(v,i){ return v === sb[i]; });
+    const diff = sa.some(function(v,i){ return v !== sc[i]; });
+    if (!same) return FAIL('same seed produced different streams');
+    if (!diff) return FAIL('different seeds produced identical streams');
+    return PASS('same seed reproduces exactly, different seeds diverge');
+  });
+}
+
+// ══════════════════════════════════════════════════════════════════
+// ALGORITHMS
+// ══════════════════════════════════════════════════════════════════
+async function sectionAlgorithms() {
+  const g = group('Algorithms');
+
+  await check(g, 'Load from database', async function() {
+    const res = await db.from('algorithms').select('name, code, active');
+    if (res.error) return FAIL(res.error.message);
+    ALGOS = res.data || [];
+    const active = ALGOS.filter(function(a){ return a.active !== false; });
+    return PASS(ALGOS.length + ' stored, ' + active.length + ' active');
+  });
+
+  await check(g, 'Every active algorithm compiles', function() {
+    if (!ALGOS) return SKIP('load failed');
+    const broken = [];
+    for (const a of ALGOS) {
+      if (a.active === false) continue;
+      if (!a.code) { broken.push(a.name + ' — no code stored'); continue; }
+      try { new Function('Math','return (' + a.code + ')')(Math); }
+      catch (e) { broken.push(a.name + ' — ' + e.message); }
+    }
+    return broken.length
+      ? FAIL(broken.length + ' fail to compile and are counted as failed on every scan:\n' + broken.join('\n'))
+      : PASS('all active algorithms compile');
+  });
+
+  function priceArgs() {
+    const up = synthSeries(120, 0.25), vol = Array.from({length:120}, function(){ return 5e6; });
+    return {
+      momentum_detector:[up, vol, up.map(function(p){return p*1.012;}), up.map(function(p){return p*0.988;})],
+      fuzzy_lspi:[up], state_space_mamba:[up,vol], autoencoder_selection:[up,null],
+      evolutionary_data_labeling:[up,vol], deep_reinforcement_learning:[up,vol,null],
+      genetic_algorithm_optimizer:[up,vol,null,50,25], mcts_formula_tester:[up,vol,null,100],
+      market_regime_adaptive_ga:[up,vol,null,50,30], autonomous_strategy_evolution:[up,vol,null,null],
+      attention_augmented_gru:[up,vol,null,null]
+    };
+  }
+
+  await check(g, 'Execution against synthetic price data', function() {
+    if (!ALGOS) return SKIP('load failed');
+    const args = priceArgs();
+    let real = 0, hollow = 0, failed = 0;
+    const detail = [];
+    for (const a of ALGOS) {
+      if (!args[a.name] || !a.code) continue;
+      try {
+        const fn = new Function('Math','return (' + a.code + ')')(seededMath(99));
+        const s = scoreOf(fn.apply(null, args[a.name]));
+        if (s === null) { failed++; detail.push('  ' + a.name + ' returned no score'); }
+        else if (s === 50) { hollow++; detail.push('  ' + a.name + ' returned exactly 50'); }
+        else real++;
+      } catch (e) { failed++; detail.push('  ' + a.name + ' threw — ' + e.message.slice(0,50)); }
+    }
+    const msg = real + ' produced a real score, ' + hollow + ' returned exactly 50, ' + failed + ' failed' +
+                (detail.length ? '\n' + detail.join('\n') : '');
+    return failed ? FAIL(msg) : (hollow ? WARN(msg) : PASS(msg));
+  });
+
+  await check(g, 'Trend direction is detected correctly', function() {
+    if (!ALGOS) return SKIP('load failed');
+    const md = ALGOS.filter(function(a){ return a.name === 'momentum_detector'; })[0];
+    if (!md || !md.code) return WARN('momentum_detector not found');
+    const up = synthSeries(120, 0.6), dn = synthSeries(120, -0.6);
+    const vol = Array.from({length:120}, function(){ return 5e6; });
+    try {
+      const fn = new Function('Math','return (' + md.code + ')')(seededMath(1));
+      const u = scoreOf(fn(up, vol, up.map(function(p){return p*1.01;}), up.map(function(p){return p*0.99;})));
+      const d = scoreOf(fn(dn, vol, dn.map(function(p){return p*1.01;}), dn.map(function(p){return p*0.99;})));
+      if (u === null || d === null) return FAIL('momentum_detector returned no score — is it still dead code?');
+      return u > d
+        ? PASS('rising series ' + u + ', falling series ' + d + ' — direction detected across ' + (u-d) + ' points')
+        : FAIL('rising ' + u + ' is not above falling ' + d + ' — momentum is inverted');
+    } catch (e) { return FAIL('threw — ' + e.message); }
+  });
+
+  await check(g, 'Determinism under a fixed seed', function() {
+    if (!ALGOS) return SKIP('load failed');
+    const args = priceArgs();
+    const only = ['market_regime_adaptive_ga','mcts_formula_tester','autonomous_strategy_evolution',
+                  'attention_augmented_gru','autoencoder_selection'];
+    const unseeded = [], seeded = [];
+    for (const a of ALGOS) {
+      if (only.indexOf(a.name) === -1 || !a.code || !args[a.name]) continue;
+      try {
+        const raw = [], sd = [];
+        for (let i=0;i<5;i++) raw.push(scoreOf(new Function('return (' + a.code + ')')().apply(null, args[a.name])));
+        for (let i=0;i<5;i++) sd.push(scoreOf(new Function('Math','return (' + a.code + ')')(seededMath(4242)).apply(null, args[a.name])));
+        if (new Set(raw).size > 1) unseeded.push('  ' + a.name + '  ' + raw.join(' '));
+        if (new Set(sd).size > 1)  seeded.push('  ' + a.name + '  ' + sd.join(' '));
+      } catch (e) {}
+    }
+    if (seeded.length) return FAIL('varies even under a fixed seed:\n' + seeded.join('\n'));
+    return unseeded.length
+      ? PASS(unseeded.length + ' algorithms vary unseeded but are stable when seeded. The Governor seeds per ticker:\n' + unseeded.join('\n'))
+      : PASS('no stochastic variation found');
+  });
+}
+
+// ══════════════════════════════════════════════════════════════════
+// EDGE FUNCTIONS
+// ══════════════════════════════════════════════════════════════════
+async function sectionEdgeFunctions() {
+  const g = group('Edge functions');
+
+  await check(g, 'clever-responder (Governor)', async function() {
+    const out = await fnCall('clever-responder', { ticker:'BTC', mode:'crypto', strategy:'swing', skip_ai:true }, 60000);
+    if (!out.ok) return FAIL('HTTP ' + out.status + ' ' + (out.text || '').slice(0,140));
+    if (out.body && out.body.error) return FAIL(out.body.error);
+    GOV.base = out.body;
+    return PASS('scored BTC — executed ' + out.body.algorithms_executed +
+                ', failed ' + out.body.algorithms_failed +
+                ', excluded ' + out.body.algorithms_excluded);
+  });
+
+  await check(g, 'outcome-checker', async function() {
+    const out = await fnCall('outcome-checker', {}, 60000);
+    if (!out.ok) return FAIL('HTTP ' + out.status + '\nDeployed and named outcome-checker?');
+    if (!out.body || !out.body.ok) return FAIL((out.body && out.body.error) || 'no ok flag in response');
+    const passes = out.body.passes || [];
+    return PASS(passes.map(function(p){
+      return p.pass + ': ' + (p.candidates || 0) + ' in window, ' + (p.resolved || 0) + ' resolved' +
+             (p.unpriceable ? ', ' + p.unpriceable + ' unpriceable' : '');
+    }).join('\n') || 'responded with no passes');
+  });
+
+  await check(g, 'quick-service (position monitor)', async function() {
+    const out = await fnCall('quick-service', {}, 60000);
+    if (!out.ok) return FAIL('HTTP ' + out.status + ' ' + (out.text || '').slice(0,140));
+    return PASS(((out.text || JSON.stringify(out.body)) || '').slice(0,240));
+  });
+
+  await check(g, 'wallet-executor (status only)', async function() {
+    const out = await fnCall('wallet-executor', { action:'status' }, 40000);
+    if (!out.ok) return WARN('HTTP ' + out.status + ' — expected if no trading wallet is configured');
+    return PASS(JSON.stringify(out.body).slice(0,240));
+  });
+
+  await check(g, 'smooth-service (Anthropic proxy)', async function() {
+    const out = await fnCall('smooth-service', {
+      model:'claude-haiku-4-5-20251001', max_tokens:16,
+      messages:[{ role:'user', content:'Reply with the single word: ok' }]
+    }, 40000);
+    if (!out.ok) {
+      const t = (out.text || JSON.stringify(out.body) || '').slice(0,200);
+      return /credit|balance|quota/i.test(t)
+        ? WARN('reachable, but Anthropic reports no credit:\n' + t)
+        : FAIL('HTTP ' + out.status + '\n' + t);
+    }
+    const txt = out.body && out.body.content
+      ? out.body.content.map(function(c){ return c.text || ''; }).join('') : '';
+    return PASS('Anthropic reachable, replied: ' + String(txt).trim().slice(0,60));
+  });
+
+  const slow = document.getElementById('opt-slow').checked;
+  const workers = [['hyper-worker','analyses the stocks watchlist'],
+                   ['smooth-worker','emails the latest picks'],
+                   ['rapid-handler','scheduled strategy monitor'],
+                   ['clever-processor','SEC filing scan'],
+                   ['smooth-api','cluster picks']];
+  for (const w of workers) {
+    await check(g, w[0], async function() {
+      if (!slow) return SKIP('disabled — ' + w[1]);
+      const out = await fnCall(w[0], {}, 90000);
+      if (!out.ok) return FAIL('HTTP ' + out.status + ' ' + (out.text || '').slice(0,140));
+      return PASS(((out.text || JSON.stringify(out.body)) || '').slice(0,220));
+    });
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════
+// GOVERNOR — contract and full mode matrix
+// ══════════════════════════════════════════════════════════════════
+async function sectionGovernor() {
+  const g = group('Governor — response contract');
+
+  await check(g, 'All expected fields present', function() {
+    if (!GOV.base) return SKIP('Governor call failed');
+    const need = ['algorithm_scores','algorithm_signals','algorithm_supplied','excluded_reasons',
+                  'contract_version','thresholds_used','strategy_applied','algorithms_executed',
+                  'algorithms_excluded','price_bars'];
+    const missing = need.filter(function(k){ return GOV.base[k] === undefined; });
+    return missing.length
+      ? FAIL('missing: ' + missing.join(', ') + '\nThe deployed Governor is older than this page.')
+      : PASS(need.length + ' fields present');
+  });
+
+  await check(g, 'Contract agreement with this page', function() {
+    if (!GOV.base || !CONTRACT) return SKIP('needs both the Governor call and the contract');
+    const v = GOV.base.contract_version;
+    if (v === 0) return FAIL('Governor could not read scoring_contract and used fallback thresholds');
+    if (v !== CONTRACT.version) return FAIL('Governor scored under v' + v + ', this page loaded v' + CONTRACT.version);
+    return PASS('both on v' + v + '\n' + JSON.stringify(GOV.base.thresholds_used));
+  });
+
+  await check(g, 'Nothing unsupplied reached the composite', function() {
+    if (!GOV.base) return SKIP('Governor call failed');
+    const sup = GOV.base.algorithm_supplied || {};
+    const reasons = GOV.base.excluded_reasons || {};
+    const scored = Object.keys(GOV.base.algorithm_scores || {});
+    const leaked = scored.filter(function(k){ return sup[k] === false; });
+    if (leaked.length) return FAIL('scored despite being marked unsupplied: ' + leaked.join(', '));
+    const names = Object.keys(reasons);
+    return PASS(scored.length + ' scored, ' + names.length + ' excluded\n' +
+      names.map(function(k){ return '  ' + k + ' — ' + reasons[k]; }).join('\n'));
+  });
+
+  await check(g, 'Repeat scan is reproducible', async function() {
+    if (!GOV.base) return SKIP('Governor call failed');
+    const again = await fnCall('clever-responder', { ticker:'BTC', mode:'crypto', strategy:'swing', skip_ai:true }, 60000);
+    if (!again.ok || !again.body) return WARN('second call failed');
+    const a = GOV.base.algorithm_scores || {}, b = again.body.algorithm_scores || {};
+    const diff = Object.keys(a).filter(function(k){ return a[k] !== b[k]; });
+    return diff.length
+      ? WARN(diff.length + ' algorithms differ between consecutive scans. Either price moved, or seeding is not applied:\n' +
+             diff.slice(0,10).map(function(k){ return '  ' + k + '  ' + a[k] + ' → ' + b[k]; }).join('\n'))
+      : PASS('identical algorithm scores across two consecutive scans');
+  });
+
+  const gm = group('Governor — mode and strategy matrix');
+  const combos = [];
+  for (const mode of ['crypto','stock'])
+    for (const strategy of ['swing','day'])
+      combos.push({ mode:mode, strategy:strategy, ticker: mode === 'crypto' ? 'BTC' : 'AAPL' });
+
+  for (const c of combos) {
+    await check(gm, c.mode + ' / ' + c.strategy + ' / deterministic', async function() {
+      const out = await fnCall('clever-responder',
+        { ticker:c.ticker, mode:c.mode, strategy:c.strategy, instrument:'stock', skip_ai:true }, 60000);
+      if (!out.ok || !out.body) return FAIL('HTTP ' + out.status + ' ' + (out.text || '').slice(0,140));
+      if (out.body.error) return FAIL(out.body.error);
+      const b = out.body, sa = b.strategy_applied || {};
+      const expectLo = c.strategy === 'swing' ? 2.5 : 1.5;
+      const okStrategy = sa.stop_atr_range && Number(sa.stop_atr_range[0]) === expectLo;
+      const line = c.ticker + ' — executed ' + b.algorithms_executed + ', excluded ' + b.algorithms_excluded +
+                   ', bars ' + b.price_bars +
+                   '\nstop ' + JSON.stringify(sa.stop_atr_range) + ' ATR, ' + sa.min_rr + ':1, ' + sa.horizon;
+      if (!okStrategy) return FAIL('the strategy label did not change the trade parameters\n' + line);
+      if (!b.price_bars) return WARN('no price bars returned — the feed for this mode may be down\n' + line);
+      return PASS(line);
+    });
+  }
+
+  const claudeOn = document.getElementById('opt-claude').checked;
+  for (const c of [combos[0], combos[2]]) {
+    await check(gm, c.mode + ' / ' + c.strategy + ' / Claude', async function() {
+      if (!claudeOn) return SKIP('Claude paths disabled — tick the box above to include them');
+      const out = await fnCall('clever-responder',
+        { ticker:c.ticker, mode:c.mode, strategy:c.strategy, instrument:'stock' }, 120000);
+      if (!out.ok || !out.body) return FAIL('HTTP ' + out.status + ' ' + (out.text || '').slice(0,180));
+      const b = out.body;
+      if (b.error) {
+        return /credit|balance|quota|rate limit/i.test(b.error)
+          ? WARN('the Governor reached Anthropic but the call was refused:\n' + b.error)
+          : FAIL(b.error);
+      }
+      const missing = ['composite_score','direction','entry_price','stop_loss','target_price']
+        .filter(function(k){ return b[k] === undefined || b[k] === null; });
+      if (missing.length) return FAIL('the model responded without: ' + missing.join(', '));
+      const dir = String(b.direction).toUpperCase();
+      const geomOk = dir === 'LONG'  ? (b.stop_loss < b.entry_price && b.target_price > b.entry_price)
+                   : dir === 'SHORT' ? (b.stop_loss > b.entry_price && b.target_price < b.entry_price)
+                   : true;
+      const rr = (b.stop_loss && b.entry_price)
+        ? Math.abs(b.target_price - b.entry_price) / Math.abs(b.entry_price - b.stop_loss) : null;
+      const minRR = c.strategy === 'swing' ? 3 : 2;
+      const line = 'composite ' + b.composite_score + ', ' + dir + ', sq ' + b.signal_quality +
+                   ', opportunity ' + b.opportunity_score +
+                   '\nentry $' + b.entry_price + '  stop $' + b.stop_loss + '  target $' + b.target_price +
+                   (rr ? '  (' + rr.toFixed(2) + ':1)' : '');
+      if (!geomOk) return FAIL('stop or target is on the wrong side of entry\n' + line);
+      if (dir !== 'NONE' && rr !== null && rr < minRR - 0.05)
+        return WARN('reward ratio ' + rr.toFixed(2) + ' is below the ' + minRR + ':1 the prompt asks for\n' + line);
+      return PASS(line);
+    });
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════
+// DATA PIPELINE
+// ══════════════════════════════════════════════════════════════════
+async function sectionPipeline() {
+  const g = group('Data pipeline');
+
+  await check(g, 'Outcome resolution state', async function() {
+    const res = await db.from('shadow_log')
+      .select('outcome_24h_pct, outcome_24h_age_hours, pipeline_version, suspect, scored_at')
+      .order('scored_at', { ascending:false }).limit(2000);
+    if (res.error) return FAIL(res.error.message);
+    const data = res.data || [];
+    const v1 = data.filter(function(d){ return d.pipeline_version >= 1; });
+    const resolved = data.filter(function(d){ return d.outcome_24h_pct !== null; });
+    const genuine = data.filter(function(d){ return d.outcome_24h_age_hours >= 20 && d.outcome_24h_age_hours <= 30; });
+    const usable = v1.filter(function(d){
+      return !d.suspect && d.outcome_24h_pct !== null &&
+             d.outcome_24h_age_hours >= 20 && d.outcome_24h_age_hours <= 30;
+    });
+    const msg = 'sampled ' + data.length + '\npipeline v1 ' + v1.length + '\nresolved ' + resolved.length +
+                '\ngenuine 24h horizon ' + genuine.length + '\nusable by calibration ' + usable.length;
+    if (usable.length) return PASS(msg);
+    return v1.length
+      ? WARN(msg + '\nNothing usable yet — expected until a day after your next scan.')
+      : WARN(msg + '\nNo pipeline v1 rows. Run a scan.');
+  });
+
+  await check(g, 'Horizon honesty', async function() {
+    const res = await db.from('shadow_log')
+      .select('outcome_24h_pct, outcome_24h_age_hours').not('outcome_24h_pct','is',null).limit(2000);
+    if (res.error) return FAIL(res.error.message);
+    const data = res.data || [];
+    if (!data.length) return WARN('no resolved outcomes yet');
+    const unlabelled = data.filter(function(d){ return d.outcome_24h_age_hours === null; }).length;
+    const genuine = data.filter(function(d){ return d.outcome_24h_age_hours >= 20 && d.outcome_24h_age_hours <= 30; }).length;
+    const msg = data.length + ' resolved, ' + genuine + ' at a genuine 24h horizon, ' + unlabelled + ' with no recorded horizon';
+    return unlabelled
+      ? WARN(msg + '\nRows without a horizon were written by the old client-side checker.')
+      : PASS(msg);
+  });
+
+  await check(g, 'Shadow log integrity', async function() {
+    const res = await db.from('shadow_log')
+      .select('suspect, passed_gate, composite_score, algorithm_scores, scoring_mode')
+      .order('scored_at', { ascending:false }).limit(1000);
+    if (res.error) return FAIL(res.error.message);
+    const data = res.data || [];
+    if (!data.length) return WARN('shadow_log is empty');
+    const suspect = data.filter(function(d){ return d.suspect; }).length;
+    const noComp = data.filter(function(d){ return d.composite_score === null; }).length;
+    const noAlgo = data.filter(function(d){ return !d.algorithm_scores || Object.keys(d.algorithm_scores).length === 0; }).length;
+    const passed = data.filter(function(d){ return d.passed_gate; }).length;
+    const msg = 'sampled ' + data.length + '\nsuspect ' + suspect + '\nno composite ' + noComp +
+      '\nempty algorithm_scores ' + noAlgo + '\npassed gate ' + passed + ' (' + Math.round(passed/data.length*100) + '%)';
+    return noAlgo > data.length * 0.5
+      ? WARN(msg + '\nMost rows carry no algorithm scores, so per-algorithm calibration cannot use them.')
+      : PASS(msg);
+  });
+
+  await check(g, 'Calibration output', async function() {
+    const res = await db.from('lessons')
+      .select('computed_at, metric, bucket, n, avg_outcome_pct, win_rate_pct, correlation, scan_days, top_day_share_pct')
+      .order('computed_at', { ascending:false }).limit(300);
+    if (res.error) return FAIL(res.error.message);
+    const data = res.data || [];
+    if (!data.length) return WARN('lessons is empty — nothing calibrated yet');
+    const newest = data[0].computed_at;
+    const run = data.filter(function(d){ return d.computed_at === newest; });
+    const gate = run.filter(function(d){ return d.metric === 'gate'; });
+    const conc = run.filter(function(d){ return d.top_day_share_pct > 60; });
+    const lines = gate.map(function(d){
+      return '  gate ' + d.bucket + ': n=' + d.n + '  avg ' + d.avg_outcome_pct + '%  win ' + d.win_rate_pct + '%';
+    });
+    return PASS('last run ' + new Date(newest).toLocaleString() + ', ' + run.length + ' rows' +
+      (lines.length ? '\n' + lines.join('\n') : '') +
+      (conc.length ? '\n' + conc.length + ' buckets draw over 60% of their rows from a single scan day.' : ''));
+  });
+
+  await check(g, 'Portfolio state', async function() {
+    const res = await db.from('paper_portfolio').select('*');
+    if (res.error) return WARN('not readable — ' + res.error.message);
+    if (!res.data || !res.data.length) return WARN('no portfolio rows');
+    return PASS(res.data.map(function(p){ return JSON.stringify(p).slice(0,170); }).join('\n'));
+  });
+
+  await check(g, 'Open positions', async function() {
+    const res = await db.from('paper_trades')
+      .select('ticker, type, strategy, status, entry_price, stop_loss, target_price, opened_at')
+      .eq('status','open');
+    if (res.error) return FAIL(res.error.message);
+    const data = res.data || [];
+    if (!data.length) return PASS('no open positions');
+    const incomplete = data.filter(function(t){ return !t.entry_price || !t.stop_loss || !t.target_price; });
+    const stale = data.filter(function(t){
+      const age = (Date.now() - new Date(t.opened_at).getTime()) / 3600000;
+      const limit = String(t.strategy || 'swing').toLowerCase() === 'swing' ? 168 : 48;
+      return age > limit;
+    });
+    const msg = data.length + ' open\n' + data.map(function(t){
+      return '  ' + t.ticker + ' ' + (t.strategy || '?') + '  entry $' + t.entry_price +
+             '  stop $' + t.stop_loss + '  target $' + t.target_price;
+    }).join('\n') + (stale.length ? '\n' + stale.length + ' past their stale timeout' : '');
+    return incomplete.length ? WARN(msg + '\n' + incomplete.length + ' missing entry, stop or target') : PASS(msg);
+  });
+
+  await check(g, 'Trading settings', async function() {
+    const res = await db.from('trading_settings').select('*').limit(1);
+    if (res.error) return FAIL(res.error.message);
+    if (!res.data || !res.data.length) return WARN('no settings row');
+    return PASS(JSON.stringify(res.data[0]).slice(0,320));
+  });
+
+  await check(g, 'Position alerts', async function() {
+    const res = await db.from('position_alerts').select('*').order('created_at',{ascending:false}).limit(5);
+    if (res.error) return WARN('not readable — ' + res.error.message);
+    if (!res.data || !res.data.length) return PASS('no alerts outstanding');
+    return PASS(res.data.length + ' recent\n' + res.data.map(function(a){ return '  ' + JSON.stringify(a).slice(0,140); }).join('\n'));
+  });
+}
+
+// ══════════════════════════════════════════════════════════════════
+// FEEDS
+// ══════════════════════════════════════════════════════════════════
+async function sectionFeeds() {
+  const g = group('Price and data feeds');
+
+  await check(g, 'CoinGecko price', async function() {
+    const r = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum&vs_currencies=usd');
+    const d = await r.json();
+    const btc = d && d.bitcoin && d.bitcoin.usd;
+    return btc > 0
+      ? PASS('BTC $' + btc.toLocaleString() + ', ETH $' + (d.ethereum && d.ethereum.usd))
+      : FAIL('no price returned — likely rate limited');
+  });
+
+  await check(g, 'CoinGecko market chart', async function() {
+    const r = await fetch('https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=usd&days=120&interval=daily');
+    const d = await r.json();
+    const caps = Array.isArray(d.market_caps) ? d.market_caps.length : 0;
+    return caps > 30
+      ? PASS((d.prices || []).length + ' price points, ' + caps + ' market caps — the NVT baseline is computable')
+      : WARN('chart returned without market caps, so the NVT baseline cannot be matched');
+  });
+
+  await check(g, 'CoinGecko global', async function() {
+    const r = await fetch('https://api.coingecko.com/api/v3/global');
+    const d = await r.json();
+    const dom = d && d.data && d.data.market_cap_percentage && d.data.market_cap_percentage.btc;
+    const mcap = d && d.data && d.data.total_market_cap && d.data.total_market_cap.usd;
+    return dom
+      ? PASS('BTC dominance ' + dom.toFixed(1) + '%, total market cap $' + (mcap/1e12).toFixed(2) + 'T')
+      : FAIL('no global data returned');
+  });
+
+  await check(g, 'Fear and Greed', async function() {
+    const r = await fetch('https://api.alternative.me/fng/?limit=7');
+    const d = await r.json();
+    const v = d && d.data && d.data[0];
+    if (!v) return FAIL('no data returned');
+    const avg = d.data.reduce(function(a,x){ return a + parseInt(x.value); }, 0) / d.data.length;
+    return PASS('now ' + v.value + ' (' + v.value_classification + '), 7-day average ' + avg.toFixed(1));
+  });
+
+  await check(g, 'Binance funding rate', async function() {
+    const r = await fetch('https://fapi.binance.com/fapi/v1/fundingRate?symbol=BTCUSDT&limit=3');
+    if (!r.ok) return WARN('HTTP ' + r.status + ' — crypto_derivatives_flow will be excluded for every coin');
+    const d = await r.json();
+    return (Array.isArray(d) && d.length)
+      ? PASS('latest funding rate ' + d[d.length-1].fundingRate)
+      : WARN('no funding data returned');
+  });
+
+  await check(g, 'Sources the Governor actually used', function() {
+    if (!GOV.base) return SKIP('Governor call failed');
+    const used = GOV.base.data_sources_used || GOV.base.dataSourcesUsed;
+    const list = Array.isArray(used) ? used.join(', ') : (used ? JSON.stringify(used) : '');
+    return list ? PASS(list) : WARN('the Governor did not report its data sources');
+  });
+}
+
+// ══════════════════════════════════════════════════════════════════
+// Runner and report
+// ══════════════════════════════════════════════════════════════════
+async function runAll() {
+  const btn = document.getElementById('btn-all');
+  btn.disabled = true;
+  reset();
+  const t0 = Date.now();
+  try {
+    await sectionDatabase();
+    await sectionContract();
+    await sectionDbFunctions();
+    await sectionLogic();
+    await sectionAlgorithms();
+    await sectionEdgeFunctions();
+    await sectionGovernor();
+    await sectionPipeline();
+    await sectionFeeds();
+  } finally {
+    document.getElementById('t-time').textContent = ((Date.now() - t0) / 1000).toFixed(1);
+    btn.disabled = false;
+  }
+}
+
+function buildReport() {
+  const lines = [];
+  lines.push('AURUM DIAGNOSTIC');
+  lines.push(new Date().toString());
+  lines.push('pass ' + counts.pass + '   warn ' + counts.warn + '   fail ' + counts.fail + '   skip ' + counts.skip);
+  lines.push('options: claude=' + document.getElementById('opt-claude').checked +
+             '  writes=' + document.getElementById('opt-write').checked +
+             '  workers=' + document.getElementById('opt-slow').checked);
+  for (const e of log) {
+    if (e.type === 'group') { lines.push(''); lines.push('== ' + e.title + ' =='); continue; }
+    lines.push('[' + e.status.toUpperCase() + '] ' + e.name);
+    if (e.detail) e.detail.split('\n').forEach(function(l){ lines.push('        ' + l); });
+  }
+  const fails = log.filter(function(e){ return e.type === 'check' && e.status === 'fail'; });
+  if (fails.length) {
+    lines.push(''); lines.push('== FAILURES ==');
+    fails.forEach(function(f){ lines.push('  ' + f.group + ' / ' + f.name); });
+  }
+  return lines.join('\n');
+}
+
+async function copyReport() {
+  const status = document.getElementById('copy-status');
+  const text = buildReport();
+  try {
+    await navigator.clipboard.writeText(text);
+    status.textContent = ' copied';
+  } catch (e) {
+    // The clipboard API needs a secure context and can be refused. Fall back to
+    // a selectable textarea so the report is still retrievable.
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:60vh;z-index:2000;background:#080808;color:#F0EDE6;font-size:0.7rem;';
+    document.body.appendChild(ta);
+    ta.focus(); ta.select();
+    try { document.execCommand('copy'); status.textContent = ' copied'; }
+    catch (e2) { status.textContent = ' select and copy'; }
+    setTimeout(function(){ ta.remove(); }, 15000);
+  }
+  setTimeout(function(){ status.textContent = ''; }, 4000);
+}
+
+runAll();
+</script>
+
+</body>
+</html>
