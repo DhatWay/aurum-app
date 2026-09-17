@@ -267,6 +267,13 @@ async function fnCall(name, body, timeoutMs) {
     let parsed = null, text = '';
     try { parsed = await res.clone().json(); } catch (e) { try { text = await res.text(); } catch (e2) {} }
     return { ok:res.ok, status:res.status, body:parsed, text:text };
+  } catch (e) {
+    // A browser cannot reach a function that has no CORS handler, and a
+    // cron-only function has no reason to have one. That is a fact about the
+    // function's purpose, not a failure of the function.
+    const aborted = e && e.name === 'AbortError';
+    return { ok:false, status:0, body:null, text:'', unreachable:true, aborted:aborted,
+             error: aborted ? 'timed out after ' + ((timeoutMs||45000)/1000) + 's' : String((e && e.message) || e) };
   } finally { clearTimeout(timer); }
 }
 
@@ -275,6 +282,11 @@ let CONTRACT = null, ALGOS = null;
 // enough to run repeatedly.
 let TIMINGS = {};
 const SLOW_MS = 250;
+const REAL_BARS = { prices: null, volumes: null };
+// The Governor excludes this one: a real GRU pass costs ~3.8s CPU and is what
+// killed the edge worker with HTTP 546. Running it here would freeze the page
+// for the same reason, so this page honours the same exclusion.
+const TOO_EXPENSIVE = ['attention_augmented_gru'];
 const GOV = {};
 
 // ══════════════════════════════════════════════════════════════════
@@ -359,10 +371,16 @@ async function sectionContract() {
 
   await check(g, 'Thresholds are not writable from a browser', async function() {
     if (!CONTRACT) return SKIP('contract not loaded');
-    const res = await db.from('scoring_contract').update({ notes: CONTRACT.notes }).eq('id',1);
-    return res.error
-      ? PASS('anon writes correctly refused — ' + res.error.message.slice(0,70))
-      : WARN('the anon key can write to scoring_contract. Thresholds should not be editable from a browser.');
+    // Without .select() PostgREST reports success whether or not RLS allowed
+    // the write, so the old form could not tell refused from written. With it,
+    // an empty array means no row was permitted.
+    const res = await db.from('scoring_contract')
+      .update({ notes: CONTRACT.notes }).eq('id',1).select('id');
+    if (res.error) return PASS('anon writes refused — ' + res.error.message.slice(0,80));
+    const rows = res.data || [];
+    return rows.length === 0
+      ? PASS('anon write affected 0 rows — RLS is refusing it')
+      : WARN('the anon key wrote to scoring_contract. Thresholds should not be editable from a browser.');
   });
 }
 
@@ -565,6 +583,23 @@ async function sectionLogic() {
 async function sectionAlgorithms() {
   const g = group('Algorithms');
 
+  await check(g, 'Load real market data', async function() {
+    try {
+      const r = await fetch('https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=usd&days=120&interval=daily');
+      const d = await r.json();
+      if (!d || !Array.isArray(d.prices) || d.prices.length < 50)
+        return WARN('CoinGecko returned too few bars — falling back to a synthetic series');
+      REAL_BARS.prices  = d.prices.map(function(x){ return Number(x[1]); }).filter(function(n){ return n > 0; });
+      REAL_BARS.volumes = Array.isArray(d.total_volumes) ? d.total_volumes.map(function(x){ return Number(x[1]); }) : [];
+      const first = REAL_BARS.prices[0], last = REAL_BARS.prices[REAL_BARS.prices.length-1];
+      return PASS(REAL_BARS.prices.length + ' real BTC daily bars, $' + Math.round(first).toLocaleString() +
+                  ' to $' + Math.round(last).toLocaleString() +
+                  '\nEverything below runs on these, not on a generated curve.');
+    } catch (e) {
+      return WARN('could not load real bars (' + e.message + ') — falling back to a synthetic series');
+    }
+  });
+
   await check(g, 'Load from database', async function() {
     const res = await db.from('algorithms').select('name, code, active');
     if (res.error) return FAIL(res.error.message);
@@ -588,8 +623,12 @@ async function sectionAlgorithms() {
   });
 
   function priceArgs(bars) {
-    bars = bars || 60;
-    const up = synthSeries(bars, 0.25), vol = Array.from({length:bars}, function(){ return 5e6; });
+    // Real BTC bars when available, loaded by the check below. A sine wave
+    // proves an algorithm runs; real bars prove it produces a sensible number
+    // on the data it will actually see.
+    const up  = REAL_BARS.prices && REAL_BARS.prices.length ? REAL_BARS.prices : synthSeries(bars || 60, 0.25);
+    const vol = REAL_BARS.volumes && REAL_BARS.volumes.length ? REAL_BARS.volumes
+              : Array.from({ length: up.length }, function(){ return 5e6; });
     return {
       momentum_detector:[up, vol, up.map(function(p){return p*1.012;}), up.map(function(p){return p*0.988;})],
       fuzzy_lspi:[up], state_space_mamba:[up,vol], autoencoder_selection:[up,null],
@@ -608,6 +647,10 @@ async function sectionAlgorithms() {
     TIMINGS = {};
     for (const a of ALGOS) {
       if (!args[a.name] || !a.code) continue;
+      if (TOO_EXPENSIVE.indexOf(a.name) !== -1) {
+        detail.push('  ' + a.name + ' not run — excluded by the Governor for CPU cost');
+        continue;
+      }
       try {
         const fn = new Function('Math','return (' + a.code + ')')(seededMath(99));
         const t0 = Date.now();
@@ -631,8 +674,12 @@ async function sectionAlgorithms() {
     if (!ALGOS) return SKIP('load failed');
     const md = ALGOS.filter(function(a){ return a.name === 'momentum_detector'; })[0];
     if (!md || !md.code) return WARN('momentum_detector not found');
-    const up = synthSeries(120, 0.6), dn = synthSeries(120, -0.6);
-    const vol = Array.from({length:120}, function(){ return 5e6; });
+    // Real bars sorted ascending, and the same bars reversed: an unambiguous
+    // up-trend and down-trend built from actual market data.
+    const base = REAL_BARS.prices && REAL_BARS.prices.length >= 60 ? REAL_BARS.prices.slice() : synthSeries(120, 0.6);
+    const up = base.slice().sort(function(x,y){ return x - y; });
+    const dn = up.slice().reverse();
+    const vol = Array.from({length: up.length}, function(){ return 5e6; });
     try {
       const fn = new Function('Math','return (' + md.code + ')')(seededMath(1));
       const u = scoreOf(fn(up, vol, up.map(function(p){return p*1.01;}), up.map(function(p){return p*0.99;})));
@@ -652,6 +699,7 @@ async function sectionAlgorithms() {
     const unseeded = [], seeded = [], skipped = [];
     for (const a of ALGOS) {
       if (only.indexOf(a.name) === -1 || !a.code || !args[a.name]) continue;
+      if (TOO_EXPENSIVE.indexOf(a.name) !== -1) continue;
       // Repeating a 3-second algorithm six times is what froze this page.
       // Anything that slow is reported rather than re-run.
       if (TIMINGS[a.name] !== undefined && TIMINGS[a.name] > SLOW_MS) {
@@ -683,6 +731,9 @@ async function sectionEdgeFunctions() {
 
   await check(g, 'clever-responder (Governor)', async function() {
     const out = await fnCall('clever-responder', { ticker:'BTC', mode:'crypto', strategy:'swing', skip_ai:true }, 60000);
+    if (out.unreachable) return FAIL('not reachable — ' + out.error);
+    if (out.status === 546) return FAIL('HTTP 546 — the worker exceeded its CPU or memory limit and was killed.' +
+      '\nAn algorithm is costing more than the budget allows. algorithm_timings_ms in a successful response shows which.');
     if (!out.ok) return FAIL('HTTP ' + out.status + ' ' + (out.text || '').slice(0,140));
     if (out.body && out.body.error) return FAIL(out.body.error);
     GOV.base = out.body;
@@ -693,6 +744,8 @@ async function sectionEdgeFunctions() {
 
   await check(g, 'outcome-checker', async function() {
     const out = await fnCall('outcome-checker', {}, 60000);
+    if (out.unreachable) return FAIL('not reachable — ' + out.error +
+      '\nIf this function has not been deployed yet, nothing is resolving outcomes and no row will ever reach a genuine 24h horizon.');
     if (!out.ok) return FAIL('HTTP ' + out.status + '\nDeployed and named outcome-checker?');
     if (!out.body || !out.body.ok) return FAIL((out.body && out.body.error) || 'no ok flag in response');
     const passes = out.body.passes || [];
@@ -704,12 +757,14 @@ async function sectionEdgeFunctions() {
 
   await check(g, 'quick-service (position monitor)', async function() {
     const out = await fnCall('quick-service', {}, 60000);
+    if (out.unreachable) return WARN('not reachable from a browser — ' + out.error);
     if (!out.ok) return FAIL('HTTP ' + out.status + ' ' + (out.text || '').slice(0,140));
     return PASS(((out.text || JSON.stringify(out.body)) || '').slice(0,240));
   });
 
   await check(g, 'wallet-executor (status only)', async function() {
     const out = await fnCall('wallet-executor', { action:'status' }, 40000);
+    if (out.unreachable) return WARN('not reachable from a browser — ' + out.error);
     if (!out.ok) return WARN('HTTP ' + out.status + ' — expected if no trading wallet is configured');
     return PASS(JSON.stringify(out.body).slice(0,240));
   });
@@ -719,11 +774,14 @@ async function sectionEdgeFunctions() {
       model:'claude-haiku-4-5-20251001', max_tokens:16,
       messages:[{ role:'user', content:'Reply with the single word: ok' }]
     }, 40000);
+    if (out.unreachable) return WARN('not reachable from a browser — ' + out.error);
     if (!out.ok) {
       const t = (out.text || JSON.stringify(out.body) || '').slice(0,200);
-      return /credit|balance|quota/i.test(t)
-        ? WARN('reachable, but Anthropic reports no credit:\n' + t)
-        : FAIL('HTTP ' + out.status + '\n' + t);
+      if (/authentication_error|API key/i.test(t))
+        return WARN('the function works — Anthropic rejected the key. Expected while the key is disabled.\n' + t);
+      if (/credit|balance|quota/i.test(t))
+        return WARN('reachable, but Anthropic reports no credit:\n' + t);
+      return FAIL('HTTP ' + out.status + '\n' + t);
     }
     const txt = out.body && out.body.content
       ? out.body.content.map(function(c){ return c.text || ''; }).join('') : '';
@@ -740,6 +798,15 @@ async function sectionEdgeFunctions() {
     await check(g, w[0], async function() {
       if (!slow) return SKIP('disabled — ' + w[1]);
       const out = await fnCall(w[0], {}, 90000);
+      if (out.unreachable) {
+        // Scheduled functions are invoked by cron with a service role key and
+        // never by a browser, so most have no CORS handler. Being unreachable
+        // from here says nothing about whether they work.
+        return out.aborted
+          ? WARN('no response within 90s — ' + w[1])
+          : WARN('not reachable from a browser (no CORS handler). Expected for a cron-only function — ' + w[1] +
+                 '.\nCheck it in the Supabase function logs instead.');
+      }
       if (!out.ok) return FAIL('HTTP ' + out.status + ' ' + (out.text || '').slice(0,140));
       return PASS(((out.text || JSON.stringify(out.body)) || '').slice(0,220));
     });
@@ -854,6 +921,248 @@ async function sectionGovernor() {
   }
 }
 
+// ══════════════════════════════════════════════════════════
+// LIVE CODE — run simulator.html's own functions, not a copy
+//
+// The Trade logic section re-implements the maths to prove the rules are
+// sound. That cannot catch the case where the deployed file does something
+// different. This fetches simulator.html, lifts its real functions out of the
+// source, and runs those.
+// ══════════════════════════════════════════════════════════
+let LIVE = null;
+
+// Top-level functions in simulator.html start at column 0 and end with a
+// closing brace at column 0, so the source can be sliced without parsing.
+function sliceTopLevel(src, header) {
+  const start = src.indexOf(header);
+  if (start === -1) return null;
+  // A function body closes with `}` at column 0; an object literal assigned to
+  // a const closes with `};`. Using the wrong terminator overshoots into the
+  // next declaration and drags unrelated identifiers in with it.
+  const term = header.indexOf('const ') === 0 ? '\n};\n' : '\n}\n';
+  const end = src.indexOf(term, start);
+  if (end === -1) return null;
+  return src.slice(start, end + term.length);
+}
+
+async function sectionLiveCode() {
+  const g = group('Live code from simulator.html');
+
+  await check(g, 'Fetch the deployed simulator', async function() {
+    const r = await fetch('simulator.html', { cache: 'no-store' });
+    if (!r.ok) return FAIL('HTTP ' + r.status + ' — cannot read simulator.html from this origin');
+    const src = await r.text();
+    const need = ['function computeComposite(', 'function computeOpportunity(',
+                  'function scoreDeterministic(', 'function passesConviction(',
+                  'function limits(', 'const ALGO_WEIGHTS'];
+    const missing = need.filter(function(n){ return src.indexOf(n) === -1; });
+    if (missing.length) return FAIL('not found in the deployed file: ' + missing.join(', '));
+
+    const parts = [
+      sliceTopLevel(src, 'const ALGO_WEIGHTS'),
+      sliceTopLevel(src, 'function limits('),
+      sliceTopLevel(src, 'function computeComposite('),
+      sliceTopLevel(src, 'function computeOpportunity('),
+      sliceTopLevel(src, 'function scoreDeterministic('),
+      sliceTopLevel(src, 'function passesConviction(')
+    ];
+    if (parts.some(function(x){ return !x; })) return FAIL('could not slice one of the definitions cleanly');
+
+    // The lifted functions close over four globals. They are supplied here so
+    // the real code runs unmodified.
+    LIVE = {
+      factory: new Function('THRESHOLDS', 'activeMode', 'physicsEnabled', 'scoringMode',
+        parts.join('\n') +
+        '\nreturn { ALGO_WEIGHTS:ALGO_WEIGHTS, limits:limits, computeComposite:computeComposite,' +
+        ' computeOpportunity:computeOpportunity, scoreDeterministic:scoreDeterministic,' +
+        ' passesConviction:passesConviction };'),
+      bytes: src.length
+    };
+    return PASS('lifted 6 definitions from the deployed file (' + (src.length/1024).toFixed(0) + ' KB)');
+  });
+
+  await check(g, 'Deployed composite honours the supplied map', function() {
+    if (!LIVE) return SKIP('simulator.html not loaded');
+    const t = CONTRACT || { stock:{direction:60,opportunity:70,signalQuality:60},
+                            crypto:{direction:55,opportunity:50,signalQuality:45} };
+    const L = LIVE.factory(t, 'crypto', false, 'deterministic');
+    const scores = { momentum_detector:82, sentiment_detector:61, options_flow_detector:50,
+                     macro_detector:50, crypto_whale_tracker:50, fuzzy_lspi:74 };
+    const supplied = { options_flow_detector:false, macro_detector:false, crypto_whale_tracker:false };
+    const all = L.computeComposite(scores, null);
+    const sup = L.computeComposite(scores, supplied);
+    if (all === sup) return FAIL('the DEPLOYED computeComposite ignores the supplied map — that edit is not in the live file');
+    return PASS('deployed code: all weighted ' + all + ' → supplied only ' + sup);
+  });
+
+  await check(g, 'Deployed gate reads the contract', function() {
+    if (!LIVE || !CONTRACT) return SKIP('needs the live file and the contract');
+    const out = [];
+    for (const mode of ['stock','crypto']) {
+      const L = LIVE.factory(CONTRACT, mode, false, 'deterministic');
+      const lim = L.limits();
+      const floor = Number(CONTRACT[mode].direction);
+      if (Number(lim.direction) !== floor)
+        return FAIL(mode + ': deployed limits() returns ' + lim.direction + ', the contract says ' + floor);
+      const at = L.passesConviction({ composite_score:floor, signal_quality:95, opportunity_score:95, direction:'LONG' });
+      const under = L.passesConviction({ composite_score:floor-2, signal_quality:95, opportunity_score:95, direction:'LONG' });
+      out.push('  ' + mode + ': floor ' + floor + ', at floor ' + (at ? 'passes' : 'rejects') +
+               ', two below ' + (under ? 'passes' : 'rejects'));
+    }
+    return PASS('deployed passesConviction, driven by the live contract\n' + out.join('\n'));
+  });
+
+  await check(g, 'Deployed direction rule matches the contract', function() {
+    if (!LIVE || !CONTRACT) return SKIP('needs the live file and the contract');
+    const bad = [];
+    for (const mode of ['stock','crypto']) {
+      const L = LIVE.factory(CONTRACT, mode, false, 'deterministic');
+      const floor = Number(CONTRACT[mode].direction);
+      // A composite one point above the contract floor must read LONG. If the
+      // deployed scoreDeterministic hardcodes its own band, it will not.
+      const gov = { algorithm_scores:{ probe: floor + 1 }, algorithm_supplied:{},
+                    entry_price:100, stop_loss:94, target_price:118, volatility_pct:4 };
+      const det = L.scoreDeterministic(gov);
+      if (!det) { bad.push('  ' + mode + ': scoreDeterministic returned null'); continue; }
+      if (det.direction !== 'LONG')
+        bad.push('  ' + mode + ': composite ' + det.composite + ' is above the contract floor ' +
+                 floor + ' but scoreDeterministic called it ' + det.direction);
+    }
+    return bad.length
+      ? FAIL('the deployed scoreDeterministic uses its own band rather than the contract:\n' + bad.join('\n') +
+             '\nThe Governor and the client will disagree on direction inside that range.')
+      : PASS('scoreDeterministic agrees with the contract in both modes');
+  });
+}
+
+// ══════════════════════════════════════════════════════════
+// WORKFLOW — one real ticker, all the way through
+// ══════════════════════════════════════════════════════════
+async function sectionWorkflow() {
+  const g = group('End-to-end workflow');
+  const trace = {};
+
+  await check(g, '1. Universe loads for the active mode', async function() {
+    const st = await db.from('trading_settings').select('active_mode, active_strategy').limit(1);
+    const row = (st.data && st.data[0]) || {};
+    trace.mode = row.active_mode || 'crypto';
+    trace.strategy = row.active_strategy || 'swing';
+    const res = await db.from('stocks').select('ticker, type')
+      .eq('type', trace.mode === 'crypto' ? 'crypto' : 'stock');
+    const rows = res.data || [];
+    if (!rows.length) return FAIL('no ' + trace.mode + ' tickers in the stocks table — a scan would have nothing to score');
+    trace.ticker = rows[0].ticker;
+    return PASS(rows.length + ' ' + trace.mode + ' tickers, active strategy ' + trace.strategy +
+                '\ntracing ' + trace.ticker + ' through the rest of this section');
+  });
+
+  await check(g, '2. Governor scores it', async function() {
+    if (!trace.ticker) return SKIP('no ticker');
+    const out = await fnCall('clever-responder',
+      { ticker:trace.ticker, mode:trace.mode, strategy:trace.strategy,
+        instrument: trace.mode === 'crypto' ? 'crypto' : 'stock', skip_ai:true }, 60000);
+    if (out.unreachable) return FAIL('not reachable — ' + out.error);
+    if (out.status === 546) return FAIL('HTTP 546 — the worker was killed on CPU');
+    if (!out.ok || !out.body || out.body.error) return FAIL((out.body && out.body.error) || ('HTTP ' + out.status));
+    trace.gov = out.body;
+    const t = out.body.algorithm_timings_ms || {};
+    const keys = Object.keys(t).sort(function(a,b){ return t[b] - t[a]; });
+    const spend = keys.reduce(function(a,k){ return a + t[k]; }, 0);
+    return PASS('executed ' + out.body.algorithms_executed + ', excluded ' + out.body.algorithms_excluded +
+                ', failed ' + out.body.algorithms_failed + ', skipped ' + out.body.algorithms_skipped +
+                ', bars ' + out.body.price_bars +
+                (keys.length ? '\nCPU ' + spend + 'ms, slowest ' + keys[0] + ' at ' + t[keys[0]] + 'ms' : ''));
+  });
+
+  await check(g, '3. Deployed scorer reproduces the Governor', function() {
+    if (!LIVE || !trace.gov) return SKIP('needs the live file and a Governor response');
+    const L = LIVE.factory(CONTRACT || {}, trace.mode, false, 'deterministic');
+    const det = L.scoreDeterministic(trace.gov);
+    if (!det) return FAIL('the deployed scoreDeterministic returned null on a real Governor response' +
+      '\nUsually a missing entry_price, stop_loss, target_price or volatility_pct.');
+    trace.det = det;
+    const line = 'composite ' + det.composite + ', opportunity ' + det.opportunity + ', direction ' + det.direction;
+    const govDet = trace.gov.det_composite;
+    if (govDet !== undefined && govDet !== null && Math.abs(govDet - det.composite) > 1)
+      return WARN(line + '\nthe Governor reported det_composite ' + govDet + ' — the two sides disagree');
+    return PASS(line);
+  });
+
+  await check(g, '4. Gate decides, for a stated reason', function() {
+    if (!LIVE || !trace.gov || !trace.det) return SKIP('needs a scored candidate');
+    const L = LIVE.factory(CONTRACT || {}, trace.mode, false, 'deterministic');
+    const lim = L.limits();
+    const candidate = Object.assign({}, trace.gov, {
+      composite_score: trace.det.composite,
+      opportunity_score: trace.det.opportunity,
+      direction: trace.det.direction
+    });
+    trace.passed = L.passesConviction(candidate);
+    const conviction = trace.det.composite >= 50 ? trace.det.composite : 100 - trace.det.composite;
+    return PASS((trace.passed ? 'PASSES the gate' : 'rejected by the gate') +
+      '\n  direction      ' + trace.det.direction +
+      '\n  conviction     ' + conviction + ' vs floor ' + lim.direction +
+      '\n  signal quality ' + trace.gov.signal_quality + ' vs ' + lim.signalQuality +
+      '\n  opportunity    ' + trace.det.opportunity + ' vs ' + lim.opportunity);
+  });
+
+  await check(g, '5. Trade geometry is coherent', function() {
+    if (!trace.gov) return SKIP('no Governor response');
+    const b = trace.gov;
+    if (!b.entry_price) return WARN('no entry price returned — deterministic mode leaves levels to the client');
+    const dir = String(trace.det ? trace.det.direction : b.direction).toUpperCase();
+    if (dir === 'NONE') return PASS('direction NONE — no trade, so no levels to check');
+    if (!b.stop_loss || !b.target_price) return WARN('no stop or target returned alongside the entry price');
+    const geomOk = dir === 'LONG' ? (b.stop_loss < b.entry_price && b.target_price > b.entry_price)
+                                  : (b.stop_loss > b.entry_price && b.target_price < b.entry_price);
+    const rr = Math.abs(b.target_price - b.entry_price) / Math.abs(b.entry_price - b.stop_loss);
+    const minRR = Number((b.strategy_applied || {}).min_rr) || 2;
+    if (!geomOk) return FAIL(dir + ': stop or target is on the wrong side of entry' +
+      '\nentry ' + b.entry_price + '  stop ' + b.stop_loss + '  target ' + b.target_price);
+    if (rr < minRR - 0.05) return WARN('reward ratio ' + rr.toFixed(2) + ' is below the ' + minRR + ':1 this strategy asks for');
+    return PASS(dir + '  entry $' + b.entry_price + '  stop $' + b.stop_loss +
+                '  target $' + b.target_price + '  ' + rr.toFixed(2) + ':1');
+  });
+
+  await check(g, '6. Shadow log accepts a real candidate', async function() {
+    if (!trace.gov) return SKIP('no Governor response');
+    if (!document.getElementById('opt-write').checked) return SKIP('write tests disabled');
+    const rowData = {
+      ticker: '__DIAG__', mode: trace.mode,
+      price_at_score: Number(trace.gov.entry_price) || 1,
+      direction: trace.det ? trace.det.direction : 'NONE',
+      composite_score: trace.det ? trace.det.composite : null,
+      opportunity_score: trace.det ? trace.det.opportunity : null,
+      signal_quality: trace.gov.signal_quality,
+      algorithm_scores: trace.gov.algorithm_scores || {},
+      passed_gate: !!trace.passed,
+      scored_at: new Date().toISOString()
+    };
+    const ins = await db.from('shadow_log').insert(rowData).select('id, pipeline_version').single();
+    if (ins.error) return FAIL('a real scored candidate was refused by shadow_log — ' + ins.error.message);
+    await db.from('shadow_log').delete().eq('id', ins.data.id);
+    return PASS('a full candidate row with ' + Object.keys(rowData.algorithm_scores).length +
+                ' algorithm scores wrote and deleted cleanly, at pipeline_version ' + ins.data.pipeline_version);
+  });
+
+  await check(g, '7. Position monitor responds', async function() {
+    const out = await fnCall('quick-service', {}, 60000);
+    if (out.unreachable) return WARN('not reachable from a browser — ' + out.error);
+    if (!out.ok) return FAIL('HTTP ' + out.status);
+    const b = out.body || {};
+    return PASS((b.action || 'responded') + (b.message ? ' — ' + b.message : '') +
+                (b.reason ? ' — ' + b.reason : ''));
+  });
+
+  await check(g, '8. Outcome checker would resolve it', async function() {
+    const out = await fnCall('outcome-checker', {}, 60000);
+    if (out.unreachable) return FAIL('not deployed — a candidate scored now would never resolve an outcome');
+    if (!out.ok || !out.body || !out.body.ok) return FAIL((out.body && out.body.error) || ('HTTP ' + out.status));
+    const cand = (out.body.passes || []).reduce(function(a,x){ return a + (x.candidates || 0); }, 0);
+    return PASS('reachable, ' + cand + ' rows currently inside a horizon window' +
+                '\nA candidate scored now becomes resolvable 24 hours from now.');
+  });
+}
 // ══════════════════════════════════════════════════════════════════
 // DATA PIPELINE
 // ══════════════════════════════════════════════════════════════════
@@ -1017,13 +1326,18 @@ async function sectionFeeds() {
     return PASS('now ' + v.value + ' (' + v.value_classification + '), 7-day average ' + avg.toFixed(1));
   });
 
-  await check(g, 'Binance funding rate', async function() {
-    const r = await fetch('https://fapi.binance.com/fapi/v1/fundingRate?symbol=BTCUSDT&limit=3');
-    if (!r.ok) return WARN('HTTP ' + r.status + ' — crypto_derivatives_flow will be excluded for every coin');
-    const d = await r.json();
-    return (Array.isArray(d) && d.length)
-      ? PASS('latest funding rate ' + d[d.length-1].fundingRate)
-      : WARN('no funding data returned');
+  await check(g, 'Binance funding (as seen by the Governor)', function() {
+    // Binance blocks cross-origin browser requests, so calling it from here
+    // only ever proves that browsers cannot call Binance. The Governor reaches
+    // it server-side, and whether it succeeded is visible in what the Governor
+    // did with crypto_derivatives_flow.
+    if (!GOV.base) return SKIP('needs a successful Governor call');
+    const sup = GOV.base.algorithm_supplied || {};
+    const why = (GOV.base.excluded_reasons || {})['crypto_derivatives_flow'];
+    if (sup['crypto_derivatives_flow'] === true)
+      return PASS('the Governor obtained a funding rate — crypto_derivatives_flow is live');
+    return WARN('crypto_derivatives_flow was excluded' + (why ? ' — ' + why : '') +
+      '\nNormal for a coin with no Binance perpetual; a problem if it happens on BTC.');
   });
 
   await check(g, 'Sources the Governor actually used', function() {
@@ -1046,8 +1360,10 @@ const SECTIONS = [
   ['DB writes',  sectionDbFunctions],
   ['Logic',      sectionLogic],
   ['Algorithms', sectionAlgorithms],
+  ['Live code',  sectionLiveCode],
   ['Functions',  sectionEdgeFunctions],
   ['Governor',   sectionGovernor],
+  ['Workflow',   sectionWorkflow],
   ['Pipeline',   sectionPipeline],
   ['Feeds',      sectionFeeds]
 ];
