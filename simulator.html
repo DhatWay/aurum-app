@@ -76,15 +76,6 @@ header {
   z-index: 1001;
 }
 
-@@_nav-overlay@@
-
-@@_nav-overlay_open@@
-
-@@_nav-overlay_a@@
-
-.nav-overlay a:hover, @@_nav-overlay_a_active@@
-
-@@_nav-close@@
 
 main { padding: 2.5rem; max-width: 960px; margin: 0 auto; }
 
@@ -850,6 +841,7 @@ footer p { font-size: 0.6rem; letter-spacing: 0.12em; color: var(--muted); text-
       <button onclick="runRecalibration()" id="recal-btn" style="flex:1; min-width:120px; background:transparent; border:1px solid rgba(107,101,96,0.4); color:#6B6560; font-family:'DM Sans',sans-serif; font-size:0.7rem; letter-spacing:0.12em; padding:0.6rem; cursor:pointer;">RECALIBRATE</button>
     </div>
     <div id="backtest-output" style="font-size:0.68rem; font-family:'IBM Plex Mono',monospace; margin-top:0.6rem; line-height:1.7;"></div>
+    <div id="contract-drift" style="display:none; font-size:0.68rem; font-family:'IBM Plex Mono',monospace; color:#8B3A3A; border:1px solid rgba(139,58,58,0.4); padding:0.5rem; margin-top:0.6rem; line-height:1.5;"></div>
     <div id="outcome-output" style="font-size:0.68rem; font-family:'IBM Plex Mono',monospace; margin-top:0.6rem; line-height:1.7;"></div>
     <div id="diag-output" style="font-size:0.68rem; font-family:'IBM Plex Mono',monospace; margin-top:0.8rem; line-height:1.7;"></div>
   </div>
@@ -1748,6 +1740,7 @@ async function getClaudeSuggestion() {
       }
       if (gov) {
         lastDiagnostic.governor = 'ok';
+        checkContractDrift(gov);
         governorBrief = gov.governor_brief || gov.claude_brief || governorBrief;
         governorMeta = {
           algoCount:            gov.algorithms_succeeded || 0,
@@ -2681,10 +2674,44 @@ function renderPresetUI() {
   }
 }
 
-const THRESHOLDS = {
+// Seeded from scoring_contract at startup. These literals are the fallback
+// used only if that read fails, and they match the row the table ships with.
+let THRESHOLDS = {
   stock:  { opportunity: 70, direction: 60, signalQuality: 60 },
   crypto: { opportunity: 50, direction: 55, signalQuality: 45 },
 };
+let contractVersion = 0;
+
+// One row, read by this file and by the Governor. Previously the same numbers
+// lived in both places with nothing to report when they diverged — which is
+// how the stock threshold moved from 55 to 70 while the prompt kept describing
+// the old one.
+async function loadScoringContract() {
+  try {
+    const { data } = await db.from('scoring_contract')
+      .select('version, stock, crypto').eq('id', 1).maybeSingle();
+    if (data && data.stock && data.crypto) {
+      THRESHOLDS = { stock: data.stock, crypto: data.crypto };
+      contractVersion = Number(data.version) || 0;
+    }
+  } catch (e) { /* fallback stays in place */ }
+}
+
+// Called on every Governor response. The Governor returns the version it
+// actually scored under; a mismatch means the two sides are using different
+// numbers right now, which is the failure this whole contract exists to catch.
+// Version 0 from the Governor means its own read failed and it fell back.
+function checkContractDrift(gov) {
+  if (!gov || gov.contract_version === undefined) return;
+  if (gov.contract_version === contractVersion) return;
+  const msg = gov.contract_version === 0
+    ? 'Governor could not read scoring_contract and is using fallback thresholds.'
+    : 'Threshold mismatch — Governor scored under contract v' + gov.contract_version +
+      ', this page loaded v' + contractVersion + '. Reload the page.';
+  console.warn('[AURUM contract]', msg, gov.thresholds_used || '');
+  const bar = document.getElementById('contract-drift');
+  if (bar) { bar.textContent = msg; bar.style.display = 'block'; }
+}
 function limits() {
   return THRESHOLDS[activeMode === 'crypto' ? 'crypto' : 'stock'];
 }
@@ -3107,7 +3134,7 @@ async function runBacktest() {
         if (!ind) continue;
 
         const algoScores = btAlgoScores(ind);
-        const composite = computeComposite(gov.algorithm_scores, gov.algorithm_supplied);
+        const composite  = computeComposite(algoScores);
         if (composite === null) continue;
 
         const direction = composite > 60 ? 'LONG' : composite < 40 ? 'SHORT' : 'NONE';
@@ -3219,13 +3246,11 @@ async function runOutcomeCheck() {
   if (btn) { btn.disabled = true; btn.textContent = 'CHECKING...'; }
   if (box) box.innerHTML = '<div style="color:#6B6560;">Running outcome checker...</div>';
 
-  // The checker moved to a scheduled edge function. It runs hourly on its
-  // own; this button only triggers it early. The old client-side version
-  // fetched the CURRENT price whenever pressed and wrote it as a 24-hour
-  // outcome, which is why no row in shadow_log ever carried a real one.
-  //
-  // Change this if you named the function something other than
-  // outcome-checker.
+  // The checker moved to a scheduled edge function. It runs hourly on its own;
+  // this button only triggers it early. The old client-side version fetched the
+  // CURRENT price whenever pressed and wrote it as a 24-hour outcome, which is
+  // why no row in shadow_log ever carried a real one — measured horizons ran
+  // from 39 to 100 hours.
   const OUTCOME_FN_URL = SUPABASE_URL + '/functions/v1/outcome-checker';
 
   try {
@@ -3242,19 +3267,19 @@ async function runOutcomeCheck() {
       return;
     }
 
-    const lines = (d.passes || []).map(p =>
-      p.pass + ': ' + (p.resolved || 0) + ' resolved' +
-      (p.unpriceable ? ', ' + p.unpriceable + ' unpriceable' : '') +
-      (p.error ? ' — ' + p.error : '')
-    ).join('<br>');
+    const lines = (d.passes || []).map(function(p) {
+      return p.pass + ': ' + (p.resolved || 0) + ' resolved' +
+        (p.unpriceable ? ', ' + p.unpriceable + ' unpriceable' : '') +
+        (p.error ? ' \u2014 ' + p.error : '');
+    }).join('<br>');
 
-    const total = (d.passes || []).reduce((s, p) => s + (p.resolved || 0), 0);
+    const total = (d.passes || []).reduce(function(s, p) { return s + (p.resolved || 0); }, 0);
 
     if (box) box.innerHTML =
       '<div style="color:' + (total ? '#3A6B4A' : '#6B6560') + ';">' + lines + '</div>' +
-      '<div style="color:#6B6560;margin-top:0.3rem;">Only rows currently inside their horizon window are resolved — 24-30h and 168-180h. Nothing outside it is touched, because a late reading would not be that horizon.</div>';
+      '<div style="color:#6B6560;margin-top:0.3rem;">Only rows currently inside their horizon window are resolved \u2014 24-30h and 168-180h. Nothing outside it is touched, because a late reading would not be that horizon.</div>';
   } catch (e) {
-    if (box) box.innerHTML = '<div style="color:#8B3A3A;">Check failed: ' + (e?.message || 'unknown') + '</div>';
+    if (box) box.innerHTML = '<div style="color:#8B3A3A;">Check failed: ' + ((e && e.message) || 'unknown') + '</div>';
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = 'CHECK OUTCOMES'; }
   }
@@ -3341,12 +3366,11 @@ function computeComposite(algoScores, supplied) {
   for (const [name, raw] of Object.entries(algoScores)) {
     // Logged either way; weighted only when armed.
     if (name === 'market_regime_physics' && !physicsEnabled) continue;
-    // An algorithm the Governor could not feed is absent, not neutral.
-    // Its 50 would otherwise be weighted identically to a real balanced
-    // read — options_flow at 2.2x and insider at 2.0x anchoring the
-    // composite toward the middle on data that was never gathered.
-    // Omitted supplied map means every score counts, which is what the
-    // backtest wants since it computes its own.
+    // An algorithm the Governor could not feed is absent, not neutral. Its 50
+    // would otherwise be weighted like a real balanced read — options_flow at
+    // 2.2x and insider at 2.0x anchoring the composite toward the middle on
+    // data that was never gathered. Omitting the map means every score counts,
+    // which is what the backtest wants since it computes its own.
     if (supplied && supplied[name] === false) continue;
     const score = Number(raw);
     if (!Number.isFinite(score)) continue;
@@ -3394,7 +3418,7 @@ function computeOpportunity(gov, composite) {
 // Produces the deterministic view of a candidate, mirroring the Governor's
 // own direction rule so the two modes are comparable.
 function scoreDeterministic(gov) {
-  const composite = computeComposite(gov.algorithm_scores);
+  const composite = computeComposite(gov.algorithm_scores, gov.algorithm_supplied);
   if (composite === null) return null;
   const opportunity = computeOpportunity(gov, composite);
   if (opportunity === null) return null;
@@ -3677,6 +3701,7 @@ async function scoreTicker(ticker, balance) {
     if (!res.ok) return null;
     const g = await res.json();
     if (g.error || !g.entry_price) return null;
+    checkContractDrift(g);
 
     // In deterministic mode the Governor returns raw algorithm scores and no
     // synthesis, so the scorer must supply direction, stops and targets before
@@ -4259,6 +4284,7 @@ if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('/aurum-app/sw.js').catch(() => {});
 }
 
+loadScoringContract();
 loadActiveMode();
 loadActiveStrategy();
 loadPreset();
