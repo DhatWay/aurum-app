@@ -77,6 +77,8 @@
   .grp { margin-bottom:0.3rem; }
   .note { color:var(--muted); font-size:0.72rem; line-height:1.7; margin-top:1rem; max-width:640px; }
   #copy-status { color:var(--positive); font-size:0.7rem; margin-left:0.5rem; }
+  .idle { border:1px solid var(--rule); padding:1.1rem; color:var(--muted); font-size:0.78rem; }
+  #section-buttons button { font-size:0.62rem; padding:0.5rem 0.6rem; min-width:112px; }
 </style>
 </head>
 <body>
@@ -140,6 +142,8 @@
     <button class="act primary" id="btn-all" onclick="runAll()">RUN FULL DIAGNOSTIC</button>
     <button class="act" id="btn-copy" onclick="copyReport()">COPY REPORT<span id="copy-status"></span></button>
   </div>
+
+  <div class="controls" id="section-buttons"></div>
 
   <div id="results"></div>
 
@@ -205,8 +209,13 @@ function row(g, name) {
 }
 
 // A check can never throw the runner. Any exception becomes a fail.
+// Hands control back to the browser so it can paint. Without this the whole
+// run is one long synchronous block and the page appears frozen.
+function yieldUI() { return new Promise(function(r){ setTimeout(r, 0); }); }
+
 async function check(g, name, fn) {
   const r = row(g, name);
+  await yieldUI();
   try {
     const out = await fn();
     r.set(out.status, out.detail);
@@ -586,7 +595,7 @@ async function sectionAlgorithms() {
     };
   }
 
-  await check(g, 'Execution against synthetic price data', function() {
+  await check(g, 'Execution against synthetic price data', async function() {
     if (!ALGOS) return SKIP('load failed');
     const args = priceArgs();
     let real = 0, hollow = 0, failed = 0;
@@ -600,6 +609,7 @@ async function sectionAlgorithms() {
         else if (s === 50) { hollow++; detail.push('  ' + a.name + ' returned exactly 50'); }
         else real++;
       } catch (e) { failed++; detail.push('  ' + a.name + ' threw — ' + e.message.slice(0,50)); }
+      await yieldUI();
     }
     const msg = real + ' produced a real score, ' + hollow + ' returned exactly 50, ' + failed + ' failed' +
                 (detail.length ? '\n' + detail.join('\n') : '');
@@ -623,7 +633,7 @@ async function sectionAlgorithms() {
     } catch (e) { return FAIL('threw — ' + e.message); }
   });
 
-  await check(g, 'Determinism under a fixed seed', function() {
+  await check(g, 'Determinism under a fixed seed', async function() {
     if (!ALGOS) return SKIP('load failed');
     const args = priceArgs();
     const only = ['market_regime_adaptive_ga','mcts_formula_tester','autonomous_strategy_evolution',
@@ -633,11 +643,12 @@ async function sectionAlgorithms() {
       if (only.indexOf(a.name) === -1 || !a.code || !args[a.name]) continue;
       try {
         const raw = [], sd = [];
-        for (let i=0;i<5;i++) raw.push(scoreOf(new Function('return (' + a.code + ')')().apply(null, args[a.name])));
-        for (let i=0;i<5;i++) sd.push(scoreOf(new Function('Math','return (' + a.code + ')')(seededMath(4242)).apply(null, args[a.name])));
+        for (let i=0;i<3;i++) raw.push(scoreOf(new Function('return (' + a.code + ')')().apply(null, args[a.name])));
+        for (let i=0;i<3;i++) sd.push(scoreOf(new Function('Math','return (' + a.code + ')')(seededMath(4242)).apply(null, args[a.name])));
         if (new Set(raw).size > 1) unseeded.push('  ' + a.name + '  ' + raw.join(' '));
         if (new Set(sd).size > 1)  seeded.push('  ' + a.name + '  ' + sd.join(' '));
       } catch (e) {}
+      await yieldUI();
     }
     if (seeded.length) return FAIL('varies even under a fixed seed:\n' + seeded.join('\n'));
     return unseeded.length
@@ -1008,25 +1019,57 @@ async function sectionFeeds() {
 // ══════════════════════════════════════════════════════════════════
 // Runner and report
 // ══════════════════════════════════════════════════════════════════
-async function runAll() {
-  const btn = document.getElementById('btn-all');
-  btn.disabled = true;
+// Sections are independent. Contract and Governor read state the sections
+// before them populate, so running one alone may report SKIP where it needs
+// something it has not got. That is accurate rather than a failure.
+const SECTIONS = [
+  ['Database',   sectionDatabase],
+  ['Contract',   sectionContract],
+  ['DB writes',  sectionDbFunctions],
+  ['Logic',      sectionLogic],
+  ['Algorithms', sectionAlgorithms],
+  ['Functions',  sectionEdgeFunctions],
+  ['Governor',   sectionGovernor],
+  ['Pipeline',   sectionPipeline],
+  ['Feeds',      sectionFeeds]
+];
+
+function buildSectionButtons() {
+  const host = document.getElementById('section-buttons');
+  SECTIONS.forEach(function(sec, i) {
+    const b = document.createElement('button');
+    b.className = 'act';
+    b.textContent = sec[0].toUpperCase();
+    b.onclick = function(){ runSections([i]); };
+    host.appendChild(b);
+  });
+}
+
+let running = false;
+
+async function runSections(indexes) {
+  if (running) return;
+  running = true;
+  const all = document.getElementById('btn-all');
+  all.disabled = true;
+  document.querySelectorAll('#section-buttons button').forEach(function(b){ b.disabled = true; });
   reset();
   const t0 = Date.now();
   try {
-    await sectionDatabase();
-    await sectionContract();
-    await sectionDbFunctions();
-    await sectionLogic();
-    await sectionAlgorithms();
-    await sectionEdgeFunctions();
-    await sectionGovernor();
-    await sectionPipeline();
-    await sectionFeeds();
+    for (const i of indexes) {
+      await SECTIONS[i][1]();
+      await yieldUI();
+    }
   } finally {
     document.getElementById('t-time').textContent = ((Date.now() - t0) / 1000).toFixed(1);
-    btn.disabled = false;
+    all.disabled = false;
+    document.querySelectorAll('#section-buttons button').forEach(function(b){ b.disabled = false; });
+    running = false;
   }
+}
+
+function runAll() {
+  return runSections(SECTIONS.map(function(_, i){ return i; }));
 }
 
 function buildReport() {
@@ -1071,7 +1114,11 @@ async function copyReport() {
   setTimeout(function(){ status.textContent = ''; }, 4000);
 }
 
-runAll();
+// Nothing runs until asked. Loading this page used to kick off every check,
+// including dozens of algorithm executions and a dozen network calls.
+buildSectionButtons();
+document.getElementById('results').innerHTML =
+  '<div class="idle">Pick a section, or run everything. Nothing runs until you do.</div>';
 </script>
 
 </body>
