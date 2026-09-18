@@ -309,11 +309,28 @@ async function fnCall(name, body, timeoutMs) {
 }
 
 let CONTRACT = null, ALGOS = null;
+
+// Sections run independently. Anything that needs the contract loads it rather
+// than assuming the Contract section ran first — that assumption is why five
+// checks skipped and why the lifted scoreDeterministic threw on an undefined
+// THRESHOLDS[mode].
+async function ensureContract() {
+  if (CONTRACT) return CONTRACT;
+  const res = await db.from('scoring_contract').select('*').eq('id', 1).maybeSingle();
+  if (!res.error && res.data) CONTRACT = res.data;
+  return CONTRACT;
+}
 // Per-algorithm execution time, measured once, used to decide what is cheap
 // enough to run repeatedly.
 let TIMINGS = {};
 const SLOW_MS = 250;
 const REAL_BARS = { prices: null, volumes: null };
+// Handing the lifted functions an empty object made THRESHOLDS[mode] undefined,
+// and limits() then threw reading .direction off it.
+const FALLBACK_CONTRACT = {
+  stock:  { opportunity: 70, direction: 60, signalQuality: 60 },
+  crypto: { opportunity: 50, direction: 55, signalQuality: 45 }
+};
 // The Governor excludes this one: a real GRU pass costs ~3.8s CPU and is what
 // killed the edge worker with HTTP 546. Running it here would freeze the page
 // for the same reason, so this page honours the same exclusion.
@@ -941,6 +958,7 @@ async function sectionWorkers() {
 // ══════════════════════════════════════════════════════════════════
 async function sectionGovernor() {
   const g = group('Governor — response contract');
+  await ensureContract();
 
   // Sections run independently, so this cannot assume the Functions section
   // already populated GOV.base. Previously running Governor alone skipped five
@@ -1117,6 +1135,7 @@ function sliceTopLevel(src, header) {
 
 async function sectionLiveCode() {
   const g = group('Live code from simulator.html');
+  await ensureContract();
 
   await check(g, 'Fetch the deployed simulator', async function() {
     const r = await fetch('simulator.html', { cache: 'no-store' });
@@ -1210,6 +1229,8 @@ async function sectionLiveCode() {
 // ══════════════════════════════════════════════════════════
 async function sectionWorkflow() {
   const g = group('End-to-end workflow');
+  await ensureContract();
+  if (!LIVE) await sectionLiveCode();
   const trace = {};
 
   await check(g, '1. Universe loads for the active mode', async function() {
@@ -1245,7 +1266,7 @@ async function sectionWorkflow() {
 
   await check(g, '3. Deployed scorer reproduces the Governor', function() {
     if (!LIVE || !trace.gov) return SKIP('needs the live file and a Governor response');
-    const L = LIVE.factory(CONTRACT || {}, trace.mode, false, 'deterministic');
+    const L = LIVE.factory(CONTRACT || FALLBACK_CONTRACT, trace.mode, false, 'deterministic');
     const det = L.scoreDeterministic(trace.gov);
     if (!det) return FAIL('the deployed scoreDeterministic returned null on a real Governor response' +
       '\nUsually a missing entry_price, stop_loss, target_price or volatility_pct.');
@@ -1259,7 +1280,7 @@ async function sectionWorkflow() {
 
   await check(g, '4. Gate decides, for a stated reason', function() {
     if (!LIVE || !trace.gov || !trace.det) return SKIP('needs a scored candidate');
-    const L = LIVE.factory(CONTRACT || {}, trace.mode, false, 'deterministic');
+    const L = LIVE.factory(CONTRACT || FALLBACK_CONTRACT, trace.mode, false, 'deterministic');
     const lim = L.limits();
     const candidate = Object.assign({}, trace.gov, {
       composite_score: trace.det.composite,
