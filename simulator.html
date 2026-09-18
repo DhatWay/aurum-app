@@ -76,6 +76,7 @@ header {
   z-index: 1001;
 }
 
+
 main { padding: 2.5rem; max-width: 960px; margin: 0 auto; }
 
 .page-title {
@@ -692,8 +693,8 @@ footer p { font-size: 0.6rem; letter-spacing: 0.12em; color: var(--muted); text-
   <a href="tutorial.html">Tutorial</a>
   <a href="help.html">Help</a>
   <a href="assistant.html">Assistant</a>
-  <a href="diagnostic.html">Diagnostic</a>
-
+ <a href="diagnostic.html">Diagnostic</a>
+  
 </div>
 
 <main>
@@ -3423,7 +3424,12 @@ function scoreDeterministic(gov) {
   if (composite === null) return null;
   const opportunity = computeOpportunity(gov, composite);
   if (opportunity === null) return null;
-  const direction = composite > 60 ? 'LONG' : composite < 40 ? 'SHORT' : 'NONE';
+  // The band comes from the contract, not a literal. Hardcoded 60/40 meant a
+  // crypto composite of 56 was stamped NONE and discarded here, while the
+  // Governor — which reads the contract — called the same number LONG. The
+  // crypto floor of 55 was unreachable on this side.
+  const band = Number(limits().direction) || 60;
+  const direction = composite > band ? 'LONG' : composite < (100 - band) ? 'SHORT' : 'NONE';
   return { composite, opportunity, direction };
 }
 
