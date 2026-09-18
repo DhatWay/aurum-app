@@ -76,7 +76,6 @@ header {
   z-index: 1001;
 }
 
-
 main { padding: 2.5rem; max-width: 960px; margin: 0 auto; }
 
 .page-title {
@@ -693,7 +692,6 @@ footer p { font-size: 0.6rem; letter-spacing: 0.12em; color: var(--muted); text-
   <a href="tutorial.html">Tutorial</a>
   <a href="help.html">Help</a>
   <a href="assistant.html">Assistant</a>
-  <a href="diagnostic.html">Diagnostic</a>
 </div>
 
 <main>
@@ -1858,7 +1856,7 @@ ${jsonExample}`;
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + GOVERNOR_ANON_KEY },
       body: JSON.stringify({ prompt, max_tokens: 1500 })
-    }, 30000);
+    }, 90000);
 
     // Check HTTP status BEFORE parsing — a 500/504 often returns HTML, not JSON
     if (!res.ok) {
@@ -3679,6 +3677,26 @@ async function getPortfolioBalance() {
 
 // Run the Governor for a single ticker. Returns null on any failure so one
 // bad ticker never aborts the whole scan.
+// Every scoring failure used to return an identical bare null, so four
+// different causes — timeout, HTTP error, no entry price, no direction —
+// looked the same in the log. Recorded here and summarised per wave.
+let scoreFailures = [];
+function noteScoreFailure(ticker, why) {
+  scoreFailures.push({ ticker: ticker, why: why });
+}
+function summariseScoreFailures() {
+  if (!scoreFailures.length) return '';
+  const byReason = {};
+  scoreFailures.forEach(function(f) {
+    const key = f.why.replace(/[0-9.]+/g, 'N');
+    (byReason[key] = byReason[key] || []).push(f.ticker);
+  });
+  return Object.keys(byReason).map(function(k) {
+    const t = byReason[k];
+    return t.length + ' x ' + k + ' (' + t.slice(0,4).join(', ') + (t.length > 4 ? '…' : '') + ')';
+  }).join(' | ');
+}
+
 async function scoreTicker(ticker, balance) {
   try {
     const res = await fetchWithTimeout(GOVERNOR_EDGE_URL, {
@@ -3698,10 +3716,16 @@ async function scoreTicker(ticker, balance) {
         // costs nothing and runs with no API key.
         skip_ai:           scoringMode === 'deterministic'
       })
-    }, 30000);
-    if (!res.ok) return null;
+      // Opus with 500 max_tokens routinely takes 20-40s, and the Governor runs
+      // up to 8s of algorithms in front of it. At 30s the browser abandoned
+      // calls that Anthropic had already billed, and every abandoned call
+      // returned a bare null — so the scan reported nothing scored, nothing
+      // rejected, and no reason, having paid for all of it.
+    }, scoringMode === 'deterministic' ? 45000 : 90000);
+    if (!res.ok) { noteScoreFailure(ticker, 'http_' + res.status); return null; }
     const g = await res.json();
-    if (g.error || !g.entry_price) return null;
+    if (g.error)         { noteScoreFailure(ticker, 'governor: ' + g.error); return null; }
+    if (!g.entry_price)  { noteScoreFailure(ticker, 'no entry price returned'); return null; }
     checkContractDrift(g);
 
     // In deterministic mode the Governor returns raw algorithm scores and no
@@ -3715,8 +3739,8 @@ async function scoreTicker(ticker, balance) {
         stop_loss:        null,
         target_price:     null,
       });
-      if (!det) return null;
-      if (det.direction === 'NONE') return null;
+      if (!det) { noteScoreFailure(ticker, 'deterministic scorer returned nothing'); return null; }
+      if (det.direction === 'NONE') { noteScoreFailure(ticker, 'direction NONE at composite ' + det.composite); return null; }
 
       // Volatility-scaled stop, 2:1 target — the same geometry the Governor
       // is instructed to produce.
@@ -3744,6 +3768,7 @@ async function scoreTicker(ticker, balance) {
     // Overlay the deterministic view; which one is authoritative depends on mode
     return applyScoringMode(g);
   } catch(e) {
+    noteScoreFailure(ticker, (e && e.message) || 'unknown error');
     return null;
   }
 }
@@ -3832,7 +3857,7 @@ async function decideAllocations(scored, needed) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + GOVERNOR_ANON_KEY },
     body: JSON.stringify({ prompt, max_tokens: 1500 })
-  }, 30000);
+  }, 90000);
 
   if (!res.ok) throw new Error('Allocator returned HTTP ' + res.status + ': ' + await readErrorBody(res));
 
@@ -4193,7 +4218,12 @@ async function runAutonomousCycle(manualTrigger) {
 
       autoLog('Wave ' + wave + ' — scoring ' + batch.length + ' tickers, need ' + needed + ' more (' + openCount + '/' + preset().positions + ' open)');
 
+      scoreFailures = [];
       const scored = await scoreAllCandidates(batch, balance);
+      if (scoreFailures.length) {
+        autoLog('Wave ' + wave + ' — ' + scoreFailures.length + ' of ' + batch.length +
+                ' could not be scored: ' + summariseScoreFailures());
+      }
       if (!scored.length) continue;
 
       // Hard filter before spending a Claude call
