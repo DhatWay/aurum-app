@@ -133,8 +133,8 @@
     </label>
     <label class="opt">
       <input type="checkbox" id="opt-slow">
-      <span>Include scheduled workers
-        <small>Invokes hyper-worker, smooth-worker, rapid-handler, clever-processor and smooth-api. These do real work and can be slow.</small></span>
+      <span>Invoke the two callable workers
+        <small>Actually runs rapid-handler and smooth-api. The others are cron-only and unreachable from a browser — the Workers section reads their last activity instead.</small></span>
     </label>
   </div>
 
@@ -255,6 +255,37 @@ function scoreOf(o) {
 function synthSeries(n, slope) {
   return Array.from({ length:n }, function(_, i){ return 100 + Math.sin(i/9)*8 + i*slope; });
 }
+// A resource kill (546) or a gateway error can be a cold start rather than a
+// real fault. Calling once cannot tell the difference. Calling twice can: fail
+// cold then pass warm is a startup cost problem, fail twice is a genuine
+// overrun. The second call is what turns 'HTTP 546' into an explanation.
+async function fnCallDiagnosed(name, body, timeoutMs) {
+  const first = await fnCall(name, body, timeoutMs);
+  if (first.ok || first.unreachable) return first;
+  if ([500, 502, 503, 546].indexOf(first.status) === -1) return first;
+  await new Promise(function(r){ setTimeout(r, 1200); });
+  const second = await fnCall(name, body, timeoutMs);
+  second.firstStatus = first.status;
+  second.retried = true;
+  second.coldStart = second.ok;
+  return second;
+}
+
+function explainFailure(out) {
+  if (out.unreachable) return 'not reachable from the browser — ' + out.error;
+  if (out.status === 546)
+    return 'HTTP 546 — the worker was killed for exceeding its CPU or memory limit.' +
+           (out.retried ? '\nA retry also failed, so this is a genuine overrun rather than a cold start.' : '');
+  if (out.status === 502 || out.status === 503)
+    return 'HTTP ' + out.status + ' — the worker did not return a response. Usually the same CPU kill seen from the gateway side.';
+  if (out.status === 500) {
+    const msg = (out.body && out.body.error) || out.text || '';
+    return 'HTTP 500 — the function threw.' + (msg ? '\n' + String(msg).slice(0,200) : '\nNo error body returned; check the function logs.');
+  }
+  if (out.status === 401 || out.status === 403) return 'HTTP ' + out.status + ' — the key was rejected.';
+  return 'HTTP ' + out.status + ' ' + String(out.text || '').slice(0,140);
+}
+
 async function fnCall(name, body, timeoutMs) {
   const ctrl = new AbortController();
   const timer = setTimeout(function(){ ctrl.abort(); }, timeoutMs || 45000);
@@ -730,13 +761,14 @@ async function sectionEdgeFunctions() {
   const g = group('Edge functions');
 
   await check(g, 'clever-responder (Governor)', async function() {
-    const out = await fnCall('clever-responder', { ticker:'BTC', mode:'crypto', strategy:'swing', skip_ai:true }, 60000);
-    if (out.unreachable) return FAIL('not reachable — ' + out.error);
-    if (out.status === 546) return FAIL('HTTP 546 — the worker exceeded its CPU or memory limit and was killed.' +
-      '\nAn algorithm is costing more than the budget allows. algorithm_timings_ms in a successful response shows which.');
-    if (!out.ok) return FAIL('HTTP ' + out.status + ' ' + (out.text || '').slice(0,140));
+    const out = await fnCallDiagnosed('clever-responder', { ticker:'BTC', mode:'crypto', strategy:'swing', skip_ai:true }, 60000);
+    if (!out.ok) return FAIL(explainFailure(out));
     if (out.body && out.body.error) return FAIL(out.body.error);
     GOV.base = out.body;
+    if (out.coldStart) {
+      return WARN('First call returned HTTP ' + out.firstStatus + ', the retry succeeded — cold start.' +
+        '\nexecuted ' + out.body.algorithms_executed + ', CPU ' + (out.body.algorithm_cpu_ms || '?') + 'ms');
+    }
     return PASS('scored BTC — executed ' + out.body.algorithms_executed +
                 ', failed ' + out.body.algorithms_failed +
                 ', excluded ' + out.body.algorithms_excluded);
@@ -788,31 +820,99 @@ async function sectionEdgeFunctions() {
     return PASS('Anthropic reachable, replied: ' + String(txt).trim().slice(0,60));
   });
 
-  const slow = document.getElementById('opt-slow').checked;
-  const workers = [['hyper-worker','analyses the stocks watchlist'],
-                   ['smooth-worker','emails the latest picks'],
-                   ['rapid-handler','scheduled strategy monitor'],
-                   ['clever-processor','SEC filing scan'],
-                   ['smooth-api','cluster picks']];
-  for (const w of workers) {
+  const invokeWorkers = document.getElementById('opt-slow').checked;
+  // Only these two answer a browser. The rest are cron-only with no CORS
+  // handler, so calling them proves nothing either way — the Workers section
+  // reads what they leave behind instead.
+  for (const w of [['rapid-handler','scheduled strategy monitor'],
+                   ['smooth-api','builds picks from Governor output']]) {
     await check(g, w[0], async function() {
-      if (!slow) return SKIP('disabled — ' + w[1]);
-      const out = await fnCall(w[0], {}, 90000);
-      if (out.unreachable) {
-        // Scheduled functions are invoked by cron with a service role key and
-        // never by a browser, so most have no CORS handler. Being unreachable
-        // from here says nothing about whether they work.
-        return out.aborted
-          ? WARN('no response within 90s — ' + w[1])
-          : WARN('not reachable from a browser (no CORS handler). Expected for a cron-only function — ' + w[1] +
-                 '.\nCheck it in the Supabase function logs instead.');
-      }
-      if (!out.ok) return FAIL('HTTP ' + out.status + ' ' + (out.text || '').slice(0,140));
+      if (!invokeWorkers) return SKIP('invocation disabled — ' + w[1]);
+      const out = await fnCallDiagnosed(w[0], {}, 90000);
+      if (out.unreachable) return WARN('not reachable from a browser — ' + out.error);
+      if (!out.ok) return FAIL(explainFailure(out));
       return PASS(((out.text || JSON.stringify(out.body)) || '').slice(0,220));
     });
   }
 }
 
+// ══════════════════════════════════════════════════════════
+// SCHEDULED WORKERS — judged by their footprint, not by calling them
+//
+// Cron invokes these with a service role key and they have no CORS handler,
+// so a browser cannot reach them and an unreachable result means nothing.
+// What does mean something is whether their output is recent. Each one writes
+// somewhere; this reads that.
+// ══════════════════════════════════════════════════════════
+function ageString(iso) {
+  if (!iso) return 'never';
+  const h = (Date.now() - new Date(iso).getTime()) / 3600000;
+  if (h < 1)  return Math.round(h * 60) + ' minutes ago';
+  if (h < 48) return h.toFixed(1) + ' hours ago';
+  return (h / 24).toFixed(1) + ' days ago';
+}
+
+async function sectionWorkers() {
+  const g = group('Scheduled workers — last activity');
+
+  const logged = [
+    ['clever-responder (Governor)', 'governor',         24],
+    ['quick-service (monitor)',     'position_monitor', 24],
+    ['quick-service (alerts)',      'position_alert',   72],
+    ['clever-processor (news)',     'news-fetcher',     48]
+  ];
+  for (const w of logged) {
+    await check(g, w[0], async function() {
+      const res = await db.from('algorithm_log').select('created_at')
+        .eq('algorithm_name', w[1]).order('created_at', { ascending:false }).limit(1);
+      if (res.error) return WARN('algorithm_log not readable — ' + res.error.message);
+      if (!res.data || !res.data.length) return WARN('has never written to algorithm_log under "' + w[1] + '"');
+      const last = res.data[0].created_at;
+      const hrs = (Date.now() - new Date(last).getTime()) / 3600000;
+      return hrs > w[2]
+        ? WARN('last ran ' + ageString(last) + ' — expected within ' + w[2] + 'h. Check its cron schedule.')
+        : PASS('last ran ' + ageString(last));
+    });
+  }
+
+  await check(g, 'rapid-handler (strategy switches)', async function() {
+    const res = await db.from('strategy_switches').select('created_at, from_strategy, to_strategy')
+      .order('created_at', { ascending:false }).limit(1);
+    if (res.error) return WARN('strategy_switches not present — ' + res.error.message.slice(0,80));
+    if (!res.data || !res.data.length) return PASS('no switches recorded. Normal — it only writes when it changes strategy.');
+    const r = res.data[0];
+    return PASS('last switch ' + ageString(r.created_at) +
+                (r.from_strategy ? ' (' + r.from_strategy + ' to ' + r.to_strategy + ')' : ''));
+  });
+
+  await check(g, 'smooth-worker (pick emails)', function() {
+    // It reads picks and sends mail, writing nothing. There is no footprint to
+    // read — a genuine blind spot, stated rather than guessed at.
+    return WARN('leaves no database trace. Its only evidence is the Supabase function log, or whether the email arrived.');
+  });
+
+  await check(g, 'picks table integrity', async function() {
+    const res = await db.from('picks').select('ticker, score, entry_price, signals, created_at')
+      .order('created_at', { ascending:false }).limit(50);
+    if (res.error) return FAIL(res.error.message);
+    const rows = res.data || [];
+    if (!rows.length) return WARN('picks is empty');
+    // hyper-worker deletes every row in picks and inserts fabricated ones:
+    // Math.random() scores, a templated brief, entry_price 0, tagged source
+    // "mock". Anything downstream reading picks reads those as real.
+    const mock = rows.filter(function(r) {
+      const src = r.signals && r.signals.source;
+      return src === 'mock' || (Number(r.entry_price) === 0 && !!r.score);
+    });
+    if (mock.length) {
+      return FAIL(mock.length + ' of ' + rows.length + ' picks are fabricated — random scores, entry_price 0, source "mock".' +
+        '\nhyper-worker wipes the picks table and inserts these, so anything reading picks is reading noise.' +
+        '\nAffected: ' + mock.slice(0,6).map(function(r){ return r.ticker + ' (' + r.score + ')'; }).join(', ') +
+        '\nDisable that cron job or replace its body. This is not something the diagnostic can fix.');
+    }
+    return PASS(rows.length + ' picks, newest ' + ageString(rows[0].created_at) + ', none fabricated');
+  });
+}
 // ══════════════════════════════════════════════════════════════════
 // GOVERNOR — contract and full mode matrix
 // ══════════════════════════════════════════════════════════════════
@@ -850,6 +950,25 @@ async function sectionGovernor() {
       names.map(function(k){ return '  ' + k + ' — ' + reasons[k]; }).join('\n'));
   });
 
+  await check(g, 'CPU headroom', function() {
+    if (!GOV.base) return SKIP('Governor call failed');
+    const t = GOV.base.algorithm_timings_ms || {};
+    const cpu = GOV.base.algorithm_cpu_ms;
+    if (cpu === undefined) return WARN('this Governor build does not report algorithm_cpu_ms');
+    const ranked = Object.keys(t).sort(function(a,b){ return t[b]-t[a]; }).slice(0,5);
+    const lines = ranked.map(function(k){
+      return '  ' + k + '  ' + t[k] + 'ms  (' + Math.round(t[k]/Math.max(cpu,1)*100) + '%)';
+    });
+    const skipped = Object.keys(GOV.base.excluded_reasons || {}).filter(function(k){
+      return /CPU|budget|worker limit/i.test(GOV.base.excluded_reasons[k]);
+    });
+    const verdict = cpu > 2000 ? WARN : PASS;
+    return verdict('algorithms used ' + cpu + 'ms of CPU' +
+      (cpu > 2000 ? ' — close enough to the worker limit that a cold start can push it over' : '') +
+      '\n' + lines.join('\n') +
+      (skipped.length ? '\nalready skipped for cost: ' + skipped.join(', ') : ''));
+  });
+
   await check(g, 'Repeat scan is reproducible', async function() {
     if (!GOV.base) return SKIP('Governor call failed');
     const again = await fnCall('clever-responder', { ticker:'BTC', mode:'crypto', strategy:'swing', skip_ai:true }, 60000);
@@ -870,10 +989,21 @@ async function sectionGovernor() {
 
   for (const c of combos) {
     await check(gm, c.mode + ' / ' + c.strategy + ' / deterministic', async function() {
-      const out = await fnCall('clever-responder',
+      const out = await fnCallDiagnosed('clever-responder',
         { ticker:c.ticker, mode:c.mode, strategy:c.strategy, instrument:'stock', skip_ai:true }, 60000);
-      if (!out.ok || !out.body) return FAIL('HTTP ' + out.status + ' ' + (out.text || '').slice(0,140));
+      if (!out.ok || !out.body) return FAIL(explainFailure(out));
       if (out.body.error) return FAIL(out.body.error);
+      if (out.coldStart) {
+        const t = out.body.algorithm_timings_ms || {};
+        const cpu = out.body.algorithm_cpu_ms || Object.keys(t).reduce(function(a,k){ return a+t[k]; }, 0);
+        const worst = Object.keys(t).sort(function(a,b){ return t[b]-t[a]; })[0];
+        return WARN('First call returned HTTP ' + out.firstStatus + ', the retry succeeded.' +
+          '\nThat is cold-start cost, not a broken function: module init spends CPU before any algorithm runs, ' +
+          'and the algorithms then need ' + cpu + 'ms on top.' +
+          (worst ? '\nHeaviest algorithm: ' + worst + ' at ' + t[worst] + 'ms, ' +
+                   Math.round(t[worst]/Math.max(cpu,1)*100) + '% of the algorithm budget.' : '') +
+          '\nLower CPU_CEILING_MS until the total fits a cold start.');
+      }
       const b = out.body, sa = b.strategy_applied || {};
       const expectLo = c.strategy === 'swing' ? 2.5 : 1.5;
       const okStrategy = sa.stop_atr_range && Number(sa.stop_atr_range[0]) === expectLo;
@@ -1058,12 +1188,11 @@ async function sectionWorkflow() {
 
   await check(g, '2. Governor scores it', async function() {
     if (!trace.ticker) return SKIP('no ticker');
-    const out = await fnCall('clever-responder',
+    const out = await fnCallDiagnosed('clever-responder',
       { ticker:trace.ticker, mode:trace.mode, strategy:trace.strategy,
         instrument: trace.mode === 'crypto' ? 'crypto' : 'stock', skip_ai:true }, 60000);
-    if (out.unreachable) return FAIL('not reachable — ' + out.error);
-    if (out.status === 546) return FAIL('HTTP 546 — the worker was killed on CPU');
-    if (!out.ok || !out.body || out.body.error) return FAIL((out.body && out.body.error) || ('HTTP ' + out.status));
+    if (!out.ok || !out.body) return FAIL(explainFailure(out));
+    if (out.body.error) return FAIL(out.body.error);
     trace.gov = out.body;
     const t = out.body.algorithm_timings_ms || {};
     const keys = Object.keys(t).sort(function(a,b){ return t[b] - t[a]; });
@@ -1112,7 +1241,10 @@ async function sectionWorkflow() {
     if (!b.entry_price) return WARN('no entry price returned — deterministic mode leaves levels to the client');
     const dir = String(trace.det ? trace.det.direction : b.direction).toUpperCase();
     if (dir === 'NONE') return PASS('direction NONE — no trade, so no levels to check');
-    if (!b.stop_loss || !b.target_price) return WARN('no stop or target returned alongside the entry price');
+    // In deterministic mode the Governor deliberately returns no levels — the
+    // client computes them from volatility. That is the design, not a fault.
+    if (!b.stop_loss || !b.target_price)
+      return PASS('no stop or target, as expected in deterministic mode — the client sets levels from volatility');
     const geomOk = dir === 'LONG' ? (b.stop_loss < b.entry_price && b.target_price > b.entry_price)
                                   : (b.stop_loss > b.entry_price && b.target_price < b.entry_price);
     const rr = Math.abs(b.target_price - b.entry_price) / Math.abs(b.entry_price - b.stop_loss);
@@ -1362,6 +1494,7 @@ const SECTIONS = [
   ['Algorithms', sectionAlgorithms],
   ['Live code',  sectionLiveCode],
   ['Functions',  sectionEdgeFunctions],
+  ['Workers',    sectionWorkers],
   ['Governor',   sectionGovernor],
   ['Workflow',   sectionWorkflow],
   ['Pipeline',   sectionPipeline],
