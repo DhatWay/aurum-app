@@ -844,6 +844,25 @@ async function sectionEdgeFunctions() {
 // What does mean something is whether their output is recent. Each one writes
 // somewhere; this reads that.
 // ══════════════════════════════════════════════════════════
+// Timestamp columns are not named consistently across these tables — picks
+// uses picked_at, others differ. Rather than guess, read one row and find the
+// column that actually holds a date.
+const TS_CACHE = {};
+async function timestampColumn(table) {
+  if (TS_CACHE[table] !== undefined) return TS_CACHE[table];
+  const res = await db.from(table).select('*').limit(1);
+  if (res.error || !res.data || !res.data.length) { TS_CACHE[table] = null; return null; }
+  const row = res.data[0];
+  const preferred = ['created_at','picked_at','logged_at','inserted_at','timestamp','run_at','scored_at','updated_at','switched_at'];
+  for (const c of preferred) if (row[c]) { TS_CACHE[table] = c; return c; }
+  for (const k of Object.keys(row)) {
+    const v = row[k];
+    if (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(v)) { TS_CACHE[table] = k; return k; }
+  }
+  TS_CACHE[table] = null;
+  return null;
+}
+
 function ageString(iso) {
   if (!iso) return 'never';
   const h = (Date.now() - new Date(iso).getTime()) / 3600000;
@@ -863,11 +882,13 @@ async function sectionWorkers() {
   ];
   for (const w of logged) {
     await check(g, w[0], async function() {
-      const res = await db.from('algorithm_log').select('created_at')
-        .eq('algorithm_name', w[1]).order('created_at', { ascending:false }).limit(1);
+      const ts = await timestampColumn('algorithm_log');
+      if (!ts) return WARN('algorithm_log has no readable timestamp column');
+      const res = await db.from('algorithm_log').select(ts)
+        .eq('algorithm_name', w[1]).order(ts, { ascending:false }).limit(1);
       if (res.error) return WARN('algorithm_log not readable — ' + res.error.message);
       if (!res.data || !res.data.length) return WARN('has never written to algorithm_log under "' + w[1] + '"');
-      const last = res.data[0].created_at;
+      const last = res.data[0][ts];
       const hrs = (Date.now() - new Date(last).getTime()) / 3600000;
       return hrs > w[2]
         ? WARN('last ran ' + ageString(last) + ' — expected within ' + w[2] + 'h. Check its cron schedule.')
@@ -876,12 +897,13 @@ async function sectionWorkers() {
   }
 
   await check(g, 'rapid-handler (strategy switches)', async function() {
-    const res = await db.from('strategy_switches').select('created_at, from_strategy, to_strategy')
-      .order('created_at', { ascending:false }).limit(1);
-    if (res.error) return WARN('strategy_switches not present — ' + res.error.message.slice(0,80));
+    const ts = await timestampColumn('strategy_switches');
+    const res = await db.from('strategy_switches').select('*')
+      .order(ts || 'id', { ascending:false }).limit(1);
+    if (res.error) return WARN('strategy_switches not readable — ' + res.error.message.slice(0,90));
     if (!res.data || !res.data.length) return PASS('no switches recorded. Normal — it only writes when it changes strategy.');
     const r = res.data[0];
-    return PASS('last switch ' + ageString(r.created_at) +
+    return PASS('last switch ' + ageString(ts ? r[ts] : null) +
                 (r.from_strategy ? ' (' + r.from_strategy + ' to ' + r.to_strategy + ')' : ''));
   });
 
@@ -892,8 +914,9 @@ async function sectionWorkers() {
   });
 
   await check(g, 'picks table integrity', async function() {
-    const res = await db.from('picks').select('ticker, score, entry_price, signals, created_at')
-      .order('created_at', { ascending:false }).limit(50);
+    const ts = await timestampColumn('picks');
+    const res = await db.from('picks').select('*')
+      .order(ts || 'id', { ascending:false }).limit(50);
     if (res.error) return FAIL(res.error.message);
     const rows = res.data || [];
     if (!rows.length) return WARN('picks is empty');
@@ -910,7 +933,7 @@ async function sectionWorkers() {
         '\nAffected: ' + mock.slice(0,6).map(function(r){ return r.ticker + ' (' + r.score + ')'; }).join(', ') +
         '\nDisable that cron job or replace its body. This is not something the diagnostic can fix.');
     }
-    return PASS(rows.length + ' picks, newest ' + ageString(rows[0].created_at) + ', none fabricated');
+    return PASS(rows.length + ' picks, newest ' + ageString(ts ? rows[0][ts] : null) + ', none fabricated');
   });
 }
 // ══════════════════════════════════════════════════════════════════
@@ -918,6 +941,23 @@ async function sectionWorkers() {
 // ══════════════════════════════════════════════════════════════════
 async function sectionGovernor() {
   const g = group('Governor — response contract');
+
+  // Sections run independently, so this cannot assume the Functions section
+  // already populated GOV.base. Previously running Governor alone skipped five
+  // checks for a call that had never been attempted.
+  if (!GOV.base) {
+    await check(g, 'Baseline scoring call', async function() {
+      const out = await fnCallDiagnosed('clever-responder',
+        { ticker:'BTC', mode:'crypto', strategy:'swing', skip_ai:true }, 60000);
+      if (!out.ok || !out.body) return FAIL(explainFailure(out));
+      if (out.body.error) return FAIL(out.body.error);
+      GOV.base = out.body;
+      return out.coldStart
+        ? WARN('first call returned HTTP ' + out.firstStatus + ', the retry succeeded — cold start.' +
+               '\nexecuted ' + out.body.algorithms_executed + ', CPU ' + (out.body.algorithm_cpu_ms || '?') + 'ms')
+        : PASS('executed ' + out.body.algorithms_executed + ', CPU ' + (out.body.algorithm_cpu_ms || '?') + 'ms');
+    });
+  }
 
   await check(g, 'All expected fields present', function() {
     if (!GOV.base) return SKIP('Governor call failed');
