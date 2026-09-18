@@ -76,7 +76,6 @@ header {
   z-index: 1001;
 }
 
-
 main { padding: 2.5rem; max-width: 960px; margin: 0 auto; }
 
 .page-title {
@@ -693,8 +692,7 @@ footer p { font-size: 0.6rem; letter-spacing: 0.12em; color: var(--muted); text-
   <a href="tutorial.html">Tutorial</a>
   <a href="help.html">Help</a>
   <a href="assistant.html">Assistant</a>
- <a href="diagnostic.html">Diagnostic</a>
-  
+  <a href="diagnostic.html">Diagnostic</a>
 </div>
 
 <main>
@@ -3422,8 +3420,12 @@ function computeOpportunity(gov, composite) {
 function scoreDeterministic(gov) {
   const composite = computeComposite(gov.algorithm_scores, gov.algorithm_supplied);
   if (composite === null) return null;
+  // Opportunity needs a stop and a target. In deterministic mode those do not
+  // exist yet — scoreTicker calls this precisely to LEARN the direction so it
+  // can place them, then recomputes opportunity. Bailing here meant that call
+  // always returned null, so deterministic mode could never produce a single
+  // candidate. A null opportunity is a not-yet, not a failure.
   const opportunity = computeOpportunity(gov, composite);
-  if (opportunity === null) return null;
   // The band comes from the contract, not a literal. Hardcoded 60/40 meant a
   // crypto composite of 56 was stamped NONE and discarded here, while the
   // Governor — which reads the contract — called the same number LONG. The
@@ -3750,13 +3752,19 @@ async function scoreTicker(ticker, balance) {
       if (!det) { noteScoreFailure(ticker, 'deterministic scorer returned nothing'); return null; }
       if (det.direction === 'NONE') { noteScoreFailure(ticker, 'direction NONE at composite ' + det.composite); return null; }
 
-      // Volatility-scaled stop, 2:1 target — the same geometry the Governor
-      // is instructed to produce.
+      // Levels must match the strategy the Governor scored under, not a fixed
+      // 2x stop and 2:1 target. The Governor returns exactly what it used in
+      // strategy_applied, so take it from there rather than keeping a second
+      // copy here that can drift.
       const entry    = Number(g.entry_price);
       const vol      = Number(g.volatility_pct) || 3;
-      const stopDist = entry * (vol / 100) * 2;
+      const sa       = g.strategy_applied || {};
+      const atrRange = Array.isArray(sa.stop_atr_range) ? sa.stop_atr_range : [1.5, 2.5];
+      const stopMult = (Number(atrRange[0]) + Number(atrRange[1])) / 2;
+      const rr       = Number(sa.min_rr) || 2;
+      const stopDist = entry * (vol / 100) * stopMult;
       g.stop_loss    = det.direction === 'LONG' ? entry - stopDist : entry + stopDist;
-      g.target_price = det.direction === 'LONG' ? entry + stopDist * 2 : entry - stopDist * 2;
+      g.target_price = det.direction === 'LONG' ? entry + stopDist * rr : entry - stopDist * rr;
 
       // Recompute opportunity now that real levels exist
       const opp = computeOpportunity(g, det.composite);
@@ -3767,7 +3775,7 @@ async function scoreTicker(ticker, balance) {
       g.signal_quality    = Math.min(40 + (g.algorithms_executed || 0) * 2, 95);
       g.confidence        = g.opportunity_score >= 70 ? 'High'
                           : g.opportunity_score >= 55 ? 'Medium' : 'Low';
-      g.reward_risk       = 2.0;
+      g.reward_risk       = rr;
       g.moves_to_target   = vol > 0 ? Math.round((Math.abs(g.target_price - entry) / entry * 100 / vol) * 100) / 100 : null;
       g._det              = { composite: det.composite, opportunity: g.opportunity_score, direction: det.direction };
       return g;
