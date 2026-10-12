@@ -838,6 +838,22 @@
 </main>
 
 <script>
+
+// ── MARKET DATA VIA PROXY ──
+// Provider keys used to sit in this file, which GitHub Pages serves publicly.
+// They now live as secrets on the market-proxy edge function; this calls that
+// and returns the provider's own response body unchanged.
+async function marketProxy(payload) {
+  const base = (typeof SUPABASE_URL !== 'undefined' && SUPABASE_URL)
+    ? SUPABASE_URL : 'https://zpcbbwynvvyldavxzjng.supabase.co';
+  const key = (typeof SUPABASE_KEY !== 'undefined' && SUPABASE_KEY) ? SUPABASE_KEY
+            : (typeof GOVERNOR_ANON_KEY !== 'undefined' ? GOVERNOR_ANON_KEY : '');
+  return await fetch(base + '/functions/v1/market-proxy', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
+    body: JSON.stringify(payload),
+  });
+}
   const SUPABASE_URL = 'https://zpcbbwynvvyldavxzjng.supabase.co';
   const SUPABASE_KEY = 'sb_publishable_K80lcfk8LsQNqo5enznRRA_lrzf2U9K';
   const { createClient } = supabase;
@@ -1219,8 +1235,7 @@ const parsed = JSON.parse(text.replace(/```json|```/g, '').trim());
             await db.from('stocks').update({ last_fetch_error: 'No CoinGecko ID mapped for ' + ticker }).eq('ticker', ticker);
           }
         } else {
-          const TWELVE_KEY = '1fbbfd6ec92c489ca009d00e7127fbe3';
-          const res = await fetch('https://api.twelvedata.com/quote?symbol=' + ticker + '&apikey=' + TWELVE_KEY);
+          const res = await marketProxy({ endpoint: 'twelve_quote', symbol: ticker });
           if (res.ok) {
             const q = await res.json();
             if (q && q.close && !q.code) {
@@ -1438,15 +1453,11 @@ const parsed = JSON.parse(text.replace(/```json|```/g, '').trim());
   }
 
   /* ── AUTO-RATE PICKS — populates self_ratings for picks 30+ days old ── */
-  const TWELVE_KEY_RATING = '1fbbfd6ec92c489ca009d00e7127fbe3';
 
   async function getPriceOnDate(ticker, dateStr) {
     try {
-      const res = await fetch(
-        'https://api.twelvedata.com/time_series?symbol=' + ticker +
-        '&interval=1day&start_date=' + dateStr + '&end_date=' + dateStr +
-        '&outputsize=1&apikey=' + TWELVE_KEY_RATING
-      );
+      const res = await marketProxy({ endpoint: 'twelve_time_series', symbol: ticker,
+        start_date: dateStr, end_date: dateStr, outputsize: 1 });
       if (!res.ok) return null;
       const data = await res.json();
       const bar = data?.values?.[0];
