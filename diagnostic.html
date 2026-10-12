@@ -417,6 +417,42 @@ async function sectionContract() {
     return PASS(out.join('\n'));
   });
 
+  // auth-guard.js runs before every page, so `db` here carries your session and
+  // proves nothing about an UNAUTHENTICATED request. PostgREST is public: a
+  // stranger can hit it with the anon key and no session. That is the case
+  // worth testing, and it needs a client with the session deliberately removed.
+  await check(g, 'Unauthenticated writes are refused', async function() {
+    const anon = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+      auth: { persistSession: false, autoRefreshToken: false, storageKey: 'aurum-anon-probe' }
+    });
+    const checks = [
+      ['algorithms',       function(c){ return c.from('algorithms').update({ updated_at: new Date().toISOString() }).neq('name','').select('name'); },
+       'algorithm code is executed by the Governor with a service-role key — a writable algorithms table is remote code execution'],
+      ['paper_trades',     function(c){ return c.from('paper_trades').insert({ ticker:'__ANON__', type:'LONG', status:'open', entry_price:1 }).select('id'); }, ''],
+      ['trading_settings', function(c){ return c.from('trading_settings').update({ live_armed:false }).neq('id','00000000-0000-0000-0000-000000000000').select('id'); }, ''],
+      ['scoring_contract', function(c){ return c.from('scoring_contract').update({ notes:'probe' }).eq('id',1).select('id'); }, '']
+    ];
+    const open = [], refused = [];
+    for (const t of checks) {
+      try {
+        const res = await t[1](anon);
+        if (res.error) { refused.push(t[0]); continue; }
+        const rows = res.data || [];
+        if (rows.length) {
+          open.push(t[0] + (t[2] ? ' — ' + t[2] : ''));
+          if (t[0] === 'paper_trades' && rows[0] && rows[0].id) {
+            await db.from('paper_trades').delete().eq('id', rows[0].id);
+          }
+        } else { refused.push(t[0]); }
+      } catch (e) { refused.push(t[0]); }
+    }
+    if (open.length) {
+      return FAIL('an unauthenticated request can write to: ' + open.join('; ') +
+        '\nRun lock_database_auth.sql, or add an RLS policy requiring auth.role() = \'authenticated\'.');
+    }
+    return PASS('all ' + refused.length + ' probes refused without a session: ' + refused.join(', '));
+  });
+
   await check(g, 'Thresholds are not writable from a browser', async function() {
     if (!CONTRACT) return SKIP('contract not loaded');
     // Without .select() PostgREST reports success whether or not RLS allowed
