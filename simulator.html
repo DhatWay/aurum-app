@@ -1044,6 +1044,22 @@ footer p { font-size: 0.6rem; letter-spacing: 0.12em; color: var(--muted); text-
 </footer>
 
 <script>
+
+// ── MARKET DATA VIA PROXY ──
+// Provider keys used to sit in this file, which GitHub Pages serves publicly.
+// They now live as secrets on the market-proxy edge function; this calls that
+// and returns the provider's own response body unchanged.
+async function marketProxy(payload) {
+  const base = (typeof SUPABASE_URL !== 'undefined' && SUPABASE_URL)
+    ? SUPABASE_URL : 'https://zpcbbwynvvyldavxzjng.supabase.co';
+  const key = (typeof SUPABASE_KEY !== 'undefined' && SUPABASE_KEY) ? SUPABASE_KEY
+            : (typeof GOVERNOR_ANON_KEY !== 'undefined' ? GOVERNOR_ANON_KEY : '');
+  return await fetch(base + '/functions/v1/market-proxy', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
+    body: JSON.stringify(payload),
+  });
+}
 const SUPABASE_URL = 'https://zpcbbwynvvyldavxzjng.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_K80lcfk8LsQNqo5enznRRA_lrzf2U9K';
 const { createClient } = supabase;
@@ -1620,13 +1636,12 @@ let priceCache = {};
 let watchlistTickers = [];
 
 // ── PRICE FEED ──
-const TWELVE_KEY = '1fbbfd6ec92c489ca009d00e7127fbe3';
 
 async function fetchLivePrices(tickers) {
   if (!tickers || !tickers.length) return {};
   try {
     const symbols = tickers.slice(0, 8).join(',');
-    const res = await fetch('https://api.twelvedata.com/quote?symbol=' + symbols + '&apikey=' + TWELVE_KEY);
+    const res = await marketProxy({ endpoint: 'twelve_quote', symbol: symbols });
     if (!res.ok) return {};
     const data = await res.json();
     const prices = {};
