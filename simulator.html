@@ -841,6 +841,7 @@ footer p { font-size: 0.6rem; letter-spacing: 0.12em; color: var(--muted); text-
       <button onclick="runRecalibration()" id="recal-btn" style="flex:1; min-width:120px; background:transparent; border:1px solid rgba(107,101,96,0.4); color:#6B6560; font-family:'DM Sans',sans-serif; font-size:0.7rem; letter-spacing:0.12em; padding:0.6rem; cursor:pointer;">RECALIBRATE</button>
     </div>
     <div id="backtest-output" style="font-size:0.68rem; font-family:'IBM Plex Mono',monospace; margin-top:0.6rem; line-height:1.7;"></div>
+    <div id="write-error" style="display:none; font-size:0.68rem; font-family:'IBM Plex Mono',monospace; color:#8B3A3A; border:1px solid rgba(139,58,58,0.5); padding:0.6rem; margin-top:0.6rem; line-height:1.5;"></div>
     <div id="contract-drift" style="display:none; font-size:0.68rem; font-family:'IBM Plex Mono',monospace; color:#8B3A3A; border:1px solid rgba(139,58,58,0.4); padding:0.5rem; margin-top:0.6rem; line-height:1.5;"></div>
     <div id="outcome-output" style="font-size:0.68rem; font-family:'IBM Plex Mono',monospace; margin-top:0.6rem; line-height:1.7;"></div>
     <div id="diag-output" style="font-size:0.68rem; font-family:'IBM Plex Mono',monospace; margin-top:0.8rem; line-height:1.7;"></div>
@@ -2239,7 +2240,7 @@ async function openTrade() {
     });
   }
 
-  await db.from('paper_trades').insert(record);
+  await writeOrWarn('open position', db.from('paper_trades').insert(record));
   await updatePortfolioBalance();
 
   // Clear form
@@ -2294,7 +2295,7 @@ async function executeClose(id, trade) {
   const swingExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
   const swingDirection = direction === 'long' ? 'short' : 'long';
 
-  await db.from('paper_trades').update({
+  await writeOrWarn('close trade', db.from('paper_trades').update({
     status:          'closed',
     closed_at:       new Date().toISOString(),
     close_reason:    'manual_close',
@@ -2308,7 +2309,7 @@ async function executeClose(id, trade) {
     swing_expires_at: swingExpiry,
     swing_trigger:   'manual',
     swing_taken:     false,
-  }).eq('id', id);
+  }).eq('id', id));
 
   await updatePortfolioBalance();
   loadTrades();
@@ -2387,9 +2388,9 @@ function showSwingDialog(trade, id) {
 }
 
 async function takeSwing(originalId, swingDirection) {
-  await db.from('paper_trades').update({
+  await writeOrWarn('update trade', db.from('paper_trades').update({
     swing_taken: true
-  }).eq('id', originalId);
+  }).eq('id', originalId));
 
   const { data: orig } = await db.from('paper_trades').select('*').eq('id', originalId).single();
   if (!orig) { dismissSwing(originalId); return; }
@@ -2439,9 +2440,9 @@ async function takeSwing(originalId, swingDirection) {
   }).select().single();
 
   if (newTrade?.id) {
-    await db.from('paper_trades').update({
+    await writeOrWarn('reversal trade', db.from('paper_trades').update({
       swing_trade_id: newTrade.id
-    }).eq('id', originalId);
+    }).eq('id', originalId));
   }
 
   dismissSwing(originalId);
@@ -2477,14 +2478,14 @@ async function updatePortfolioBalance() {
   const curBal      = startBal + realizedGL;
   const glPct       = startBal > 0 ? (realizedGL / startBal) * 100 : 0;
 
-  await db.from('paper_portfolio').update({
+  await writeOrWarn('portfolio balance', db.from('paper_portfolio').update({
     current_balance:  parseFloat(curBal.toFixed(2)),
     realized_gl:      parseFloat(realizedGL.toFixed(2)),
     unrealized_gl:    parseFloat(unrealizedGL.toFixed(2)),
     total_return:     parseFloat(realizedGL.toFixed(2)),
     total_return_pct: parseFloat(glPct.toFixed(4)),
     updated_at:       new Date().toISOString()
-  }).eq('id', port.id);
+  }).eq('id', port.id));
 }
 
 // ── RESET ──
@@ -3687,6 +3688,28 @@ async function getPortfolioBalance() {
 
 // Run the Governor for a single ticker. Returns null on any failure so one
 // bad ticker never aborts the whole scan.
+// supabase-js RETURNS errors, it does not throw them. An unchecked write looks
+// identical to a successful one, so a rejected insert leaves the UI reporting
+// success while the row is absent. Every write on the trade path goes through
+// this now.
+async function writeOrWarn(label, promise) {
+  try {
+    const res = await promise;
+    if (res && res.error) {
+      console.error('[AURUM write failed] ' + label, res.error);
+      const box = document.getElementById('write-error');
+      if (box) { box.textContent = label + ' failed — ' + res.error.message; box.style.display = 'block'; }
+      return { ok: false, error: res.error, data: null };
+    }
+    return { ok: true, error: null, data: res ? res.data : null };
+  } catch (e) {
+    console.error('[AURUM write threw] ' + label, e);
+    const box = document.getElementById('write-error');
+    if (box) { box.textContent = label + ' failed — ' + ((e && e.message) || 'unknown'); box.style.display = 'block'; }
+    return { ok: false, error: e, data: null };
+  }
+}
+
 // Every scoring failure used to return an identical bare null, so four
 // different causes — timeout, HTTP error, no entry price, no direction —
 // looked the same in the log. Recorded here and summarised per wave.
@@ -4157,7 +4180,7 @@ async function logShadowCandidates(scored, qualifiedSet) {
       };
     }).filter(r => r.price_at_score);
 
-    if (rows.length) await db.from('shadow_log').insert(rows);
+    if (rows.length) await writeOrWarn('shadow log', db.from('shadow_log').insert(rows));
   } catch (e) {
     // Never let logging break a cycle
     console.warn('Shadow log skipped:', e && e.message);
