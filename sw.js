@@ -22,7 +22,8 @@ const HTML_PAGES = [
   '/aurum-app/intelligence.html',
   '/aurum-app/ipo.html',
   '/aurum-app/tutorial.html',
-  '/aurum-app/help.html'
+  '/aurum-app/help.html',
+  '/aurum-app/diagnostic.html'
 ];
 
 // Install — pre-cache static assets only
