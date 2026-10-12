@@ -793,13 +793,28 @@
 </footer>
 
 <script>
+
+// ── MARKET DATA VIA PROXY ──
+// Provider keys used to sit in this file, which GitHub Pages serves publicly.
+// They now live as secrets on the market-proxy edge function; this calls that
+// and returns the provider's own response body unchanged.
+async function marketProxy(payload) {
+  const base = (typeof SUPABASE_URL !== 'undefined' && SUPABASE_URL)
+    ? SUPABASE_URL : 'https://zpcbbwynvvyldavxzjng.supabase.co';
+  const key = (typeof SUPABASE_KEY !== 'undefined' && SUPABASE_KEY) ? SUPABASE_KEY
+            : (typeof GOVERNOR_ANON_KEY !== 'undefined' ? GOVERNOR_ANON_KEY : '');
+  return await fetch(base + '/functions/v1/market-proxy', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
+    body: JSON.stringify(payload),
+  });
+}
   const SUPABASE_URL = 'https://zpcbbwynvvyldavxzjng.supabase.co';
   const SUPABASE_KEY = 'sb_publishable_K80lcfk8LsQNqo5enznRRA_lrzf2U9K';
   const { createClient } = supabase;
   const db = createClient(SUPABASE_URL, SUPABASE_KEY);
 
   // ── PRICE FEED ENGINE — Twelve Data ──
-  const FINNHUB_KEY = 'd8ipl11r01qtcvnt331gd8ipl11r01qtcvnt3320';
   let priceCache = {};
   let priceFeedInterval = null;
   let watchlistTickers = [];
@@ -810,9 +825,7 @@
     // Finnhub free tier: 60 requests/minute — one call per ticker, all in parallel
     await Promise.all(tickers.map(async (ticker) => {
       try {
-        const res = await fetch(
-          'https://finnhub.io/api/v1/quote?symbol=' + ticker + '&token=' + FINNHUB_KEY
-        );
+        const res = await marketProxy({ endpoint: 'finnhub_quote', symbol: ticker });
         if (!res.ok) return;
         const q = await res.json();
         if (!q || !q.c || q.c === 0) return;
