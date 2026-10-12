@@ -1044,22 +1044,6 @@ footer p { font-size: 0.6rem; letter-spacing: 0.12em; color: var(--muted); text-
 </footer>
 
 <script>
-
-// ── MARKET DATA VIA PROXY ──
-// Provider keys used to sit in this file, which GitHub Pages serves publicly.
-// They now live as secrets on the market-proxy edge function; this calls that
-// and returns the provider's own response body unchanged.
-async function marketProxy(payload) {
-  const base = (typeof SUPABASE_URL !== 'undefined' && SUPABASE_URL)
-    ? SUPABASE_URL : 'https://zpcbbwynvvyldavxzjng.supabase.co';
-  const key = (typeof SUPABASE_KEY !== 'undefined' && SUPABASE_KEY) ? SUPABASE_KEY
-            : (typeof GOVERNOR_ANON_KEY !== 'undefined' ? GOVERNOR_ANON_KEY : '');
-  return await fetch(base + '/functions/v1/market-proxy', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
-    body: JSON.stringify(payload),
-  });
-}
 const SUPABASE_URL = 'https://zpcbbwynvvyldavxzjng.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_K80lcfk8LsQNqo5enznRRA_lrzf2U9K';
 const { createClient } = supabase;
@@ -1636,12 +1620,13 @@ let priceCache = {};
 let watchlistTickers = [];
 
 // ── PRICE FEED ──
+const TWELVE_KEY = '1fbbfd6ec92c489ca009d00e7127fbe3';
 
 async function fetchLivePrices(tickers) {
   if (!tickers || !tickers.length) return {};
   try {
     const symbols = tickers.slice(0, 8).join(',');
-    const res = await marketProxy({ endpoint: 'twelve_quote', symbol: symbols });
+    const res = await fetch('https://api.twelvedata.com/quote?symbol=' + symbols + '&apikey=' + TWELVE_KEY);
     if (!res.ok) return {};
     const data = await res.json();
     const prices = {};
@@ -3416,9 +3401,20 @@ function computeOpportunity(gov, composite) {
   const rr = Math.abs(tgt - entry) / risk;
   const rrPoints = Math.min(Math.max((rr - 1) * 20, 0), 35);
 
-  // How many typical moves the target sits away. Inside one move is noise;
-  // beyond four is a stretch. The band between is where trades live.
-  const moves = (Math.abs(tgt - entry) / entry * 100) / vol;
+  // How many typical moves the target sits away — measured over the HOLDING
+  // PERIOD, not over one day.
+  //
+  // vol is a single-day range. Judging a 3-to-10 day swing target against it
+  // made every correctly placed swing stop look absurd: a 3.25x stop with a
+  // 3:1 target is 9.75 DAILY moves, which scored 0 here and dropped
+  // opportunity from 53 to 41 — under the crypto floor of 50, so every swing
+  // candidate failed the gate while reporting "opportunity 42".
+  //
+  // The Governor states the horizon it scored under. Absent it, fall back to
+  // one day, which is the old behaviour.
+  const horizonDays = Number((gov.strategy_applied || {}).horizon_days) || 1;
+  const horizonVol  = vol * Math.sqrt(horizonDays);
+  const moves = (Math.abs(tgt - entry) / entry * 100) / horizonVol;
   let movePoints;
   if (moves < 1)       movePoints = moves * 10;          // too close to matter
   else if (moves <= 3) movePoints = 10 + (moves - 1) * 12.5;  // the sweet spot
