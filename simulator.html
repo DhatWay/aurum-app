@@ -3401,20 +3401,15 @@ function computeOpportunity(gov, composite) {
   const rr = Math.abs(tgt - entry) / risk;
   const rrPoints = Math.min(Math.max((rr - 1) * 20, 0), 35);
 
-  // How many typical moves the target sits away — measured over the HOLDING
-  // PERIOD, not over one day.
+  // How many typical moves the target sits away. Inside one move is noise;
+  // beyond four is a stretch. The band between is where trades live.
   //
-  // vol is a single-day range. Judging a 3-to-10 day swing target against it
-  // made every correctly placed swing stop look absurd: a 3.25x stop with a
-  // 3:1 target is 9.75 DAILY moves, which scored 0 here and dropped
-  // opportunity from 53 to 41 — under the crypto floor of 50, so every swing
-  // candidate failed the gate while reporting "opportunity 42".
-  //
-  // The Governor states the horizon it scored under. Absent it, fall back to
-  // one day, which is the old behaviour.
-  const horizonDays = Number((gov.strategy_applied || {}).horizon_days) || 1;
-  const horizonVol  = vol * Math.sqrt(horizonDays);
-  const moves = (Math.abs(tgt - entry) / entry * 100) / horizonVol;
+  // Measured against the DAILY range, deliberately. A horizon-scaled version
+  // was tried and removed: it only existed to compensate for a wider swing
+  // stop that has itself been reverted, and with the original 2x/2:1 geometry
+  // it pushed opportunity DOWN to 46, under the floor. This curve and the
+  // thresholds above were calibrated together against real outcomes.
+  const moves = (Math.abs(tgt - entry) / entry * 100) / vol;
   let movePoints;
   if (moves < 1)       movePoints = moves * 10;          // too close to matter
   else if (moves <= 3) movePoints = 10 + (moves - 1) * 12.5;  // the sweet spot
