@@ -1247,9 +1247,9 @@ async function loadTrades() {
 
     const dirClass = t.direction || 'long';
     const isOptions = t.instrument === 'options';
-    const entryLabel  = isOptions ? '$' + Number(t.entry_price).toFixed(2) + '/contract' : '$' + Number(t.entry_price).toFixed(2);
-    const currentLabel = isOptions ? '$' + Number(t.current_price).toFixed(2) + '/contract' : '$' + Number(t.current_price).toFixed(2);
-    const stopLabel    = t.stop_loss ? '$' + Number(t.stop_loss).toFixed(2) : '—';
+    const entryLabel   = isOptions ? fmtPrice(t.entry_price) + '/contract' : fmtPrice(t.entry_price);
+    const currentLabel = isOptions ? fmtPrice(t.current_price) + '/contract' : fmtPrice(t.current_price);
+    const stopLabel    = t.stop_loss ? fmtPrice(t.stop_loss) : '—';
 
     return `
       <div class="trade-row" id="row-${t.id}" style="${stopTriggered ? 'background:rgba(139,58,58,0.04);' : ''}">
@@ -2402,14 +2402,20 @@ async function takeSwing(originalId, swingDirection) {
     ? entry + slippageAmount
     : entry - slippageAmount;
 
-  const stopPct   = 0.04;
-  const targetPct = 0.08;
-  const stop   = swingDirection === 'long'
-    ? parseFloat((effectiveEntry * (1 - stopPct)).toFixed(2))
-    : parseFloat((effectiveEntry * (1 + stopPct)).toFixed(2));
-  const target = swingDirection === 'long'
-    ? parseFloat((effectiveEntry * (1 + targetPct)).toFixed(2))
-    : parseFloat((effectiveEntry * (1 - targetPct)).toFixed(2));
+  // Was a flat 4% stop and 8% target for every asset, rounded to 2dp. On a
+  // volatile coin 4% is inside a single day's noise; on a sub-cent coin the
+  // rounding stored the stop as exactly 0.00, which can never trigger. Scale
+  // the stop to the asset's own volatility, at the same 2:1 the rest of the
+  // system uses, and keep full precision.
+  const volPct    = Number(orig.volatility_pct) > 0 ? Number(orig.volatility_pct) : 3;
+  const stopPct   = Math.min(Math.max((volPct * 2) / 100, 0.02), 0.25);
+  const targetPct = stopPct * 2;
+  const stop   = roundPrice(swingDirection === 'long'
+    ? effectiveEntry * (1 - stopPct)
+    : effectiveEntry * (1 + stopPct));
+  const target = roundPrice(swingDirection === 'long'
+    ? effectiveEntry * (1 + targetPct)
+    : effectiveEntry * (1 - targetPct));
 
   const { data: newTrade } = await db.from('paper_trades').insert({
     ticker:          orig.ticker,
@@ -3568,6 +3574,31 @@ const FUNNEL_SHORTLIST  = 25;     // survivors passed to the Governor.
                                   // rejections to find 4. The funnel already
                                   // ranked these, so the cut drops the weakest.
 
+// Prices span eight orders of magnitude here — SNDKB at $1,488 and AMP at
+// $0.0032 go through the same code. Rounding everything to 2dp stored AMP's
+// stop as exactly 0.00, which can never trigger. Scale precision to magnitude.
+function roundPrice(v) {
+  const n = Number(v);
+  if (!isFinite(n) || n === 0) return 0;
+  const a = Math.abs(n);
+  const dp = a >= 100 ? 2 : a >= 1 ? 4 : a >= 0.01 ? 6 : 8;
+  return parseFloat(n.toFixed(dp));
+}
+function fmtPrice(v) {
+  const n = Number(v);
+  if (!isFinite(n)) return '—';
+  const a = Math.abs(n);
+  const dp = a >= 100 ? 2 : a >= 1 ? 4 : a >= 0.01 ? 6 : 8;
+  // Trailing zeros past 2dp are noise: $8.1300 reads worse than $8.13, but
+  // $0.0032 must keep every digit it has.
+  let out = n.toFixed(dp);
+  if (out.indexOf('.') !== -1) {
+    out = out.replace(/0+$/, '');
+    if (out.split('.')[1].length < 2) out = n.toFixed(2);
+  }
+  return '$' + out;
+}
+
 // Composite movement score. Pure arithmetic — this decides WHO gets looked at,
 // never whether a trade happens. That judgement stays with the Governor.
 function movementScore(c) {
@@ -3575,7 +3606,8 @@ function movementScore(c) {
   // new_listing_detector runs. Surfacing them is the point of the funnel —
   // but only where turnover shows genuine participation rather than a thin
   // book being pushed around.
-  var _ath = Number(c.atl_change_percentage);
+  // (a stray _ath read atl_change_percentage — all-time LOW — and was never
+  //  used. Removed rather than left to mislead the next reader.)
   var _mc  = Number(c.market_cap) || 0;
   var _vol = Number(c.total_volume) || 0;
   var _turnover = _mc > 0 ? (_vol / _mc) * 100 : 0;
@@ -3617,6 +3649,17 @@ async function screenCryptoUniverse() {
   }
   if (!all.length) return null;
 
+  // Tokenized equity wrappers are not coins. SNDKB — SanDisk wrapped as a
+  // BEP-20 token — has a $92M cap against the underlying stock's $235B, and
+  // 81% turnover on a tiny float. It cleared the volume floor, scored high on
+  // the turnover term, collected the new-listing boost, and was opened as a
+  // position. Its price tracks an equity through an issuer, a custodian and
+  // Binance eligibility rules; none of the crypto algorithms mean anything
+  // against it.
+  const WRAPPER_RE = /tokenized|bstock|xstock|wrapped stock|pre-?market|\bstock\b/i;
+  // Stablecoins have no directional thesis by construction.
+  const STABLE_RE  = /^(usdt|usdc|dai|busd|tusd|usde|fdusd|pyusd|usdd|frax|lusd|susd|gusd|usdp)$/i;
+
   // Liquidity floor — a huge percentage move on no volume is untradeable
   const liquid = all.filter(c =>
     // Volume floor raised from $1M to $25M. A thin coin swings hardest, so at
@@ -3624,7 +3667,14 @@ async function screenCryptoUniverse() {
     // have almost no data behind them — the Governor scored them honestly in
     // the 20s and 30s, but they consumed shortlist slots that never had a
     // chance of passing. $25M keeps genuine movers and excludes the noise.
-    Number(c.total_volume) > 25000000 && Number(c.current_price) > 0
+    Number(c.total_volume) > 25000000 && Number(c.current_price) > 0 &&
+    // A $92M market cap turning over 81% of itself daily is a thin float being
+    // churned, not deep participation. The volume floor alone could not tell
+    // those apart.
+    Number(c.market_cap) > 150000000 &&
+    !WRAPPER_RE.test(String(c.name || '')) &&
+    !WRAPPER_RE.test(String(c.id   || '')) &&
+    !STABLE_RE.test(String(c.symbol || ''))
   );
 
   liquid.sort((a, b) => movementScore(b) - movementScore(a));
@@ -3792,8 +3842,8 @@ async function scoreTicker(ticker, balance) {
       const stopMult = (Number(atrRange[0]) + Number(atrRange[1])) / 2;
       const rr       = Number(sa.min_rr) || 2;
       const stopDist = entry * (vol / 100) * stopMult;
-      g.stop_loss    = det.direction === 'LONG' ? entry - stopDist : entry + stopDist;
-      g.target_price = det.direction === 'LONG' ? entry + stopDist * rr : entry - stopDist * rr;
+      g.stop_loss    = roundPrice(det.direction === 'LONG' ? entry - stopDist : entry + stopDist);
+      g.target_price = roundPrice(det.direction === 'LONG' ? entry + stopDist * rr : entry - stopDist * rr);
 
       // Recompute opportunity now that real levels exist
       const opp = computeOpportunity(g, det.composite);
