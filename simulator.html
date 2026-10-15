@@ -3704,6 +3704,17 @@ async function screenCryptoUniverse() {
   const WRAPPER_RE = /tokenized|bstock|xstock|wrapped stock|pre-?market|\bstock\b/i;
   // Stablecoins have no directional thesis by construction.
   const STABLE_RE  = /^(usdt|usdc|dai|busd|tusd|usde|fdusd|pyusd|usdd|frax|lusd|susd|gusd|usdp)$/i;
+  // Pegged commodities and tokenized real-world credit are the same problem in
+  // a different shape. Ranking by calm surfaced XAUT — Tether Gold, which
+  // tracks bullion — and FIGR_HELOC, a tokenized home-equity loan product.
+  // Both read as ideal low-volatility candidates because they are pegged, not
+  // because the crypto algorithms can read them. Their charts describe gold
+  // and a loan book.
+  // Tokenized treasury and money-market funds hold a $1 NAV — stablecoins in
+  // all but name. Their names vary too much to catch by pattern, so the
+  // symbols are listed.
+  const PEG_SYM_RE = /^(xaut|paxg|kau|kag|xaum|pgold|dgx|cgo|buidl|usyc|ousg|ustb|benji|tbill|stbt|usdy)$/i;
+  const RWA_RE     = /heloc|treasur|t-?bill|\bbond\b|tokenized (gold|silver|loan|credit)|real[ -]?estate|money market|\bgold\b|\bsilver\b/i;
 
   // Liquidity floor — a huge percentage move on no volume is untradeable
   const liquid = all.filter(c =>
@@ -3720,6 +3731,10 @@ async function screenCryptoUniverse() {
     !WRAPPER_RE.test(String(c.name || '')) &&
     !WRAPPER_RE.test(String(c.id   || '')) &&
     !STABLE_RE.test(String(c.symbol || '')) &&
+    !PEG_SYM_RE.test(String(c.symbol || '')) &&
+    !RWA_RE.test(String(c.symbol || '')) &&
+    !RWA_RE.test(String(c.name || '')) &&
+    !RWA_RE.test(String(c.id || '')) &&
     // The volatility band, as a hard filter. Above 4.5% the measured win rate
     // falls to 31% and keeps falling; below 1.5% the moves cannot reach a 2:1
     // target. Everything outside it is removed before ranking.
@@ -3973,6 +3988,27 @@ function rejectionReason(g) {
 }
 
 // One Claude call receives every qualifying brief and returns a yes/no per ticker
+// The model-free allocator. Same contract as decideAllocations — an array of
+// { t, go, why } — so the opening loop below cannot tell which produced it.
+function rankDeterministic(candidates, needed) {
+  const ranked = candidates.slice().sort(function(a, b) {
+    const oa = Number(a.opportunity_score) || 0, ob = Number(b.opportunity_score) || 0;
+    if (ob !== oa) return ob - oa;
+    // Equal opportunity: prefer the stronger lean, in either direction.
+    const ca = Math.abs((Number(a.composite_score) || 50) - 50);
+    const cb = Math.abs((Number(b.composite_score) || 50) - 50);
+    return cb - ca;
+  });
+  return ranked.slice(0, Math.max(needed, 0)).map(function(g) {
+    return {
+      t:   g.ticker,
+      go:  true,
+      why: 'Deterministic: opportunity ' + g.opportunity_score + ', composite ' + g.composite_score +
+           ', SQ ' + g.signal_quality + ', vol ' + (g.volatility_pct || '?') + '%'
+    };
+  });
+}
+
 async function decideAllocations(scored, needed) {
   const briefs = scored.map(g =>
     g.ticker + ' | ' + g.direction + ' | composite ' + g.composite_score +
@@ -4385,13 +4421,28 @@ async function runAutonomousCycle(manualTrigger) {
         continue;
       }
 
-      autoLog('Wave ' + wave + ' — ' + qualified.length + ' of ' + scored.length + ' cleared conviction. Claude deciding...');
       let decisions = [];
-      try {
-        decisions = await decideAllocations(qualified, needed);
-      } catch(e) {
-        autoLog('Wave ' + wave + ' allocator failed: ' + e.message);
-        continue;
+      if (scoringMode === 'deterministic') {
+        // Deterministic mode used to score every candidate without a model and
+        // then hand the survivors to Claude to choose between anyway. With no
+        // Anthropic credit that call threw, the catch skipped the opening loop,
+        // and a scan that cleared 48 candidates opened none — while reporting
+        // "0 rejected by Claude", because Claude was never reached.
+        //
+        // Here the choice is made the same way the scores were: by the numbers.
+        // Opportunity first, then conviction distance from 50.
+        decisions = rankDeterministic(qualified, needed);
+        autoLog('Wave ' + wave + ' — ' + qualified.length + ' of ' + scored.length +
+                ' cleared. Taking the top ' + decisions.length + ' by opportunity, no model call.');
+      } else {
+        autoLog('Wave ' + wave + ' — ' + qualified.length + ' of ' + scored.length + ' cleared conviction. Claude deciding...');
+        try {
+          decisions = await decideAllocations(qualified, needed);
+        } catch(e) {
+          autoLog('Wave ' + wave + ' allocator failed: ' + e.message +
+                  ' — switch scoring to DETERMINISTIC to run without a model.');
+          continue;
+        }
       }
 
       const approved = decisions.filter(d => d.go).slice(0, needed);
