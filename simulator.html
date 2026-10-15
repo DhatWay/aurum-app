@@ -3674,7 +3674,12 @@ function qualityScore(c) {
 // Kept under the old name so nothing downstream has to change.
 function movementScore(c) { return qualityScore(c); }
 
-async function screenCryptoUniverse() {
+// Which source each candidate came from, for the current scan. Read when the
+// candidate is logged and when its position opens.
+let CANDIDATE_SOURCE = {};
+
+async function screenCryptoUniverse(watchSymbols) {
+  const watchSet = new Set((watchSymbols || []).map(s => String(s).toUpperCase()));
   const perPage = 250;
   const pages   = Math.ceil(FUNNEL_SCAN_DEPTH / perPage);
   const all     = [];
@@ -3741,7 +3746,29 @@ async function screenCryptoUniverse() {
     (function(){ const r = dailyRangePct(c); return r !== null && r >= VOL_HARD_MIN && r <= VOL_HARD_MAX; })()
   );
 
+  // Watchlist coins are no longer exempt. They pass through every filter above
+  // — wrappers, pegs, cap floor, and above all the volatility band — and then
+  // compete on the same score as everything else. Previously they went in
+  // first, unscreened, which is how ADA, LINK, AVAX and DOGE entered at 9%
+  // daily volatility in the band that won 14% of the time, and why the funnel
+  // only ever filled whatever slots the watchlist left.
   liquid.sort((a, b) => movementScore(b) - movementScore(a));
+
+  CANDIDATE_SOURCE = {};
+  const missing = [];
+  watchSet.forEach(sym => {
+    const inMarket = all.some(c => String(c.symbol).toUpperCase() === sym);
+    const passed   = liquid.some(c => String(c.symbol).toUpperCase() === sym);
+    if (!inMarket) missing.push(sym);
+    else if (!passed) CANDIDATE_SOURCE['__filtered_' + sym] = true;
+  });
+  if (missing.length) {
+    autoLog('Watchlist coins with no market data, not scanned: ' + missing.join(', '));
+  }
+  const filteredWatch = Array.from(watchSet).filter(s => CANDIDATE_SOURCE['__filtered_' + s]);
+  if (filteredWatch.length) {
+    autoLog('Watchlist coins outside the volatility band this scan: ' + filteredWatch.join(', '));
+  }
 
   // Cache the CoinGecko id so the Governor can price anything we surface,
   // including coins absent from its static map.
@@ -3750,7 +3777,15 @@ async function screenCryptoUniverse() {
     window._funnelIds[String(c.symbol).toUpperCase()] = c.id;
   });
 
-  return liquid.slice(0, FUNNEL_SHORTLIST).map(c => String(c.symbol).toUpperCase());
+  const shortlist = liquid.slice(0, FUNNEL_SHORTLIST);
+  shortlist.forEach(c => {
+    const sym = String(c.symbol).toUpperCase();
+    CANDIDATE_SOURCE[sym] = watchSet.has(sym) ? 'watchlist' : 'funnel';
+  });
+  const fromWatch = shortlist.filter(c => watchSet.has(String(c.symbol).toUpperCase())).length;
+  autoLog('Ranked pool: ' + shortlist.length + ' candidates — ' + fromWatch + ' from your watchlist, ' +
+          (shortlist.length - fromWatch) + ' from the funnel, competing on one score.');
+  return shortlist.map(c => String(c.symbol).toUpperCase());
 }
 
 async function getCandidateTickers() {
@@ -3775,8 +3810,8 @@ async function getCandidateTickers() {
   if (isCrypto) {
     // Screen the live market first. Falls back to the static list if
     // CoinGecko is unreachable, so a feed outage degrades rather than breaks.
-    autoLog('Screening ' + FUNNEL_SCAN_DEPTH + ' coins for movement...');
-    const screened = await screenCryptoUniverse();
+    autoLog('Screening ' + FUNNEL_SCAN_DEPTH + ' coins, watchlist included...');
+    const screened = await screenCryptoUniverse((watchlist || []).map(s => s.ticker));
     universe = screened && screened.length
       ? screened.slice(0, Math.max(uniLimit, FUNNEL_SHORTLIST))
       : CRYPTO_UNIVERSE.slice(0, uniLimit);
@@ -3785,8 +3820,16 @@ async function getCandidateTickers() {
     universe = (typeof TICKER_DATABASE !== 'undefined' ? TICKER_DATABASE.map(x => x.t) : []).slice(0, uniLimit);
   }
 
-  // Watchlist first — those are your explicit picks — then the broad universe
-  const watch = (watchlist || []).map(s => s.ticker.toUpperCase());
+  // In crypto the watchlist is already inside the ranked pool, screened and
+  // scored like everything else, so it must NOT be prepended here — that was
+  // the step that let it jump the queue unfiltered. Stock mode is unchanged:
+  // it does not run through the crypto funnel and keeps its watchlist first.
+  const watch = isCrypto ? [] : (watchlist || []).map(s => s.ticker.toUpperCase());
+  if (!isCrypto) {
+    CANDIDATE_SOURCE = {};
+    watch.forEach(t => { CANDIDATE_SOURCE[t] = 'watchlist'; });
+    universe.forEach(t => { const u = t.toUpperCase(); if (!CANDIDATE_SOURCE[u]) CANDIDATE_SOURCE[u] = 'funnel'; });
+  }
   const merged = [];
   const seen = new Set();
   watch.concat(universe.map(t => t.toUpperCase())).forEach(t => {
@@ -4231,6 +4274,10 @@ async function openPositionFromSignal(gov, why) {
 
   const { error } = await db.from('paper_trades').insert({
     ticker:               gov.ticker,
+    // Carried from the scan, so realised P&L can be split by where the pick
+    // came from — the comparison that settles whether the funnel beats the
+    // watchlist.
+    source:               CANDIDATE_SOURCE[String(gov.ticker).toUpperCase()] || null,
     shares,
     direction,
     strategy:             currentStrategy,
@@ -4290,6 +4337,9 @@ async function logShadowCandidates(scored, qualifiedSet) {
       return {
         ticker:            g.ticker,
         mode:              activeMode,
+        // Where this candidate came from, so funnel and watchlist picks can be
+        // compared on outcomes rather than argued about.
+        source:            CANDIDATE_SOURCE[String(g.ticker).toUpperCase()] || null,
         price_at_score:    Number(g.current_price || g.entry_price) || null,
         direction:         g.direction || null,
         composite_score:   Number.isFinite(Number(g.composite_score)) ? Math.round(Number(g.composite_score)) : null,
