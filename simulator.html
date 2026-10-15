@@ -4328,6 +4328,11 @@ async function openPositionFromSignal(gov, why) {
     // came from — the comparison that settles whether the funnel beats the
     // watchlist.
     source:               CANDIDATE_SOURCE[String(gov.ticker).toUpperCase()] || null,
+    // The exact id the funnel resolved. The position monitor prices from this,
+    // so a coin outside its own hardcoded map no longer opens with a stop that
+    // can never fire.
+    coingecko_id:         (window._funnelIds && window._funnelIds[String(gov.ticker).toUpperCase()]) ||
+                          gov.coingecko_id || null,
     shares,
     direction,
     strategy:             currentStrategy,
