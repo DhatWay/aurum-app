@@ -2429,8 +2429,10 @@ async function takeSwing(originalId, swingDirection) {
     instrument:      orig.instrument || 'stock',
     type:            orig.type,
     status:          'open',
-    entry_price:     parseFloat(effectiveEntry.toFixed(4)),
-    effective_entry: parseFloat(effectiveEntry.toFixed(4)),
+    // Was toFixed(4). On a coin priced below $0.0001 that stores the entry as
+    // exactly 0, and every P&L figure after it divides by nothing.
+    entry_price:     roundPrice(effectiveEntry),
+    effective_entry: roundPrice(effectiveEntry),
     current_price:   effectiveEntry,
     stop_loss:       stop,
     target_price:    target,
@@ -4332,8 +4334,13 @@ async function openPositionFromSignal(gov, why) {
     instrument:           isCrypto ? 'crypto' : 'stock',
     type:                 activeMode,
     status:               'open',
-    entry_price:          parseFloat(effectiveEntry.toFixed(6)),
-    effective_entry:      parseFloat(effectiveEntry.toFixed(6)),
+    // Was toFixed(6). HTX trades near $0.00000165; six decimals stored its
+    // entry as $0.000002, a 21% error. The stop and target were already kept
+    // at full precision, so the stop was right and the entry it is measured
+    // from was wrong — and a short would have shown a ~17% gain that never
+    // happened. Precision now scales to the price.
+    entry_price:          roundPrice(effectiveEntry),
+    effective_entry:      roundPrice(effectiveEntry),
     current_price:        effectiveEntry,
     stop_loss:            gov.stop_loss    ? Number(gov.stop_loss)    : null,
     target_price:         gov.target_price ? Number(gov.target_price) : null,
