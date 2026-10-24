@@ -3765,7 +3765,11 @@ function fmtPrice(v) {
 // 27 of 350 historical candidates sat under 4% — a hard cut there would starve
 // the scan rather than improve it.
 const VOL_HARD_MIN  = 1.0;
-const VOL_HARD_MAX  = 6.0;
+// Lowered from 6.0. The 4.5-6% bracket won 31% of the time across 32 measured
+// candidates, against 70% in the 2.5-3.5% band, and its wider stops meant every
+// loss was larger. At 6% the scan filled empty slots with exactly those names.
+// Fewer positions, from the band where the algorithms can actually read.
+const VOL_HARD_MAX  = 4.5;
 // Ranking peaks here and falls away sharply in both directions, so a 3% name
 // outranks a 5.5% name decisively without the 5.5% name being excluded.
 const VOL_BAND_PEAK = 3.0;
