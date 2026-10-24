@@ -1000,7 +1000,10 @@ footer p { font-size: 0.6rem; letter-spacing: 0.12em; color: var(--muted); text-
   <div class="gold-rule"></div>
 
   <!-- OPEN POSITIONS -->
-  <div class="section-label">Open Positions</div>
+  <div style="display:flex; justify-content:space-between; align-items:center;">
+    <div class="section-label">Open Positions</div>
+    <button id="copy-positions-btn" onclick="copyOpenPositions()" style="background:transparent; border:1px solid rgba(201,168,76,0.4); color:#C9A84C; font-family:'IBM Plex Mono',monospace; font-size:0.6rem; letter-spacing:0.12em; padding:0.35rem 0.7rem; cursor:pointer;">COPY ALL</button>
+  </div>
   <div class="trades-table">
     <div class="trades-header">
       <span>Ticker</span>
@@ -1229,8 +1232,99 @@ async function initPortfolio() {
 }
 
 // ── LOAD TRADES ──
+// The rows last rendered, kept so COPY ALL copies exactly what is on screen.
+let OPEN_POSITIONS = [];
+
+// Must match quick-service. The trailing stop activates once a position is up
+// TRAIL_ACTIVATE_X of its volatility, then follows TRAIL_DISTANCE_X behind.
+const TRAIL_ACTIVATE_X = 0.5;
+const TRAIL_DISTANCE_X = 1.0;
+
+function positionVolatility(t) {
+  const v = Number(t.entry_volatility_pct);
+  if (v > 0) return v;
+  // Same fallback the monitor uses: the original stop sat 2x volatility from
+  // entry, which holds while the stop has not yet moved.
+  const e = Number(t.effective_entry || t.entry_price), st = Number(t.stop_loss);
+  const dir = String(t.direction || 'long').toLowerCase();
+  if (e > 0 && st > 0 && (dir === 'short' ? st > e : st < e)) return (Math.abs(e - st) / e * 100) / 2;
+  return null;
+}
+
+function describePosition(t) {
+  const dir   = String(t.direction || 'long').toLowerCase();
+  const isShort = dir === 'short';
+  const entry = Number(t.effective_entry || t.entry_price);
+  const stop  = t.stop_loss ? Number(t.stop_loss) : null;
+  const tgt   = t.target_price ? Number(t.target_price) : null;
+  const cur   = Number(t.current_price) || entry;
+  const vol   = positionVolatility(t);
+  const pct   = function(a) { return (a >= 0 ? '+' : '') + a.toFixed(2) + '%'; };
+  const move  = function(px) { return ((isShort ? entry - px : px - entry) / entry) * 100; };
+
+  // A stop at or past entry means the trailing stop has already moved it.
+  const trailing = stop !== null && (isShort ? stop <= entry : stop >= entry);
+  let trailLine;
+  if (vol === null) {
+    trailLine = 'volatility unknown — trailing inactive';
+  } else if (trailing) {
+    const locked = move(stop);
+    trailLine = 'ACTIVE — following ' + (TRAIL_DISTANCE_X * vol).toFixed(2) + '% behind price, ' +
+                (locked > 0.05 ? 'locking in ' + pct(locked) : 'at breakeven');
+  } else {
+    const actPx = isShort ? entry * (1 - TRAIL_ACTIVATE_X * vol / 100)
+                          : entry * (1 + TRAIL_ACTIVATE_X * vol / 100);
+    trailLine = 'activates at ' + fmtPrice(actPx) + ' (' + pct(TRAIL_ACTIVATE_X * vol) +
+                '), then follows ' + (TRAIL_DISTANCE_X * vol).toFixed(2) + '% behind';
+  }
+
+  const lines = [
+    t.ticker + '  ' + dir.toUpperCase() + (t.strategy ? '  ·  ' + t.strategy : ''),
+    '  Quantity   ' + Number(t.shares),
+    '  Entry      ' + fmtPrice(entry),
+    '  Current    ' + fmtPrice(cur) + '   ' + pct(move(cur)),
+    '  Stop       ' + (stop !== null ? fmtPrice(stop) + '   ' + pct(move(stop)) + (trailing ? '  (trailed)' : '  (original)') : '—'),
+    '  Target     ' + (tgt !== null ? fmtPrice(tgt) + '   ' + pct(move(tgt)) : '—'),
+    '  Trail      ' + trailLine,
+    '  Volatility ' + (vol !== null ? vol.toFixed(2) + '% daily' : '—'),
+  ];
+  if (t.coingecko_id) lines.push('  CoinGecko  ' + t.coingecko_id);
+  if (t.opened_at)    lines.push('  Opened     ' + new Date(t.opened_at).toLocaleString());
+  return lines.join('\n');
+}
+
+async function copyOpenPositions() {
+  const btn = document.getElementById('copy-positions-btn');
+  if (!OPEN_POSITIONS.length) {
+    if (btn) { btn.textContent = 'NOTHING OPEN'; setTimeout(function(){ btn.textContent = 'COPY ALL'; }, 2000); }
+    return;
+  }
+  const header = 'AURUM — ' + OPEN_POSITIONS.length + ' open position' +
+                 (OPEN_POSITIONS.length === 1 ? '' : 's') + ' — ' + new Date().toLocaleString();
+  const text = header + '\n\n' + OPEN_POSITIONS.map(describePosition).join('\n\n');
+
+  let ok = false;
+  try { await navigator.clipboard.writeText(text); ok = true; }
+  catch (e) {
+    // The clipboard API needs a secure context and can be refused; a selected
+    // textarea copy still works on most Android browsers.
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:50vh;z-index:3000;background:#080808;color:#F0EDE6;font-size:0.7rem;';
+    document.body.appendChild(ta);
+    ta.focus(); ta.select();
+    try { ok = document.execCommand('copy'); } catch (e2) {}
+    setTimeout(function(){ ta.remove(); }, ok ? 300 : 15000);
+  }
+  if (btn) {
+    btn.textContent = ok ? 'COPIED ' + OPEN_POSITIONS.length : 'SELECT AND COPY';
+    setTimeout(function(){ btn.textContent = 'COPY ALL'; }, 2500);
+  }
+}
+
 async function loadTrades() {
   const { data } = await db.from('paper_trades').select('*').eq('status', 'open').order('opened_at', { ascending: false });
+  OPEN_POSITIONS = data || [];
   const container = document.getElementById('trades-container');
   document.getElementById('open-count').textContent = data?.length || 0;
 
@@ -4333,6 +4427,9 @@ async function openPositionFromSignal(gov, why) {
     // can never fire.
     coingecko_id:         (window._funnelIds && window._funnelIds[String(gov.ticker).toUpperCase()]) ||
                           gov.coingecko_id || null,
+    // The trailing stop sizes itself to this: it activates once the position
+    // is up half of it, and follows the price one full unit behind.
+    entry_volatility_pct: Number(gov.volatility_pct) > 0 ? Number(gov.volatility_pct) : null,
     shares,
     direction,
     strategy:             currentStrategy,
