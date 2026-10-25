@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AURUM — Tutorial</title>
+<title>AURUM — Help</title>
 <link rel="manifest" href="/aurum-app/manifest.json">
 <meta name="theme-color" content="#C9A84C">
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;600&family=DM+Sans:wght@300;400;500&family=IBM+Plex+Mono:wght@300;400&display=swap" rel="stylesheet">
@@ -80,6 +80,7 @@
   }
 
 @@_nav-overlay@@
+
   @@_nav-overlay_open@@
 
   @@_nav-overlay_a@@
@@ -87,8 +88,7 @@
   .nav-overlay a:hover { color: var(--gold); }
   @@_nav-overlay_a_active@@
 
-
- @@_nav-close@@
+@@_nav-close@@
 
   main {
     padding: 3rem 2.5rem;
@@ -110,10 +110,30 @@
   .page-sub {
     font-size: 1.1rem;
     color: var(--muted);
-    margin-bottom: 3rem;
+    margin-bottom: 2rem;
     line-height: 1.7;
     max-width: 600px;
   }
+
+  /* Search */
+  .search-wrap {
+    margin-bottom: 3rem;
+  }
+
+  .search-input {
+    width: 100%;
+    background: transparent;
+    border: 1px solid var(--rule);
+    color: var(--white);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 1rem;
+    padding: 1rem 1.5rem;
+    outline: none;
+    transition: border 0.3s;
+  }
+
+  .search-input:focus { border-color: var(--gold); }
+  .search-input::placeholder { color: var(--muted); }
 
   .gold-rule {
     width: 100%;
@@ -122,253 +142,157 @@
     margin: 3rem 0;
   }
 
-  /* Progress tracker */
-  .progress-bar {
-    display: flex;
-    gap: 0.4rem;
+  /* Section */
+  .help-section {
     margin-bottom: 3rem;
-    flex-wrap: wrap;
   }
 
-  .progress-step {
-    width: 32px;
-    height: 3px;
-    background: var(--rule);
-    transition: background 0.5s;
-  }
-
-  .progress-step.done { background: var(--gold); }
-  .progress-step.active { background: var(--gold); opacity: 0.5; }
-
-  /* Step cards */
-  .step-card {
-    border: 1px solid var(--rule);
-    padding: 2.5rem;
-    margin-bottom: 1px;
-    display: none;
-    animation: fadeUp 0.5s ease forwards;
-  }
-
-  .step-card.active { display: block; }
-
-  .step-number {
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 0.8rem;
-    letter-spacing: 0.3em;
-    color: var(--gold);
-    text-transform: uppercase;
-    margin-bottom: 1rem;
-  }
-
-  .step-title {
+  .help-section-title {
     font-family: 'Cormorant Garamond', serif;
-    font-size: 2.2rem;
+    font-size: 1.8rem;
     font-weight: 400;
     color: var(--white);
-    margin-bottom: 1rem;
-    line-height: 1.2;
+    margin-bottom: 1.5rem;
+    padding-bottom: 0.8rem;
+    border-bottom: 1px solid var(--rule);
   }
 
-  .step-title em { color: var(--gold); font-style: normal; }
+  .help-section-title em { color: var(--gold); font-style: normal; }
 
-  .step-body {
+  /* FAQ items */
+  .faq-item {
+    border: 1px solid var(--rule);
+    margin-bottom: 1px;
+    overflow: hidden;
+  }
+
+  .faq-question {
+    padding: 1.2rem 1.5rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    transition: background 0.3s;
+    gap: 1rem;
+  }
+
+  .faq-question:hover { background: rgba(201,168,76,0.03); }
+
+  .faq-question-text {
     font-size: 1rem;
-    color: var(--muted);
-    line-height: 1.8;
-    margin-bottom: 2rem;
-  }
-
-  .step-body strong {
     color: var(--white);
     font-weight: 500;
+    line-height: 1.4;
   }
 
-  /* Feature list inside steps */
-  .feature-list {
-    border: 1px solid var(--rule);
-    margin: 1.5rem 0;
-  }
-
-  .feature-item {
-    padding: 1rem 1.5rem;
-    border-bottom: 1px solid var(--rule);
-    display: flex;
-    gap: 1rem;
-    align-items: flex-start;
-  }
-
-  .feature-item:last-child { border-bottom: none; }
-
-  .feature-icon {
+  .faq-icon {
     font-family: 'IBM Plex Mono', monospace;
-    font-size: 0.75rem;
+    font-size: 1rem;
     color: var(--gold);
-    letter-spacing: 0.1em;
-    white-space: nowrap;
-    padding-top: 0.2rem;
-    min-width: 60px;
+    flex-shrink: 0;
+    transition: transform 0.3s;
   }
 
-  .feature-text {
+  .faq-item.open .faq-icon { transform: rotate(45deg); }
+
+  .faq-answer {
+    padding: 0 1.5rem;
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.4s ease, padding 0.3s;
+    font-size: 0.95rem;
+    color: var(--muted);
+    line-height: 1.8;
+  }
+
+  .faq-item.open .faq-answer {
+    max-height: 500px;
+    padding: 0 1.5rem 1.5rem;
+  }
+
+  .faq-answer strong { color: var(--white); }
+
+  .faq-answer .mono {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.85rem;
+    color: var(--gold);
+    background: rgba(201,168,76,0.05);
+    padding: 0.2rem 0.5rem;
+    border: 1px solid var(--rule);
+  }
+
+  /* Glossary */
+  .glossary-grid {
+    display: grid;
+    gap: 1px;
+    background: var(--rule);
+    border: 1px solid var(--rule);
+  }
+
+  .glossary-item {
+    background: var(--black);
+    padding: 1.2rem 1.5rem;
+    display: grid;
+    grid-template-columns: 180px 1fr;
+    gap: 1.5rem;
+    align-items: start;
+  }
+
+  .glossary-term {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.85rem;
+    color: var(--gold);
+    letter-spacing: 0.05em;
+    padding-top: 0.1rem;
+  }
+
+  .glossary-def {
     font-size: 0.95rem;
     color: var(--muted);
     line-height: 1.6;
   }
 
-  .feature-text strong { color: var(--white); }
+  .glossary-def strong { color: var(--white); }
 
-  /* Algorithm display */
-  .algo-list {
+  /* Quick links */
+  .quick-links {
     display: grid;
+    grid-template-columns: 1fr 1fr;
     gap: 1px;
     background: var(--rule);
     border: 1px solid var(--rule);
-    margin: 1.5rem 0;
+    margin-bottom: 3rem;
   }
 
-  .algo-item {
+  .quick-link {
     background: var(--black);
-    padding: 1rem 1.5rem;
+    padding: 1.5rem;
+    text-decoration: none;
+    transition: background 0.3s;
     display: flex;
     justify-content: space-between;
     align-items: center;
   }
 
-  .algo-item-name {
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 0.85rem;
-    color: var(--gold);
+  .quick-link:hover { background: rgba(201,168,76,0.03); }
+
+  .quick-link-name {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 1.3rem;
+    color: var(--white);
     margin-bottom: 0.2rem;
   }
 
-  .algo-item-desc {
-    font-size: 0.85rem;
-    color: var(--muted);
-  }
-
-  .algo-layer {
-    font-size: 0.6rem;
-    letter-spacing: 0.15em;
-    text-transform: uppercase;
-    padding: 0.2rem 0.5rem;
-    border: 1px solid var(--rule);
-    color: var(--muted);
-    white-space: nowrap;
-  }
-
-  .algo-layer.master {
-    border-color: rgba(201,168,76,0.4);
-    color: var(--gold);
-  }
-
-  /* Navigation buttons */
-  .step-nav {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-top: 2rem;
-    gap: 1rem;
-  }
-
-  .btn-nav {
-    background: transparent;
-    border: 1px solid var(--rule);
-    color: var(--muted);
-    font-family: 'DM Sans', sans-serif;
-    font-size: 0.85rem;
-    letter-spacing: 0.2em;
-    text-transform: uppercase;
-    padding: 0.8rem 1.5rem;
-    cursor: pointer;
-    transition: all 0.3s;
-  }
-
-  .btn-nav:hover { border-color: var(--gold); color: var(--gold); }
-  .btn-nav.primary { border-color: var(--gold); color: var(--gold); }
-  .btn-nav.primary:hover { background: var(--gold); color: var(--black); }
-  .btn-nav:disabled { opacity: 0.2; cursor: not-allowed; }
-
-  .step-counter {
-    font-family: 'IBM Plex Mono', monospace;
+  .quick-link-desc {
     font-size: 0.8rem;
     color: var(--muted);
-    letter-spacing: 0.1em;
   }
 
-  /* Highlight box */
-  .highlight-box {
-    border: 1px solid rgba(201,168,76,0.3);
-    background: rgba(201,168,76,0.03);
-    padding: 1.5rem;
-    margin: 1.5rem 0;
-  }
-
-  .highlight-label {
-    font-size: 0.7rem;
-    letter-spacing: 0.25em;
+  .quick-link-arrow {
+    font-family: 'IBM Plex Mono', monospace;
     color: var(--gold);
-    text-transform: uppercase;
-    margin-bottom: 0.8rem;
-  }
-
-  .highlight-text {
     font-size: 1rem;
-    color: var(--white);
-    line-height: 1.7;
-    font-family: 'Cormorant Garamond', serif;
-    font-style: italic;
   }
-
-  /* Completion screen */
-  .completion {
-    text-align: center;
-    padding: 3rem 0;
-    display: none;
-  }
-
-  .completion.visible { display: block; }
-
-  .completion-au {
-    font-family: 'Cormorant Garamond', serif;
-    font-size: 5rem;
-    font-weight: 600;
-    color: var(--gold);
-    letter-spacing: 0.3em;
-    margin-bottom: 1rem;
-    animation: fadeUp 1s ease forwards;
-  }
-
-  .completion-title {
-    font-family: 'Cormorant Garamond', serif;
-    font-size: 2rem;
-    font-weight: 300;
-    color: var(--white);
-    margin-bottom: 1rem;
-  }
-
-  .completion-sub {
-    font-size: 1rem;
-    color: var(--muted);
-    margin-bottom: 2.5rem;
-    line-height: 1.7;
-  }
-
-  .btn-start {
-    background: transparent;
-    border: 1px solid var(--gold);
-    color: var(--gold);
-    font-family: 'DM Sans', sans-serif;
-    font-size: 0.85rem;
-    letter-spacing: 0.2em;
-    text-transform: uppercase;
-    padding: 1rem 2.5rem;
-    cursor: pointer;
-    transition: all 0.3s;
-    text-decoration: none;
-    display: inline-block;
-  }
-
-  .btn-start:hover { background: var(--gold); color: var(--black); }
 
   footer {
     padding: 2rem 2.5rem;
@@ -393,15 +317,20 @@
     letter-spacing: 0.3em;
   }
 
-  @keyframes fadeUp {
-    from { opacity: 0; transform: translateY(15px); }
-    to { opacity: 1; transform: translateY(0); }
+  .no-results {
+    padding: 2rem;
+    text-align: center;
+    font-size: 0.9rem;
+    color: var(--muted);
+    letter-spacing: 0.1em;
+    display: none;
   }
 
   @media (max-width: 600px) {
     main { padding: 2rem 1.5rem; }
     header { padding: 1.5rem; }
-    .step-card { padding: 1.5rem; }
+    .glossary-item { grid-template-columns: 1fr; gap: 0.5rem; }
+    .quick-links { grid-template-columns: 1fr; }
   }
 .nav-overlay {
   position: fixed;
@@ -466,18 +395,18 @@
 
 <div class="nav-overlay" id="nav-overlay">
   <button class="nav-close" onclick="closeNav()">✕</button>
-   <a href="simulator.html">Simulator</a>
+ <a href="simulator.html">Simulator</a>
   <a href="sectors.html">Sectors</a>
   <a href="admin.html">Admin</a>
- <a href="history.html">History</a>
+ <a href="tutorial.html">Tutorial</a>
  <a href="news.html">News</a>
-<a href="help.html">Help</a>
+<a href="history.html">History</a>
 <a href="assistant.html">Assistant</a>
 <a href="options.html">Options</a>
  <a href="report.html">Report</a>
   <a href="intelligence.html">Intelligence</a>
   <a href="index.html">Brief</a>
-  <a href="tutorial.html" class="active">Tutorial</a>
+  <a href="help.html" class="active">Help</a>
  <a href="ipo.html">Ipo</a>
   <a href="trading.html">Trading</a>
 <a href="brokerage.html">Brokerage</a>
@@ -485,381 +414,827 @@
 
 <main>
 
-  <div class="page-title">Welcome to <em>AURUM.</em></div>
-  <div class="page-sub">A private market intelligence system powered by AI. This tutorial walks you through every feature — start to finish.</div>
+  <div class="page-title">AURUM <em>Help.</em></div>
+  <div class="page-sub">Everything you need to operate AURUM — how picks are chosen, how positions are managed, Swing mode, diagnostics, and the terms behind them.</div>
 
-  <div class="progress-bar" id="progress-bar"></div>
+  <div class="search-wrap">
+    <input type="text" class="search-input" id="search-input" placeholder="Search help topics..." oninput="searchHelp()">
+  </div>
 
-  <!-- Step 1 -->
-  <div class="step-card active" id="step-1">
-    <div class="step-number">Step 01 of 09</div>
-    <div class="step-title">What is <em>AURUM?</em></div>
-    <div class="step-body">
-      AURUM is a <strong>private market intelligence system</strong> — not a screener, not a generic trading bot. It runs <strong>25+ algorithms</strong> across price action, sentiment, options flow, insider activity, macro conditions, and crypto-specific signals, then synthesizes them through a master <strong>Governor</strong> before Claude turns the result into a plain-language trade instruction.<br><br>
-      AURUM operates in two modes — <strong>Stocks</strong> and <strong>Crypto</strong>. Toggle between them on the Brief page. Crypto mode swaps in 6 crypto-specific algorithms and generates DEX execution instructions. No broker, no ID required for crypto — just a MetaMask or Coinbase Wallet.<br><br>
-      The self-rating system is what makes AURUM accountable. Every pick is logged with its entry price and automatically graded against the S&P 500, 30 days later. That track record is the product.
-    </div>
-    <div class="highlight-box">
-      <div class="highlight-label">Always On</div>
-      <div class="highlight-text">The Position Monitor runs every 15 minutes server-side — closing trades at stop-loss or target automatically, even when the app is closed. Open a trade, close the app, AURUM enforces it.</div>
-    </div>
-    <div class="step-nav">
-      <button class="btn-nav" disabled>← Previous</button>
-      <span class="step-counter">1 / 9</span>
-      <button class="btn-nav primary" onclick="nextStep()">Next →</button>
+  <div id="no-results" class="no-results">No results found. Try a different search term.</div>
+
+  <!-- Quick Links -->
+  <div class="help-section" id="section-quicklinks">
+    <div class="help-section-title">Quick <em>Navigation</em></div>
+    <div class="quick-links">
+      <a href="index.html" class="quick-link">
+        <div>
+          <div class="quick-link-name">Brief</div>
+          <div class="quick-link-desc">Weekly picks and accuracy</div>
+        </div>
+        <div class="quick-link-arrow">→</div>
+      </a>
+      <a href="news.html" class="quick-link">
+        <div>
+          <div class="quick-link-name">News</div>
+          <div class="quick-link-desc">Intelligence feed</div>
+        </div>
+        <div class="quick-link-arrow">→</div>
+      </a>
+      <a href="simulator.html" class="quick-link">
+        <div>
+          <div class="quick-link-name">Simulator</div>
+          <div class="quick-link-desc">Paper trading</div>
+        </div>
+        <div class="quick-link-arrow">→</div>
+      </a>
+      <a href="trading.html" class="quick-link">
+        <div>
+          <div class="quick-link-name">Trading</div>
+          <div class="quick-link-desc">Live Governor instructions</div>
+        </div>
+        <div class="quick-link-arrow">→</div>
+      </a>
+      <a href="options.html" class="quick-link">
+        <div>
+          <div class="quick-link-name">Options</div>
+          <div class="quick-link-desc">Position assessment</div>
+        </div>
+        <div class="quick-link-arrow">→</div>
+      </a>
+      <a href="admin.html" class="quick-link">
+        <div>
+          <div class="quick-link-name">Admin</div>
+          <div class="quick-link-desc">Watchlist and algorithms</div>
+        </div>
+        <div class="quick-link-arrow">→</div>
+      </a>
+      <a href="history.html" class="quick-link">
+        <div>
+          <div class="quick-link-name">History</div>
+          <div class="quick-link-desc">Pick archive</div>
+        </div>
+        <div class="quick-link-arrow">→</div>
+      </a>
+      <a href="sectors.html" class="quick-link">
+        <div>
+          <div class="quick-link-name">Sectors</div>
+          <div class="quick-link-desc">Sector intelligence</div>
+        </div>
+        <div class="quick-link-arrow">→</div>
+      </a>
+      <a href="diagnostic.html" class="quick-link">
+        <div>
+          <div class="quick-link-name">Diagnostic</div>
+          <div class="quick-link-desc">Full system check</div>
+        </div>
+        <div class="quick-link-arrow">→</div>
+      </a>
     </div>
   </div>
 
-  <!-- Step 2 -->
-  <div class="step-card" id="step-2">
-    <div class="step-number">Step 02 of 09</div>
-    <div class="step-title">The <em>Brief</em> Page</div>
-    <div class="step-body">
-      The Brief is AURUM's main dashboard — your watchlist, current picks, and accuracy stats in one place. It updates whenever new picks are generated or ratings come in; there's no fixed schedule to wait on.
-    </div>
-    <div class="feature-list">
-      <div class="feature-item">
-        <div class="feature-icon">PICKS</div>
-        <div class="feature-text"><strong>Current Picks</strong> — AI-scored stocks with reasoning. Each pick shows a score from 0-100 and a formal brief.</div>
+  <div class="gold-rule"></div>
+
+  <!-- General FAQ -->
+  <div class="help-section" id="section-general">
+    <div class="help-section-title">General <em>Questions</em></div>
+
+    <div class="faq-item" data-keywords="aurum what is how does work">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">What exactly is AURUM?</div>
+        <div class="faq-icon">+</div>
       </div>
-      <div class="feature-item">
-        <div class="feature-icon">ACCURACY</div>
-        <div class="feature-text"><strong>System Accuracy</strong> — Total picks made, how many beat the S&P 500, average score. Builds automatically as the self-rating system runs.</div>
-      </div>
-      <div class="feature-item">
-        <div class="feature-icon">WATCHLIST</div>
-        <div class="feature-text"><strong>Watchlist</strong> — Every stock AURUM is actively monitoring, with live prices from Twelve Data. Added through the Admin panel.</div>
-      </div>
+      <div class="faq-answer">AURUM is a <strong>private market intelligence and paper-trading system</strong>. A <strong>funnel</strong> screens the market for assets the system can actually read. The <strong>Governor</strong> runs your algorithm suite on each one and combines the results into a composite score. A <strong>gate</strong> decides what is worth trading. A <strong>position monitor</strong> then manages every open trade around the clock — stops, trailing stops and timeouts — whether or not the app is open. Scoring can run on pure arithmetic (<strong>Deterministic</strong>, free) or with Claude reviewing each candidate.</div>
     </div>
-    <div class="step-nav">
-      <button class="btn-nav" onclick="prevStep()">← Previous</button>
-      <span class="step-counter">2 / 9</span>
-      <button class="btn-nav primary" onclick="nextStep()">Next →</button>
+
+    <div class="faq-item" data-keywords="picks generated when how often governor">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">When does AURUM generate picks?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">Two ways. <strong>FILL TO 10 ONCE</strong> on the Simulator runs one scan immediately. <strong>AUTONOMOUS</strong> keeps the book filled while the app is open: it checks every 5 minutes, but only rescans when a position has closed or an hour has passed, so it does not burn scans finding nothing. <strong>Get Claude Trade Suggestion</strong> still gives a single on-demand pick.</div>
     </div>
+
+    <div class="faq-item" data-keywords="email brief weekly notification">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">Do I get a weekly email brief?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">Not currently. AURUM does not send emails. All intelligence lives inside the app — check the <strong>Brief</strong> page for your current picks, watchlist, and accuracy stats anytime.</div>
+    </div>
+
+    <div class="faq-item" data-keywords="score what mean 87 numbers rating composite">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">What does the composite score mean?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">A <span class="mono">0-100</span> score from the Governor, weighting every algorithm that actually ran. <span class="mono">50</span> is neutral. Direction comes from a band set in the scoring contract: <strong>crypto goes LONG above 55 and SHORT below 45</strong>; stocks need above <span class="mono">60</span> or below <span class="mono">40</span>. Anything between is <strong>NONE</strong> — no edge, no trade. Most candidates land between 45 and 55, which is why most scans reject more than they open. Algorithms with no data source are left out of the score entirely rather than counted as a neutral 50, which used to drag every score toward the middle.</div>
+    </div>
+
+    <div class="faq-item" data-keywords="accuracy self rating grade how measured 30 day">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">How does AURUM grade its own accuracy?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">Every pick is logged at the moment it's made. <strong>30 days later</strong>, AURUM automatically compares the pick's actual return against the S&P 500 (SPY) over the same window — this runs quietly in the background whenever you open the <strong>Admin</strong> page. If the pick beat SPY, it's marked a win. The accuracy percentage on the <strong>Report</strong> page reflects this verified track record.</div>
+    </div>
+
+    <div class="faq-item" data-keywords="cost money api credits how much twelve data finnhub claude">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">What does AURUM cost to run?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer"><strong>Deterministic mode makes no AI call</strong>, so scanning in it is free. Market data runs on free tiers, with the API keys held server-side by a proxy function rather than in the app. Hosting is GitHub Pages and the database is Supabase&rsquo;s free tier. The only real cost is <strong>Claude</strong>, and only in CLAUDE or BOTH scoring mode — roughly one call per candidate scored.</div>
+    </div>
+
+    <div class="faq-item" data-keywords="broker alpaca trading real money execute">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">Do I need a broker account to use AURUM?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">No. The <strong>Simulator</strong> works entirely with paper money tracked in your own database — no broker, no ID verification, no signup required. A live broker connection (currently Alpaca, on the <strong>Brokerage</strong> page) is only needed if you eventually want AURUM to place real trades automatically. Until then, you can manually execute any Claude-suggested trade through whatever brokerage app you already use.</div>
+    </div>
+
   </div>
 
-  <!-- Step 3 -->
-  <div class="step-card" id="step-3">
-    <div class="step-number">Step 03 of 09</div>
-    <div class="step-title">The <em>Intelligence</em> Feed</div>
-    <div class="step-body">
-      The News page shows headlines relevant to your watchlist, scored for sentiment. Sentiment scoring is generated live by the Sentiment Detector algorithm — powered by real-time Finnhub data — whenever the Governor runs.
-    </div>
-    <div class="feature-list">
-      <div class="feature-item">
-        <div class="feature-icon">SOURCE</div>
-        <div class="feature-text"><strong>Finnhub-Powered</strong> — Company news pulled in real time, scanned for bullish and bearish language patterns.</div>
+  <div class="gold-rule"></div>
+
+  <div class="help-section" id="section-simulator">
+    <div class="help-section-title">Operating the <em>Simulator</em></div>
+
+    <div class="faq-item" data-keywords="scoring mode deterministic claude both which use free">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">Which scoring mode should I use?</div>
+        <div class="faq-icon">+</div>
       </div>
-      <div class="feature-item">
-        <div class="feature-icon">SCORE</div>
-        <div class="feature-text"><strong>Sentiment Scoring</strong> — Headlines are scored for bullish or bearish language and cross-referenced with your watchlist stocks.</div>
-      </div>
-      <div class="feature-item">
-        <div class="feature-icon">FILTER</div>
-        <div class="feature-text"><strong>Signal Filters</strong> — Filter by All, Bullish, Bearish, or Neutral. Only see the signals that matter to your current thesis.</div>
-      </div>
+      <div class="faq-answer"><strong>DETERMINISTIC</strong> for routine scanning. It is free, gives the same answer for the same data, and on your own results it predicted outcomes better than Claude&rsquo;s composite did. <strong>CLAUDE</strong> adds a model review of every candidate, at a cost per call. <strong>BOTH</strong> runs Claude but records the deterministic score alongside it, so you can measure the difference. Position alerts are hidden while Deterministic is active.</div>
     </div>
-    <div class="step-nav">
-      <button class="btn-nav" onclick="prevStep()">← Previous</button>
-      <span class="step-counter">3 / 9</span>
-      <button class="btn-nav primary" onclick="nextStep()">Next →</button>
+
+    <div class="faq-item" data-keywords="preset conservative scaled aggressive positions size">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">What do the scale presets do?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">They set how many positions and how large. <strong>Conservative</strong>: 10 positions at 5% each, half your balance working. <strong>Scaled</strong>: 30 at 3%. <strong>Aggressive</strong>: 50 at 2%, where fixed costs start to bite. A bigger preset does not mean more picks: the funnel shortlists about 25 candidates and only some clear the gate, so Aggressive usually opens the same few names at a smaller size. <strong>Conservative is the recommended default</strong>, and the one to use for Swing mode.</div>
     </div>
+
+    <div class="faq-item" data-keywords="fill to 10 once autonomous scan schedule">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">What is the difference between FILL TO 10 ONCE and AUTONOMOUS?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer"><strong>FILL TO 10 ONCE</strong> runs one scan now and stops. <strong>AUTONOMOUS</strong> repeats on its own while the app is open — it checks every 5 minutes but only rescans after a position closes or an hour passes. Both use the same funnel, gate and sizing. Neither opens positions with the app closed: opening needs the app, managing does not.</div>
+    </div>
+
+    <div class="faq-item" data-keywords="scan log history wave why failed clear">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">What is the scan log?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">The box under the scan buttons. It keeps the last 80 lines, newest first and timestamped: how many coins were screened, which of your watchlist coins sat outside the volatility band, how each wave scored, and why candidates failed. <strong>Read it whenever a scan opens fewer positions than you expect.</strong> CLEAR empties it.</div>
+    </div>
+
+    <div class="faq-item" data-keywords="copy all positions export clipboard trail">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">How do I copy my open positions?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">Tap <strong>COPY ALL</strong> beside Open Positions. It copies every open trade as plain text — ticker, direction, quantity, entry, current price, stop, target, trailing status, volatility and CoinGecko id. The trail line shows either the exact price where the trailing stop will activate, or, once it is active, how far behind the price it is following and what it has locked in.</div>
+    </div>
+
+    <div class="faq-item" data-keywords="system diagnostics scan backtest check outcomes recalibrate">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">What do the System Diagnostics buttons do?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer"><strong>SCAN</strong> checks your live data: one portfolio row, every position priceable, P&amp;L and cost basis correct, stops valid, balance reconciling. <strong>RUN BACKTEST</strong> tests the scoring against historical prices. <strong>CHECK OUTCOMES</strong> resolves 24-hour and 7-day results for scored candidates, and needs the outcome-checker function deployed. <strong>RECALIBRATE</strong> rebuilds derived figures from raw trade data — it cannot fix a pricing or stop problem, which needs a code change.</div>
+    </div>
+
+    <div class="faq-item" data-keywords="position alerts notices delete all muted hidden">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">What do position alerts mean?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">Notices from the position monitor: stop or target hit, stop trailed, stale timeout, swing reversal, or a price it could not fetch. They sit in a scrollable box with a count and a DELETE ALL button. They are hidden in Deterministic mode, where most of them cannot occur — positions still close correctly, you just won&rsquo;t see the notice. Open Positions and Closed Trades always show everything.</div>
+    </div>
+
   </div>
 
-  <!-- Step 4 -->
-  <div class="step-card" id="step-4">
-    <div class="step-number">Step 04 of 09</div>
-    <div class="step-title">The <em>25 Algorithms</em></div>
-    <div class="step-body">
-      AURUM runs 25 algorithms across four phases — Core Signals, Advanced Analysis, Evolutionary ML, and Deep AI — plus a 26th: the <strong>Governor</strong>. The Governor runs last, weighting every algorithm by reliability and current market regime, resolving conflicts, and producing one composite score before Claude sees anything. Here are some of the key ones:
+  <div class="gold-rule"></div>
+
+  <div class="help-section" id="section-funnel">
+    <div class="help-section-title">How Picks Are <em>Chosen</em></div>
+
+    <div class="faq-item" data-keywords="funnel choose scan select coins universe ranking">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">How does AURUM choose what to scan?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">The funnel screens the top 1,000 coins and keeps only what the algorithms can read: a daily range between <span class="mono">1%</span> and <span class="mono">4.5%</span>, market cap above <span class="mono">$150M</span>, and 24-hour volume above <span class="mono">$25M</span>. It ranks the survivors by readability — closeness to a 3% daily range (45%), liquidity (25%), size (20%) — with movement only as a tiebreak (10%). It used to rank by how much a coin was moving, which selected exactly the chaotic, thin assets that lost.</div>
     </div>
-    <div class="algo-list">
-      <div class="algo-item">
-        <div>
-          <div class="algo-item-name">momentum_detector</div>
-          <div class="algo-item-desc">RSI, MACD, and multi-timeframe price velocity scoring</div>
-        </div>
-        <div class="algo-layer">Phase 1</div>
+
+    <div class="faq-item" data-keywords="volatility band why calm range ceiling">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">Why a volatility band?</div>
+        <div class="faq-icon">+</div>
       </div>
-      <div class="algo-item">
-        <div>
-          <div class="algo-item-name">sentiment_detector</div>
-          <div class="algo-item-desc">Live news sentiment scoring via Finnhub</div>
-        </div>
-        <div class="algo-layer">Phase 1</div>
-      </div>
-      <div class="algo-item">
-        <div>
-          <div class="algo-item-name">political_signal_detector</div>
-          <div class="algo-item-desc">Congressional trades and policy signals</div>
-        </div>
-        <div class="algo-layer">Phase 1</div>
-      </div>
-      <div class="algo-item">
-        <div>
-          <div class="algo-item-name">macro_detector</div>
-          <div class="algo-item-desc">Interest rates, inflation, GDP alignment</div>
-        </div>
-        <div class="algo-layer">Phase 1</div>
-      </div>
-      <div class="algo-item">
-        <div>
-          <div class="algo-item-name">options_flow_detector</div>
-          <div class="algo-item-desc">Sweeps, dark pool, and unusual options activity — highest-weighted algorithm (2.2x)</div>
-        </div>
-        <div class="algo-layer">Phase 1</div>
-      </div>
-      <div class="algo-item">
-        <div>
-          <div class="algo-item-name">insider_transaction_tracker</div>
-          <div class="algo-item-desc">CEO/CFO personal stock purchases weighted 2x</div>
-        </div>
-        <div class="algo-layer">Phase 1</div>
-      </div>
-      <div class="algo-item">
-        <div>
-          <div class="algo-item-name">macro_regime_detector</div>
-          <div class="algo-item-desc">Identifies economic regime and tells the Governor which algorithms to trust most</div>
-        </div>
-        <div class="algo-layer">Phase 2</div>
-      </div>
-      <div class="algo-item">
-        <div>
-          <div class="algo-item-name">sentiment_velocity</div>
-          <div class="algo-item-desc">Rate of sentiment change — acceleration vs peak</div>
-        </div>
-        <div class="algo-layer">Phase 2</div>
-      </div>
-      <div class="algo-item">
-        <div>
-          <div class="algo-item-name">earnings_cycle_detector</div>
-          <div class="algo-item-desc">Flags earnings proximity and triggers a confidence penalty</div>
-        </div>
-        <div class="algo-layer">Phase 2</div>
-      </div>
-      <div class="algo-item">
-        <div>
-          <div class="algo-item-name">correlation_filter</div>
-          <div class="algo-item-desc">Detects over-concentration in correlated positions</div>
-        </div>
-        <div class="algo-layer">Phase 2</div>
-      </div>
-      <div class="algo-item">
-        <div>
-          <div class="algo-item-name">deep_reinforcement_learning</div>
-          <div class="algo-item-desc">RL agent trained on price/volume history for directional conviction</div>
-        </div>
-        <div class="algo-layer">Phase 4</div>
-      </div>
-      <div class="algo-item">
-        <div>
-          <div class="algo-item-name">algorithm_orchestrator</div>
-          <div class="algo-item-desc">The Governor — synthesizes all 25 outputs into one composite score, verdict, and signal quality rating</div>
-        </div>
-        <div class="algo-layer master">Governor</div>
-      </div>
+      <div class="faq-answer">Volatility was the strongest predictor in your own data. Across scored candidates, a daily range of <span class="mono">2.5-3.5%</span> won about 70% of the time; <span class="mono">4.5-6%</span> won 31%; above 6%, 14-17%. Volatile coins also need wider stops, so every loss is larger. Within calm coins the composite score predicts outcomes; across all coins it barely does. The band points the algorithms at assets they can read. <strong>Caution:</strong> this was measured over a short period in a falling market.</div>
     </div>
-    <div class="step-nav">
-      <button class="btn-nav" onclick="prevStep()">← Previous</button>
-      <span class="step-counter">4 / 9</span>
-      <button class="btn-nav primary" onclick="nextStep()">Next →</button>
+
+    <div class="faq-item" data-keywords="excluded stablecoin wrapper tokenized gold peg rwa">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">What gets excluded entirely?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">Stablecoins; tokenized stocks such as bStocks and xStocks (SNDKB was SanDisk wrapped as a token); gold-backed tokens such as XAUT and PAXG; and tokenized loans and money-market funds such as FIGR_HELOC, BUIDL and USDY. They look like ideal calm candidates because they are <strong>pegged to something else</strong> — their charts describe gold or a loan book, not a crypto asset.</div>
     </div>
+
+    <div class="faq-item" data-keywords="watchlist source funnel compete priority">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">How does my watchlist fit in?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">In crypto, your watchlist goes through the same filters and <strong>competes on the same score</strong> as everything the funnel finds — it no longer jumps the queue. Watchlist coins outside the volatility band sit out that scan and are named in the scan log; they come back whenever they are calm. Every candidate and trade records whether it came from your <strong>watchlist</strong> or the <strong>funnel</strong>, so the two can be compared on outcomes. Stock mode still puts the watchlist first.</div>
+    </div>
+
+    <div class="faq-item" data-keywords="gate threshold signal quality direction opportunity reject">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">What decides whether a scored candidate is traded?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">Three tests from the scoring contract, all of which must pass. <strong>Signal quality</strong>: crypto <span class="mono">45</span>, stocks <span class="mono">60</span> — a floor that tested positive on your data. <strong>Direction</strong>: the composite must clear the band. <strong>Opportunity</strong>: crypto <span class="mono">50</span>, stocks <span class="mono">70</span>. In Swing mode, signal quality still applies but direction is decided by rank instead.</div>
+    </div>
+
   </div>
 
-  <!-- Step 5 -->
-  <div class="step-card" id="step-5">
-    <div class="step-number">Step 05 of 09</div>
-    <div class="step-title">The <em>Simulator</em></div>
-    <div class="step-body">
-      The Paper Trading Simulator lets you test AURUM's intelligence with $10,000 in simulated capital — no broker, no ID, no real money. This is the recommended starting point for validating the system.
+  <div class="gold-rule"></div>
+
+  <div class="help-section" id="section-positions">
+    <div class="help-section-title">How Positions Are <em>Managed</em></div>
+
+    <div class="faq-item" data-keywords="stop target set levels volatility 2x reward risk">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">How are stops and targets set?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">From each asset&rsquo;s own volatility. The stop sits about <strong>2x its daily range</strong> from entry and the target at <strong>2:1</strong> — twice the stop distance. A coin moving 3% a day gets a stop about 6% away and a target about 12% away. Calmer coins get tighter levels, volatile ones wider.</div>
     </div>
-    <div class="feature-list">
-      <div class="feature-item">
-        <div class="feature-icon">ASK</div>
-        <div class="feature-text"><strong>Get Claude Trade Suggestion</strong> — The Governor runs all 25 algorithms on a real ticker with live data, then Claude proposes a complete trade with exact prices and reasoning.</div>
+
+    <div class="faq-item" data-keywords="trailing stop breakeven lock profit protect">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">What is the trailing stop?</div>
+        <div class="faq-icon">+</div>
       </div>
-      <div class="feature-item">
-        <div class="feature-icon">APPLY</div>
-        <div class="feature-text"><strong>Apply to Trade Form</strong> — One tap fills every field — ticker, entry, stop, target — from Claude's suggestion. Or enter a trade manually.</div>
-      </div>
-      <div class="feature-item">
-        <div class="feature-icon">TRACK</div>
-        <div class="feature-text"><strong>Live G/L Tracking</strong> — Update the current price anytime to see real gain or loss in dollars and percentage.</div>
-      </div>
-      <div class="feature-item">
-        <div class="feature-icon">CLOSE</div>
-        <div class="feature-text"><strong>Close Positions</strong> — When you close a position the result is locked in and feeds your Report page performance history.</div>
-      </div>
+      <div class="faq-answer">Once a position is up <strong>half a day&rsquo;s normal movement</strong>, its stop moves to <strong>breakeven</strong>, then follows the price <strong>one day&rsquo;s movement behind</strong>. It only ever tightens, so a position that has gained can no longer turn into a loss. On a coin moving 3.82% a day it activates at <span class="mono">+1.91%</span> and trails 3.82% behind. Shorts work the same way in reverse. It runs in every mode.</div>
     </div>
-    <div class="step-nav">
-      <button class="btn-nav" onclick="prevStep()">← Previous</button>
-      <span class="step-counter">5 / 9</span>
-      <button class="btn-nav primary" onclick="nextStep()">Next →</button>
+
+    <div class="faq-item" data-keywords="stale timeout close going nowhere 168 48 hours">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">When does a position close for going nowhere?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">The stale rule. <strong>Swing</strong>: after <span class="mono">168</span> hours (7 days) if it has moved less than 3%. <strong>Day</strong>: after <span class="mono">48</span> hours if under 1.5%. Positions <strong>in profit by 0.5% or more are exempt</strong> — a slow winner isn&rsquo;t going nowhere. A backstop closes anything at <span class="mono">336</span> hours (two weeks) regardless, recorded as <em>max_hold</em>.</div>
     </div>
+
+    <div class="faq-item" data-keywords="monitor app closed offline background server">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">Are positions managed while the app is closed?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">Yes. The position monitor runs server-side on a schedule and manages every open position in both directions: it prices them, raises trailing stops, applies the stale rule, runs Swing reviews, and closes on stop or target. Opening new positions needs the app; managing them does not.</div>
+    </div>
+
+    <div class="faq-item" data-keywords="price priced coingecko fallback cryptocompare unpriceable">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">How are positions priced?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">From the exact CoinGecko id stored on each position when it opened, so any coin the funnel can open can be priced. If CoinGecko fails or rate-limits, the monitor retries once, then falls back to CryptoCompare. Fallback prices are checked against the entry — one more than 3x away is treated as a different coin sharing the ticker and rejected, rather than risking a false stop. If a cycle misses, the next one checks the price range it missed.</div>
+    </div>
+
+    <div class="faq-item" data-keywords="close reason trailing stale max hold swing review manual">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">What do the close reasons mean?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer"><strong>target_reached</strong> — hit its target. <strong>stop_loss_triggered</strong> — hit its original stop, a loss. <strong>trailing_stop</strong> — gained, then turned, and the trailed stop closed it. <strong>stale_timeout</strong> — flat past the stale window. <strong>max_hold</strong> — reached two weeks. <strong>swing_review</strong> — closed by Swing mode to reverse. <strong>manual_close</strong> — closed by you.</div>
+    </div>
+
   </div>
 
-  <!-- Step 6 -->
-  <div class="step-card" id="step-6">
-    <div class="step-number">Step 06 of 09</div>
-    <div class="step-title">The <em>Trading</em>, <em>Options</em> & <em>Crypto</em> Pages</div>
-    <div class="step-body">
-      When you're ready to act on real signals, the Trading page generates live Governor-backed instructions for both stocks and crypto. The Options page assesses your open options positions.
+  <div class="gold-rule"></div>
+
+  <div class="help-section" id="section-swing">
+    <div class="help-section-title">Swing Mode — <em>Long / Short</em></div>
+
+    <div class="faq-item" data-keywords="swing mode long short what is toggle">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">What is Swing mode?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">A mode, <strong>off by default</strong>, switched with <strong>SWING</strong> on the Simulator. When on, each scan opens <strong>10 longs and 10 shorts</strong> on the Conservative preset instead of longs only, and positions that capture capital can <strong>reverse</strong> — a long that tops out becomes a short. The point is to catch both the climb and the fall. When off, everything runs exactly as before.</div>
     </div>
-    <div class="feature-list">
-      <div class="feature-item">
-        <div class="feature-icon">MODE</div>
-        <div class="feature-text"><strong>Manual or Auto</strong> — Manual shows five ranked trades to pick from. Auto autofills a single highest-conviction trade, ready to execute.</div>
+
+    <div class="faq-item" data-keywords="relative rank strongest weakest pick shorts how">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">How does it pick longs and shorts?</div>
+        <div class="faq-icon">+</div>
       </div>
-      <div class="feature-item">
-        <div class="feature-icon">TYPE</div>
-        <div class="feature-text"><strong>Stock or Options, Day or Swing</strong> — Choose your instrument and time horizon before generating an instruction.</div>
-      </div>
-      <div class="feature-item">
-        <div class="feature-icon">CRYPTO</div>
-        <div class="feature-text"><strong>Crypto Mode</strong> — Toggle STOCKS / CRYPTO in the Brief page header. In crypto mode, the Governor swaps in 6 crypto-specific algorithms. Claude generates DEX execution instructions — Uniswap, dYdX, or Jupiter. Both LONG and SHORT supported.</div>
-      </div>
-      <div class="feature-item">
-        <div class="feature-icon">DEX</div>
-        <div class="feature-text"><strong>No Broker, No ID Required</strong> — Crypto trades execute via decentralized exchanges. Connect a MetaMask or Coinbase Wallet and follow Claude's exact execution note. No account, no KYC.</div>
-      </div>
-      <div class="feature-item">
-        <div class="feature-icon">WALLET</div>
-        <div class="feature-text"><strong>Connecting Your Wallet</strong> — In Auto mode, tap <strong>Connect Wallet for DEX Execution</strong> in the auto-fill panel. AURUM detects MetaMask or Coinbase Wallet automatically. Your shortened address appears on the button when connected. Keep funds in USDC or ETH for Uniswap trades, USDC for dYdX perpetuals.</div>
-      </div>
-      <div class="feature-item">
-        <div class="feature-icon">MONITOR</div>
-        <div class="feature-text"><strong>Position Monitor</strong> — Once a trade is open, close the app. The Position Monitor (quick-service) checks every 15 minutes and closes the trade automatically at stop-loss or target. Works for both stock and crypto, both long and short, while you're completely offline.</div>
-      </div>
-      <div class="feature-item">
-        <div class="feature-icon">ASSESS</div>
-        <div class="feature-text"><strong>Options Assessment</strong> — For open options positions, Claude returns TAKE PROFIT, HOLD, FLIP, or EXIT based on current signal alignment and days to expiration.</div>
-      </div>
+      <div class="faq-answer">By <strong>relative rank</strong>, not by asking whether a coin will fall. Every candidate is scored, then the <strong>strongest go long and the weakest go short</strong>, and the two sides never overlap. The composite is reasonably good at telling stronger coins from weaker ones, but poor at calling absolute direction. So a short here means <em>expected to lag the longs</em>, not necessarily <em>expected to fall</em>.</div>
     </div>
-    <div class="highlight-box">
-      <div class="highlight-label">Crypto Free Tier</div>
-      <div class="highlight-text">Crypto mode runs at ~70-75% capacity on free tier using Binance funding rates, CoinGecko, Alternative.me Fear & Greed, and Claude supplemental estimates. Coinglass ($29/mo) pushes it to ~85%.</div>
+
+    <div class="faq-item" data-keywords="oversold rsi 30 bounce never shorted">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">Why are some weak coins never shorted?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">Anything <strong>oversold — RSI under 30</strong> — is refused as a short. The shorts that lost were all coins near the bottom of a fall that then bounced. Shorting a coin that has already dropped hard is shorting the bottom.</div>
     </div>
-    <div class="step-nav">
-      <button class="btn-nav" onclick="prevStep()">← Previous</button>
-      <span class="step-counter">6 / 9</span>
-      <button class="btn-nav primary" onclick="nextStep()">Next →</button>
+
+    <div class="faq-item" data-keywords="reversal review 4 hours captured capital flip">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">How do reversals work?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">Never decided at entry. A position is left alone until it has <strong>captured capital</strong> — its trailing stop has reached breakeven. From then, every <strong>4 hours</strong>, the deterministic process scores it fresh on that moment&rsquo;s data. Same direction or neutral: hold. Clearly flipped: close it, locking the gain, and open the opposite position at the same size. If the trailing stop fires first, it rescores at that moment and reverses only if the fresh read agrees. <strong>An original stop hit at a loss never reverses.</strong></div>
     </div>
+
+    <div class="faq-item" data-keywords="flip back churn repeat reversal guard">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">Can it flip back and forth?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">No. A position opened by a reversal starts with its trailing stop inactive, so it is not reviewed — and cannot reverse again — until it has captured capital of its own.</div>
+    </div>
+
+    <div class="faq-item" data-keywords="live trading paper only wallet perpetual">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">Does Swing mode work with live trading?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">No — it is <strong>paper only</strong>. Your wallet trades on a spot exchange, which cannot short, so Swing refuses to run while live trading is armed. Live shorts would need a perpetual futures venue.</div>
+    </div>
+
+    <div class="faq-item" data-keywords="test run how to start swing first">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">How should I run a Swing test?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">Disarm live trading, set scoring to <strong>DETERMINISTIC</strong>, keep the <strong>Conservative</strong> preset, turn <strong>SWING</strong> on, and tap <strong>FILL TO 10 ONCE</strong>. The scan log reports how many candidates it ranked, the composite range, any oversold coins it skipped, and how many it opened each way. If fewer than twenty usable candidates clear, both sides shrink evenly. Positions are tagged <em>L/S top N</em> or <em>L/S bottom N</em> in their notes. Then let them run — closing them by hand records your decision, not the system&rsquo;s.</div>
+    </div>
+
+    <div class="faq-item" data-keywords="risk market neutral rally hedge">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">What is the risk?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">Half long and half short leaves your net exposure to the market close to zero, so a broad drop that hurts the longs pays the shorts. The bet is that your longs outperform your shorts. In a strong rally even your weakest coins may rise, and the shorts lose. This is untested on your account — treat the first runs as data, not results.</div>
+    </div>
+
   </div>
 
-  <!-- Step 7 -->
-  <div class="step-card" id="step-7">
-    <div class="step-number">Step 07 of 09</div>
-    <div class="step-title">The <em>Admin</em> Panel</div>
-    <div class="step-body">
-      The Admin panel is AURUM's control center. You manage your watchlist, improve algorithms in plain English, set price alerts, and run a system health scan — all from one place.
-    </div>
-    <div class="feature-list">
-      <div class="feature-item">
-        <div class="feature-icon">WATCH</div>
-        <div class="feature-text"><strong>Manage Watchlist</strong> — Add stocks to AURUM's monitoring universe. These tickers power the Brief, Trading, and Sectors pages.</div>
+  <div class="gold-rule"></div>
+
+  <!-- Algorithms FAQ -->
+  <div class="help-section" id="section-algorithms">
+    <div class="help-section-title">The <em>Algorithms</em></div>
+
+    <div class="faq-item" data-keywords="how many algorithms governor orchestrator">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">How many algorithms does AURUM run, and what's the Governor?</div>
+        <div class="faq-icon">+</div>
       </div>
-      <div class="feature-item">
-        <div class="feature-icon">ALGO</div>
-        <div class="feature-text"><strong>Algorithm Improvement</strong> — Describe a change in plain English. Claude rewrites the algorithm code and presents it for your approval before anything deploys.</div>
-      </div>
-      <div class="feature-item">
-        <div class="feature-icon">ALERT</div>
-        <div class="feature-text"><strong>Price Alerts</strong> — Set alerts for when a stock moves up or down beyond your threshold.</div>
-      </div>
-      <div class="feature-item">
-        <div class="feature-icon">SCAN</div>
-        <div class="feature-text"><strong>Health Scan</strong> — Runs automatically every time you open Admin. Claude reviews your algorithms, settings, and trade history, flagging issues as Critical, Warning, Info, or OK.</div>
-      </div>
+      <div class="faq-answer"><strong>33</strong> are stored; each scan runs the ones with a real data source — typically <strong>13 to 18</strong> in crypto. The rest are left out entirely rather than scored a neutral 50: stock-only signals in crypto mode, signals with no connected feed, and two excluded permanently — <span class="mono">attention_augmented_gru</span> for its CPU cost and <span class="mono">agentic_llm_workflow</span> because it is not actionable. The most expensive algorithms can be skipped to stay inside the server&rsquo;s CPU limit. The <strong>Governor</strong> runs the suite, weights each algorithm, and returns the composite and direction.</div>
     </div>
-    <div class="highlight-box">
-      <div class="highlight-label">Important</div>
-      <div class="highlight-text">Add stocks deliberately, not arbitrarily. A focused watchlist produces sharper, more useful intelligence than a sprawling one.</div>
+
+    <div class="faq-item" data-keywords="momentum detector price velocity volume">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">What does the Momentum Detector do?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">Measures <strong>price velocity</strong> using RSI, MACD, and rate-of-change across multiple timeframes, confirmed by volume trends. A stock moving up fast with rising volume scores higher than one drifting up on thin volume.</div>
     </div>
-    <div class="step-nav">
-      <button class="btn-nav" onclick="prevStep()">← Previous</button>
-      <span class="step-counter">7 / 9</span>
-      <button class="btn-nav primary" onclick="nextStep()">Next →</button>
+
+    <div class="faq-item" data-keywords="sentiment detector news social score bullish bearish">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">What does the Sentiment Detector do?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">Analyzes recent news headlines from <strong>Finnhub</strong> for positive and negative language, combined with analyst recommendation data, to produce a bullish, bearish, or neutral sentiment score.</div>
     </div>
+
+    <div class="faq-item" data-keywords="political signal congressional trades policy quiver">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">What does the Political Signal Detector do?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">Tracks <strong>congressional trading activity</strong> when connected to a data source. Members of Congress buying a stock is treated as a meaningful bullish signal. This algorithm runs at neutral until a congressional trading data key is added.</div>
+    </div>
+
+    <div class="faq-item" data-keywords="options flow unusual smart money calls puts">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">What does the Options Flow Detector do?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">Detects <strong>unusual options activity</strong> — sweeps, dark pool flow, and call/put volume imbalances. This is AURUM's highest-weighted algorithm in the Governor (2.2x) because options flow is one of the most reliable early signals of institutional positioning. Runs at neutral until an options flow data source is connected.</div>
+    </div>
+
+    <div class="faq-item" data-keywords="insider transaction ceo cfo buying personal finnhub">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">What does the Insider Transaction Tracker do?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">Tracks insider buying and selling via <strong>Finnhub</strong>. Executives purchasing their own company's stock with personal funds is weighted heavily (2.0x in the Governor) — insiders rarely buy unless they believe the stock is undervalued.</div>
+    </div>
+
+    <div class="faq-item" data-keywords="macro regime sector stagflation recession growth">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">What does the Macro Regime Detector do?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">Identifies the current macroeconomic regime — goldilocks, low-rate expansion, high-rate expansion, recession, stagflation, risk-off, and more — and tells the Governor which algorithms to trust most in that environment. In a recession, macro and correlation signals get amplified; momentum gets dampened.</div>
+    </div>
+
+    <div class="faq-item" data-keywords="probability spread bull bear base case confidence">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">What is the Governor's signal quality score?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">How much trustworthy data stood behind a read. In Deterministic mode it is computed from how many algorithms ran. It measures <strong>data sources, not conviction</strong> — and on your data, candidates below 45 lost money while those at 60 and above won most of the time. It is a gate in every mode.</div>
+    </div>
+
+    <div class="faq-item" data-keywords="improve algorithm change plain english admin">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">How do I improve an algorithm?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">Go to the <strong>Admin panel</strong> → Algorithm Improvement section. Select the algorithm you want to change. Describe the improvement in plain English — for example <em>"The momentum detector flags too many small cap stocks. I only want large cap above $10B market cap."</em> AURUM rewrites the code and presents it for your approval before anything deploys. You never need to touch code directly.</div>
+    </div>
+
   </div>
 
-  <!-- Step 8 -->
-  <div class="step-card" id="step-8">
-    <div class="step-number">Step 08 of 09</div>
-    <div class="step-title">The <em>Self-Rating</em> System</div>
-    <div class="step-body">
-      This is what separates AURUM from a generic stock tool. The self-rating system logs every pick at the moment it's made — then grades AURUM's accuracy automatically 30 days later against real market performance.
+  <div class="gold-rule"></div>
+
+  <!-- Crypto Mode FAQ -->
+  <div class="help-section" id="section-crypto">
+    <div class="help-section-title">Crypto <em>Mode</em></div>
+
+    <div class="faq-item" data-keywords="crypto mode toggle stock switch how">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">How do I switch to Crypto mode?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">Tap the <strong>STOCKS / CRYPTO</strong> toggle in the header of the Brief page. The switch persists — every page in the app reads your active mode on load and filters all data accordingly. Your stock watchlist and crypto watchlist stay completely separate.</div>
     </div>
-    <div class="feature-list">
-      <div class="feature-item">
-        <div class="feature-icon">LOG</div>
-        <div class="feature-text"><strong>Every pick is logged</strong> — Ticker, score, brief, entry price, and timestamp. Nothing is cherry-picked after the fact.</div>
+
+    <div class="faq-item" data-keywords="crypto algorithms which ones difference stock">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">Which algorithms run in Crypto mode?</div>
+        <div class="faq-icon">+</div>
       </div>
-      <div class="feature-item">
-        <div class="feature-icon">GRADE</div>
-        <div class="feature-text"><strong>Automatic grading</strong> — 30 days after each pick, AURUM compares its return against the S&P 500 (SPY) over the same window. This runs quietly in the background whenever you open the Admin page.</div>
-      </div>
-      <div class="feature-item">
-        <div class="feature-icon">REPORT</div>
-        <div class="feature-text"><strong>Monthly Report</strong> — The Report page shows pick accuracy, simulator P&L, and lets you download a full PDF summary for any month.</div>
-      </div>
-      <div class="feature-item">
-        <div class="feature-icon">TRUST</div>
-        <div class="feature-text"><strong>Verified track record</strong> — The accuracy percentage shown is real — earned over time, not projected. That's what makes it trustworthy.</div>
-      </div>
+      <div class="faq-answer">In Crypto mode, 4 stock-specific algorithms are replaced with crypto equivalents, and 2 entirely new algorithms are added that have no stock equivalent:<br><br>
+      <strong>Replacements:</strong> crypto_derivatives_flow (2.2x) replaces options_flow_detector, crypto_whale_tracker (2.0x) replaces insider_transaction_tracker, crypto_protocol_events (1.3x) replaces earnings_cycle_detector, crypto_regulatory_signals (0.7x) replaces political_signal_detector.<br><br>
+      <strong>New:</strong> crypto_onchain_momentum (1.8x) — NVT ratio, MVRV Z-score, SOPR, active addresses. crypto_market_cycle_detector (1.6x) — halving cycle phase, BTC dominance, Fear & Greed Index. All ML/AI algorithms (phases 3-4) run unchanged in both modes.</div>
     </div>
-    <div class="step-nav">
-      <button class="btn-nav" onclick="prevStep()">← Previous</button>
-      <span class="step-counter">8 / 9</span>
-      <button class="btn-nav primary" onclick="nextStep()">Next →</button>
+
+    <div class="faq-item" data-keywords="crypto trade execute dex broker id required">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">How do I execute crypto trades?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">No broker, no ID required. Claude generates a complete DEX execution instruction with every crypto trade suggestion — which DEX to use, the trading pair, and the exact steps. Execute via <strong>Uniswap</strong> (ERC-20 tokens like ETH, LINK, UNI), <strong>dYdX</strong> (BTC and ETH perpetuals with leverage), or <strong>Jupiter</strong> (Solana-based tokens like SOL). Connect your MetaMask or Coinbase Wallet and follow the instruction exactly.</div>
     </div>
+
+    <div class="faq-item" data-keywords="crypto both ways long short direction">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">Can AURUM trade both directions in crypto?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">Yes. In the normal scan a candidate goes SHORT when its composite falls below <span class="mono">45</span>, but that is rare — composites cluster around 52, and shorts taken on a low absolute score have lost. <strong>Swing mode</strong> is the reliable way to trade both directions: it opens shorts by relative rank and refuses oversold coins. Live shorts need a perpetual futures venue; the spot wallet cannot short.</div>
+    </div>
+
+    <div class="faq-item" data-keywords="crypto data free paid capacity algorithms">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">How much of the crypto intelligence works for free?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer"><strong>Deterministic scoring is entirely free.</strong> Connected free sources: CoinGecko prices, history and global data; Binance funding rates where a perpetual exists; the Fear &amp; Greed Index; and Finnhub news. Several algorithms have no source yet — options flow, exchange whale flows, macro — and are left out of the score rather than guessed at.</div>
+    </div>
+
+    <div class="faq-item" data-keywords="crypto regime cycle bull bear halving">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">What are crypto regimes and how do they work?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">The Governor detects 10 crypto-specific market regimes — bull_run, altseason, accumulation, distribution, markdown, pre_halving, post_halving, extreme_fear, extreme_greed, and regulatory_event. Each regime re-weights the algorithms the Governor trusts most. In a bull_run, momentum and derivatives flow get amplified. In accumulation, on-chain metrics and whale tracking dominate. In extreme_fear, the Governor applies contrarian signals — the same way crypto funds trade the Fear & Greed Index as a reversal indicator.</div>
+    </div>
+
+    <div class="faq-item" data-keywords="wallet connect metamask coinbase how setup">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">How do I connect my wallet for crypto trading?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">On the Trading page in crypto mode, tap <strong>Connect Wallet for DEX Execution</strong> in the auto-fill panel. AURUM detects MetaMask or Coinbase Wallet automatically via your browser. Once connected, your shortened wallet address appears on the button confirming the connection. You need funds in your wallet to execute live trades — USDC or ETH for Uniswap, USDC for dYdX perpetuals.</div>
+    </div>
+
+    <div class="faq-item" data-keywords="offline trades monitored position stop loss target automatic close">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">Does AURUM monitor my trades when the app is closed?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">Yes. The position monitor runs server-side and manages every open position in both directions: it prices them from their stored CoinGecko id, raises trailing stops, applies the stale rule, runs Swing reviews when that mode is on, and closes on stop or target. Open a position, close the app, and the system keeps managing it.</div>
+    </div>
+
+    <div class="faq-item" data-keywords="autonomous offline workflow how it works governor claude position">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">What runs automatically while the app is offline?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">Server-side, on schedule: the <strong>Position Monitor</strong> prices every open trade, raises trailing stops, applies the stale rule, runs Swing reviews and closes on stop or target. The <strong>Strategy Monitor</strong> compares Day and Swing results. The <strong>news</strong> job fetches headlines for your watchlist. Opening new positions still needs the app. The Diagnostic page&rsquo;s Workers section shows what each one last wrote.</div>
+    </div>
+
   </div>
 
-  <!-- Step 9 -->
-  <div class="step-card" id="step-9">
-    <div class="step-number">Step 09 of 09</div>
-    <div class="step-title">How You <em>Use It</em></div>
-    <div class="step-body">
-      AURUM runs on demand for analysis — every Governor run and Claude decision happens fresh when you ask for it. But position management, news, and strategy switching run automatically in the background 24/7.
+  <div class="gold-rule"></div>
+
+  <div class="help-section" id="section-data">
+    <div class="help-section-title">Data &amp; <em>Diagnostics</em></div>
+
+    <div class="faq-item" data-keywords="diagnostic page check system sections workers governor">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">What is the Diagnostic page?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">A separate page, <span class="mono">diagnostic.html</span>, that checks the system end to end: database tables and columns, the scoring contract, write permissions, trade logic, the algorithms, the code your Simulator is actually running, every edge function, the scheduled workers, the Governor in every mode, a full traced workflow, the data pipeline and the price feeds. Run sections one at a time — <strong>Workers, Governor, Live code and Workflow</strong> are the most useful. Keep write tests on; turn Claude paths on only when you want to spend credits.</div>
     </div>
-    <div class="feature-list">
-      <div class="feature-item">
-        <div class="feature-icon">START</div>
-        <div class="feature-text"><strong>Test in the Simulator</strong> — Get a Claude trade suggestion, apply it, track it with paper money. Both stocks and crypto. No broker, no ID, zero risk.</div>
+
+    <div class="faq-item" data-keywords="shadow log recorded analysis calibration data">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">What gets recorded for analysis?</div>
+        <div class="faq-icon">+</div>
       </div>
-      <div class="feature-item">
-        <div class="feature-icon">EXECUTE</div>
-        <div class="feature-text"><strong>Open a trade</strong> — Stocks: Governor → Claude → Auto or Manual instruction. Crypto: same workflow, Claude generates a DEX instruction, you execute in MetaMask or Coinbase Wallet.</div>
-      </div>
-      <div class="feature-item">
-        <div class="feature-icon">OFFLINE</div>
-        <div class="feature-text"><strong>Close the app</strong> — The Position Monitor runs every 15 minutes server-side. It fetches live prices, checks every open position against its stop-loss and target, and closes automatically when triggered. Stocks and crypto both covered.</div>
-      </div>
-      <div class="feature-item">
-        <div class="feature-icon">REVIEW</div>
-        <div class="feature-text"><strong>Check the Report page</strong> — P&L, pick accuracy, DEX execution history, and strategy switches all logged. The self-rating system grades picks 30 days out automatically.</div>
-      </div>
-      <div class="feature-item">
-        <div class="feature-icon">REFINE</div>
-        <div class="feature-text"><strong>Improve over time</strong> — Admin panel lets you improve algorithms in plain English. System Notes tracks every pending upgrade and plug-and-play data source.</div>
-      </div>
+      <div class="faq-answer">Every scored candidate goes to <span class="mono">shadow_log</span>, whether it opened or not — its scores, direction, volatility, source and pipeline version. That is what calibration reads, not your trades. So the data builds up from <strong>scans</strong>, not from how many positions you hold, and deterministic scans add it for free.</div>
     </div>
-    <div class="highlight-box">
-      <div class="highlight-label">Always Running</div>
-      <div class="highlight-text">Position Monitor (every 15 min) · Strategy Monitor (hourly) · News Fetch (10am Eastern daily). AURUM manages your positions whether the app is open or not.</div>
+
+    <div class="faq-item" data-keywords="close delete trade win rate record mistake">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">Should I close or delete a trade I don&rsquo;t want in my record?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer"><strong>Closing</strong> records a finished trade and counts toward your win rate. <strong>Deleting</strong> removes it as if it never happened. If a position was opened by mistake or by a bug, delete it rather than close it. Don&rsquo;t delete genuine losses just because they lost — then your win rate stops meaning anything.</div>
     </div>
-    <div class="step-nav">
-      <button class="btn-nav" onclick="prevStep()">← Previous</button>
-      <span class="step-counter">9 / 9</span>
-      <button class="btn-nav primary" onclick="completeTutorial()">Complete →</button>
-    </div>
+
   </div>
 
-  <!-- Completion -->
-  <div class="completion" id="completion">
-    <div class="completion-au">AU</div>
-    <div class="completion-title">You're ready.</div>
-    <div class="completion-sub">Start in the Simulator. Build a track record. Move to live trading when the data convinces you.<br>Intelligence. Refined.</div>
-    <a href="index.html" class="btn-start">Enter AURUM</a>
+  <div class="gold-rule"></div>
+
+  <!-- Features FAQ -->
+  <div class="help-section" id="section-features">
+    <div class="help-section-title">Features & <em>Pages</em></div>
+
+    <div class="faq-item" data-keywords="watchlist add stock who advises">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">How do I add stocks to the watchlist?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">Go to <strong>Admin → Manage Watchlist</strong>. Enter the ticker, company name, and sector. Watchlist tickers feed the price bar on the Brief and Trading pages, and are available as targets when generating a Governor-backed trade instruction. Quality over quantity — a focused watchlist produces sharper intelligence.</div>
+    </div>
+
+    <div class="faq-item" data-keywords="simulator paper trading fake money how use">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">How does the Paper Trading Simulator work?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">It trades <strong>$10,000 of simulated capital</strong> with no broker and no real money. Pick a scoring mode and a preset, then run <strong>FILL TO 10 ONCE</strong> or <strong>AUTONOMOUS</strong>. Each opened position gets a volatility-sized stop and a 2:1 target, then the position monitor manages it — trailing stop, stale rule and, in Swing mode, reversals. Closed trades feed your win rate and equity curve. See <strong>Operating the Simulator</strong> above for every control.</div>
+    </div>
+
+    <div class="faq-item" data-keywords="news feed fetch sources how often update">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">How does the News Feed work?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">The News page displays headlines stored in AURUM's database, scored for sentiment and cross-referenced with your watchlist. Sentiment scoring for individual tickers is generated live by the <strong>Sentiment Detector</strong> algorithm whenever the Governor runs, using real-time headlines pulled from Finnhub.</div>
+    </div>
+
+    <div class="faq-item" data-keywords="price alert set threshold notify">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">How do Price Alerts work?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">Go to <strong>Admin → Price Alerts</strong>. Select a watchlist stock, choose whether you want to alert on upward or downward movement, set your percentage threshold, and enter your entry price. AURUM monitors and flags when the threshold is reached. Alerts are visible in the Admin panel and can be removed anytime.</div>
+    </div>
+
+    <div class="faq-item" data-keywords="sectors page performance breakdown">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">What does the Sectors page show?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">The Sectors page groups your watchlist stocks by sector — Technology, Finance, Energy, etc. — and shows the <strong>average AURUM score per sector</strong>. This helps you see where AURUM's collective intelligence is most bullish and whether your watchlist is too concentrated in one sector. The score bar shows relative strength visually.</div>
+    </div>
+
+    <div class="faq-item" data-keywords="trading page manual auto governor execute instruction">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">How does the Trading page work?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">Choose <strong>Stock or Options</strong>, <strong>Day or Swing</strong> strategy, and <strong>Manual or Auto</strong> mode. Tap <strong>Generate Instruction</strong> — the Governor runs all 25 algorithms with live data, then Claude returns a complete trade instruction. <strong>Manual mode</strong> shows five ranked trades to choose from. <strong>Auto mode</strong> autofills a single highest-conviction trade, ready to execute through your connected broker.</div>
+    </div>
+
+    <div class="faq-item" data-keywords="options assessment take profit hold flip exit">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">What does the Options page do?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">Tracks open options positions and gives Claude-powered assessments — <strong>TAKE PROFIT, HOLD, FLIP, or EXIT</strong> — based on current price, days to expiration, and AURUM's latest signal alignment for that ticker.</div>
+    </div>
+
+    <div class="faq-item" data-keywords="history archive picks past all time filter">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">What is the Pick History Archive?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">The History page logs <strong>every pick AURUM has ever made</strong> — score, brief, signal breakdown, date, and outcome. Filter by All, Real, Simulated, or Score 80+. This is your verified track record — the foundation of AURUM's credibility over time. Nothing is deleted or hidden.</div>
+    </div>
+
+  </div>
+
+  <div class="gold-rule"></div>
+
+  <!-- Glossary -->
+  <div class="help-section" id="section-glossary">
+    <div class="help-section-title">Glossary of <em>Terms</em></div>
+    <div class="glossary-grid">
+      <div class="glossary-item">
+        <div class="glossary-term">Composite Score</div>
+        <div class="glossary-def">The Governor&rsquo;s 0-100 score after weighting every algorithm that actually ran. 50 is neutral. Direction comes from the scoring contract&rsquo;s band — crypto LONG above 55, SHORT below 45.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="glossary-term">Signal Quality</div>
+        <div class="glossary-def">How much trustworthy data stood behind a score. Gates every trade: crypto needs 45, stocks 60. Measures data sources, not conviction.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="glossary-term">Signal Conflict</div>
+        <div class="glossary-def">When AURUM's algorithms disagree significantly — a wide spread between bullish and bearish scores, or high standard deviation across results. Flagged as moderate or severe conflict, reducing the Governor's confidence rating.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="glossary-term">Smart Money</div>
+        <div class="glossary-def">Institutional investors, hedge funds, and corporate insiders whose positioning often predicts price movement. Options flow and insider transactions are AURUM's two highest-weighted smart money signals in the Governor.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="glossary-term">Macro Regime</div>
+        <div class="glossary-def">The current macroeconomic environment — goldilocks, low-rate expansion, high-rate expansion, recession, stagflation, risk-off, deflation risk, or high-volatility bear. The Governor re-weights which algorithms it trusts most based on the detected regime.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="glossary-term">Sentiment Velocity</div>
+        <div class="glossary-def">The rate of change in sentiment — not just whether it's positive but whether it's accelerating or decelerating. Accelerating positive sentiment is a stronger signal than peaked sentiment.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="glossary-term">Self-Rating</div>
+        <div class="glossary-def">AURUM's system for grading its own accuracy. Picks are logged at entry and automatically compared against the S&P 500's return 30 days later. Runs quietly in the background each time the Admin page loads.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="glossary-term">Beat Market</div>
+        <div class="glossary-def">A pick that outperformed the S&P 500 (SPY) return over the same 30-day period. The benchmark used by AURUM's self-rating system and shown on the Report page.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="glossary-term">Correlation Risk</div>
+        <div class="glossary-def">When two or more watchlist stocks move almost identically. High correlation means your watchlist provides less diversification than it appears.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="glossary-term">Earnings Cycle</div>
+        <div class="glossary-def">The period around a company's quarterly earnings report. The Governor applies a confidence penalty to signals within the earnings window due to elevated binary-event risk.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="glossary-term">Options Flow</div>
+        <div class="glossary-def">The volume and direction of options contracts being traded, including sweeps and dark pool activity. Unusual call volume suggests bullish smart money positioning; unusual put volume suggests bearish positioning. AURUM's highest-weighted algorithm (2.2x).</div>
+      </div>
+      <div class="glossary-item">
+        <div class="glossary-term">Governor</div>
+        <div class="glossary-def">The 26th algorithm — the master orchestrator. Runs after all 25 others, weighting and synthesizing their outputs into one composite score, verdict, and signal quality rating before Claude ever sees the data.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="glossary-term">Paper Trading</div>
+        <div class="glossary-def">Simulated trading with virtual money, tracked entirely in AURUM's own database — no broker or ID required. AURUM's simulator starts with $10,000 in simulated funds.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="glossary-term">DEX (Decentralized Exchange)</div>
+        <div class="glossary-def">A peer-to-peer trading platform that operates without a central authority. Uniswap, dYdX, and Jupiter are the three DEXs AURUM recommends for trade execution. No ID, no broker account — just a crypto wallet.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="glossary-term">Funding Rate</div>
+        <div class="glossary-def">A periodic payment between long and short traders on perpetual futures contracts. Extreme positive funding means too many longs — a contrarian sell signal. Extreme negative funding means too many shorts — a contrarian buy signal. AURUM's crypto_derivatives_flow algorithm is built around this signal.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="glossary-term">MVRV Z-Score</div>
+        <div class="glossary-def">Market Value to Realized Value Z-Score. Measures how far the current market price deviates from the average price all coins last moved at. Below zero historically marks major bottoms. Above 7 historically marks major tops. One of the most powerful single signals in crypto_onchain_momentum.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="glossary-term">SOPR</div>
+        <div class="glossary-def">Spent Output Profit Ratio. Measures whether coins moved on-chain are moving at a profit or loss. SOPR below 1 means coins are moving at a loss — historically a capitulation and buy signal.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="glossary-term">NVT Ratio</div>
+        <div class="glossary-def">Network Value to Transactions ratio — crypto's equivalent of the P/E ratio. High NVT means the network is valued more than its transaction activity justifies (overvalued). Low NVT means undervalued relative to usage.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="glossary-term">BTC Dominance</div>
+        <div class="glossary-def">Bitcoin's percentage of total cryptocurrency market capitalization. Rising dominance signals risk-off behavior and bear market conditions. Falling dominance signals capital rotating into altcoins — a late bull market indicator tracked by crypto_market_cycle_detector.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="glossary-term">Halving Cycle</div>
+        <div class="glossary-def">Bitcoin's block reward halves approximately every 4 years, reducing new supply. Historically each halving triggers a bull market 12-18 months later. AURUM's crypto_market_cycle_detector tracks which phase of the halving cycle the market is currently in.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="glossary-term">Fear & Greed Index</div>
+        <div class="glossary-def">Alternative.me's 0-100 sentiment score for the crypto market. 0-25 = Extreme Fear (contrarian buy). 75-100 = Extreme Greed (contrarian sell). AURUM fetches this free, no key required, and feeds it directly into crypto_market_cycle_detector.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="glossary-term">Altseason</div>
+        <div class="glossary-def">A period when altcoins (non-Bitcoin cryptocurrencies) significantly outperform Bitcoin. Characterized by falling BTC dominance and rising total market cap. The Governor applies the altseason regime weight matrix when these conditions are detected, amplifying momentum and sentiment signals.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="glossary-term">Exchange Flow</div>
+        <div class="glossary-def">The movement of crypto assets into and out of centralized exchanges. Coins moving INTO exchanges suggest holders are preparing to sell (bearish). Coins moving OUT suggests accumulation (bullish). Tracked by crypto_whale_tracker — requires Glassnode or CryptoQuant for full data.</div>
+      </div>
+        <div class="glossary-def">A message included in the Governor's output whenever an algorithm fails, is skipped due to missing data, or a key data source (like options flow) isn't connected. Claude is told exactly what didn't run so it can account for the gap.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="glossary-term">Plug and Play</div>
+        <div class="glossary-def">AURUM's architecture for data sources. The integration code is already built for each algorithm — adding an API key (Twelve Data, Finnhub, Unusual Whales, Quiver) activates real data immediately without any additional coding.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="glossary-term">MetaMask / Coinbase Wallet</div>
+        <div class="glossary-def">Browser-based crypto wallets that connect directly to DEXs. No account, no ID, no broker. AURUM detects these automatically via window.ethereum when you tap Connect Wallet on the Trading page.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="glossary-term">Position Monitor</div>
+        <div class="glossary-def">The server-side function (quick-service) that manages open positions on a schedule: prices them, trails stops, applies the stale rule, runs Swing reviews, and closes on stop or target — app open or not.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="glossary-term">Deterministic Mode</div>
+        <div class="glossary-def">Scoring by weighted arithmetic over the algorithm suite, with no AI call. Free and reproducible.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="glossary-term">Scoring Contract</div>
+        <div class="glossary-def">The single stored set of thresholds — signal quality, direction and opportunity floors for crypto and stocks — that every part of the system reads.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="glossary-term">Funnel</div>
+        <div class="glossary-def">The screen that narrows the market to a shortlist worth scoring, by volatility, size and liquidity.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="glossary-term">Volatility Band</div>
+        <div class="glossary-def">The daily-range window the funnel accepts: 1% to 4.5%, ranked toward 3%. Where the algorithms read best.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="glossary-term">Trailing Stop</div>
+        <div class="glossary-def">A stop that moves to breakeven once a position is up half a day&rsquo;s movement, then follows the price one day&rsquo;s movement behind. Only ever tightens.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="glossary-term">Breakeven</div>
+        <div class="glossary-def">A stop placed at the entry price, so the position can no longer close at a loss.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="glossary-term">Stale Timeout</div>
+        <div class="glossary-def">Closes a position that has gone nowhere: 7 days and under 3% for swing, 2 days and under 1.5% for day. Positions in profit are exempt.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="glossary-term">Max Hold</div>
+        <div class="glossary-def">The two-week backstop that closes any position regardless, so capital is never tied up indefinitely.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="glossary-term">Capital Captured</div>
+        <div class="glossary-def">A position whose trailing stop has reached breakeven or beyond. Swing reviews only begin here.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="glossary-term">Swing Mode</div>
+        <div class="glossary-def">The toggleable long/short mode: ten longs and ten shorts by relative rank, with reversals once capital is captured. Paper only.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="glossary-term">Relative Long / Short</div>
+        <div class="glossary-def">Going long the strongest-scoring candidates and short the weakest. Profits when the longs outperform the shorts, in a rising or falling market.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="glossary-term">Swing Reversal</div>
+        <div class="glossary-def">Closing a position that has captured capital and opening the opposite one, when a fresh deterministic read clearly flips direction.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="glossary-term">Oversold (RSI)</div>
+        <div class="glossary-def">A coin whose 14-day RSI is under 30 — usually near the bottom of a fall. Never shorted, because such coins tend to bounce.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="glossary-term">Shadow Log</div>
+        <div class="glossary-def">The record of every scored candidate, opened or not. What calibration and outcome analysis read.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="glossary-term">Source</div>
+        <div class="glossary-def">Whether a candidate or trade came from your watchlist or the funnel, so the two can be compared on results.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="glossary-term">Scale Preset</div>
+        <div class="glossary-def">Conservative, Scaled or Aggressive — how many positions and what size each.</div>
+      </div>
+    </div>
   </div>
 
 </main>
@@ -870,49 +1245,44 @@
 </footer>
 
 <script>
-  let currentStep = 1;
-  const totalSteps = 9;
+  function toggleFaq(el) {
+    const item = el.parentElement;
+    const isOpen = item.classList.contains('open');
+    document.querySelectorAll('.faq-item.open').forEach(i => i.classList.remove('open'));
+    if (!isOpen) item.classList.add('open');
+  }
 
-  function buildProgress() {
-    const bar = document.getElementById('progress-bar');
-    bar.innerHTML = '';
-    for (let i = 1; i <= totalSteps; i++) {
-      const step = document.createElement('div');
-      step.className = 'progress-step' + (i < currentStep ? ' done' : i === currentStep ? ' active' : '');
-      bar.appendChild(step);
+  function searchHelp() {
+    const query = document.getElementById('search-input').value.toLowerCase().trim();
+    const items = document.querySelectorAll('.faq-item');
+    const glossaryItems = document.querySelectorAll('.glossary-item');
+    let anyVisible = false;
+
+    if (!query) {
+      items.forEach(i => { i.style.display = ''; });
+      glossaryItems.forEach(i => { i.style.display = ''; });
+      document.querySelectorAll('.help-section').forEach(s => s.style.display = '');
+      document.getElementById('no-results').style.display = 'none';
+      return;
     }
-  }
 
-  function showStep(n) {
-    document.querySelectorAll('.step-card').forEach(c => c.classList.remove('active'));
-    const card = document.getElementById(`step-${n}`);
-    if (card) card.classList.add('active');
-    buildProgress();
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  }
+    items.forEach(item => {
+      const keywords = item.getAttribute('data-keywords') || '';
+      const text = item.textContent.toLowerCase();
+      const match = keywords.includes(query) || text.includes(query);
+      item.style.display = match ? '' : 'none';
+      if (match) anyVisible = true;
+    });
 
-  function nextStep() {
-    if (currentStep < totalSteps) {
-      currentStep++;
-      showStep(currentStep);
-    }
-  }
+    glossaryItems.forEach(item => {
+      const text = item.textContent.toLowerCase();
+      const match = text.includes(query);
+      item.style.display = match ? '' : 'none';
+      if (match) anyVisible = true;
+    });
 
-  function prevStep() {
-    if (currentStep > 1) {
-      currentStep--;
-      showStep(currentStep);
-    }
+    document.getElementById('no-results').style.display = anyVisible ? 'none' : 'block';
   }
-
-  function completeTutorial() {
-    document.querySelectorAll('.step-card').forEach(c => c.classList.remove('active'));
-    document.getElementById('progress-bar').innerHTML = '';
-    document.getElementById('completion').classList.add('visible');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  }
-
-  buildProgress();
 
   function openNav() { document.getElementById('nav-overlay').classList.add('open'); }
   function closeNav() { document.getElementById('nav-overlay').classList.remove('open'); }
