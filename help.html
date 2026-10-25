@@ -400,7 +400,7 @@
   <a href="admin.html">Admin</a>
  <a href="tutorial.html">Tutorial</a>
  <a href="news.html">News</a>
-<a href="History.html">History</a>
+<a href="history.html">History</a>
 <a href="assistant.html">Assistant</a>
 <a href="options.html">Options</a>
  <a href="report.html">Report</a>
@@ -415,7 +415,7 @@
 <main>
 
   <div class="page-title">AURUM <em>Help.</em></div>
-  <div class="page-sub">Everything you need to know about how AURUM works — features, algorithms, terms, and answers to common questions.</div>
+  <div class="page-sub">Everything you need to operate AURUM — how picks are chosen, how positions are managed, Swing mode, diagnostics, and the terms behind them.</div>
 
   <div class="search-wrap">
     <input type="text" class="search-input" id="search-input" placeholder="Search help topics..." oninput="searchHelp()">
@@ -483,6 +483,13 @@
         </div>
         <div class="quick-link-arrow">→</div>
       </a>
+      <a href="diagnostic.html" class="quick-link">
+        <div>
+          <div class="quick-link-name">Diagnostic</div>
+          <div class="quick-link-desc">Full system check</div>
+        </div>
+        <div class="quick-link-arrow">→</div>
+      </a>
     </div>
   </div>
 
@@ -497,7 +504,7 @@
         <div class="faq-question-text">What exactly is AURUM?</div>
         <div class="faq-icon">+</div>
       </div>
-      <div class="faq-answer">AURUM is a <strong>private market intelligence system</strong>. It runs <strong>25 algorithms</strong> — momentum, sentiment, options flow, insider activity, macro regime, and more — through a master <strong>Governor</strong> that synthesizes every signal into a single composite score. Claude then turns that into a plain-language trade instruction. You can test everything in the <strong>Simulator</strong> with paper money, or generate trade instructions on the <strong>Trading</strong> page in Manual or Auto mode.</div>
+      <div class="faq-answer">AURUM is a <strong>private market intelligence and paper-trading system</strong>. A <strong>funnel</strong> screens the market for assets the system can actually read. The <strong>Governor</strong> runs your algorithm suite on each one and combines the results into a composite score. A <strong>gate</strong> decides what is worth trading. A <strong>position monitor</strong> then manages every open trade around the clock — stops, trailing stops and timeouts — whether or not the app is open. Scoring can run on pure arithmetic (<strong>Deterministic</strong>, free) or with Claude reviewing each candidate.</div>
     </div>
 
     <div class="faq-item" data-keywords="picks generated when how often governor">
@@ -505,7 +512,7 @@
         <div class="faq-question-text">When does AURUM generate picks?</div>
         <div class="faq-icon">+</div>
       </div>
-      <div class="faq-answer">On demand. There is currently <strong>no automatic schedule</strong> — picks and trade instructions are generated whenever you tap <strong>Get Claude Trade Suggestion</strong> on the Simulator page, or <strong>Generate Instruction</strong> on the Trading page. Each time, the Governor runs all 25 algorithms fresh against live market data before Claude responds.</div>
+      <div class="faq-answer">Two ways. <strong>FILL TO 10 ONCE</strong> on the Simulator runs one scan immediately. <strong>AUTONOMOUS</strong> keeps the book filled while the app is open: it checks every 5 minutes, but only rescans when a position has closed or an hour has passed, so it does not burn scans finding nothing. <strong>Get Claude Trade Suggestion</strong> still gives a single on-demand pick.</div>
     </div>
 
     <div class="faq-item" data-keywords="email brief weekly notification">
@@ -521,7 +528,7 @@
         <div class="faq-question-text">What does the composite score mean?</div>
         <div class="faq-icon">+</div>
       </div>
-      <div class="faq-answer">The score (0-100) is the <strong>Governor's composite signal</strong> after weighting all 25 algorithms by reliability and current market regime. A score of <span class="mono">72+</span> signals STRONG_BUY conviction. <span class="mono">62-71</span> is BUY. <span class="mono">55-61</span> is WATCH_LONG. Below that, signals weaken toward HOLD, WATCH_SHORT, SELL, or STRONG_SELL. Each result also carries a <strong>signal quality score</strong> — if algorithms disagree sharply or key data sources are missing, quality drops and Claude is instructed to lower its confidence.</div>
+      <div class="faq-answer">A <span class="mono">0-100</span> score from the Governor, weighting every algorithm that actually ran. <span class="mono">50</span> is neutral. Direction comes from a band set in the scoring contract: <strong>crypto goes LONG above 55 and SHORT below 45</strong>; stocks need above <span class="mono">60</span> or below <span class="mono">40</span>. Anything between is <strong>NONE</strong> — no edge, no trade. Most candidates land between 45 and 55, which is why most scans reject more than they open. Algorithms with no data source are left out of the score entirely rather than counted as a neutral 50, which used to drag every score toward the middle.</div>
     </div>
 
     <div class="faq-item" data-keywords="accuracy self rating grade how measured 30 day">
@@ -537,7 +544,7 @@
         <div class="faq-question-text">What does AURUM cost to run?</div>
         <div class="faq-icon">+</div>
       </div>
-      <div class="faq-answer">Market data runs on <strong>Twelve Data</strong> and <strong>Finnhub</strong> free tiers. Hosting is free via GitHub Pages. The database runs on Supabase's free tier. The only real cost is <strong>Claude API usage</strong>, billed pay-as-you-go through Anthropic — typically a few dollars depending on how often you generate trade instructions.</div>
+      <div class="faq-answer"><strong>Deterministic mode makes no AI call</strong>, so scanning in it is free. Market data runs on free tiers, with the API keys held server-side by a proxy function rather than in the app. Hosting is GitHub Pages and the database is Supabase&rsquo;s free tier. The only real cost is <strong>Claude</strong>, and only in CLAUDE or BOTH scoring mode — roughly one call per candidate scored.</div>
     </div>
 
     <div class="faq-item" data-keywords="broker alpaca trading real money execute">
@@ -546,6 +553,242 @@
         <div class="faq-icon">+</div>
       </div>
       <div class="faq-answer">No. The <strong>Simulator</strong> works entirely with paper money tracked in your own database — no broker, no ID verification, no signup required. A live broker connection (currently Alpaca, on the <strong>Brokerage</strong> page) is only needed if you eventually want AURUM to place real trades automatically. Until then, you can manually execute any Claude-suggested trade through whatever brokerage app you already use.</div>
+    </div>
+
+  </div>
+
+  <div class="gold-rule"></div>
+
+  <div class="help-section" id="section-simulator">
+    <div class="help-section-title">Operating the <em>Simulator</em></div>
+
+    <div class="faq-item" data-keywords="scoring mode deterministic claude both which use free">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">Which scoring mode should I use?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer"><strong>DETERMINISTIC</strong> for routine scanning. It is free, gives the same answer for the same data, and on your own results it predicted outcomes better than Claude&rsquo;s composite did. <strong>CLAUDE</strong> adds a model review of every candidate, at a cost per call. <strong>BOTH</strong> runs Claude but records the deterministic score alongside it, so you can measure the difference. Position alerts are hidden while Deterministic is active.</div>
+    </div>
+
+    <div class="faq-item" data-keywords="preset conservative scaled aggressive positions size">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">What do the scale presets do?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">They set how many positions and how large. <strong>Conservative</strong>: 10 positions at 5% each, half your balance working. <strong>Scaled</strong>: 30 at 3%. <strong>Aggressive</strong>: 50 at 2%, where fixed costs start to bite. A bigger preset does not mean more picks: the funnel shortlists about 25 candidates and only some clear the gate, so Aggressive usually opens the same few names at a smaller size. <strong>Conservative is the recommended default</strong>, and the one to use for Swing mode.</div>
+    </div>
+
+    <div class="faq-item" data-keywords="fill to 10 once autonomous scan schedule">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">What is the difference between FILL TO 10 ONCE and AUTONOMOUS?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer"><strong>FILL TO 10 ONCE</strong> runs one scan now and stops. <strong>AUTONOMOUS</strong> repeats on its own while the app is open — it checks every 5 minutes but only rescans after a position closes or an hour passes. Both use the same funnel, gate and sizing. Neither opens positions with the app closed: opening needs the app, managing does not.</div>
+    </div>
+
+    <div class="faq-item" data-keywords="scan log history wave why failed clear">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">What is the scan log?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">The box under the scan buttons. It keeps the last 80 lines, newest first and timestamped: how many coins were screened, which of your watchlist coins sat outside the volatility band, how each wave scored, and why candidates failed. <strong>Read it whenever a scan opens fewer positions than you expect.</strong> CLEAR empties it.</div>
+    </div>
+
+    <div class="faq-item" data-keywords="copy all positions export clipboard trail">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">How do I copy my open positions?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">Tap <strong>COPY ALL</strong> beside Open Positions. It copies every open trade as plain text — ticker, direction, quantity, entry, current price, stop, target, trailing status, volatility and CoinGecko id. The trail line shows either the exact price where the trailing stop will activate, or, once it is active, how far behind the price it is following and what it has locked in.</div>
+    </div>
+
+    <div class="faq-item" data-keywords="system diagnostics scan backtest check outcomes recalibrate">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">What do the System Diagnostics buttons do?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer"><strong>SCAN</strong> checks your live data: one portfolio row, every position priceable, P&amp;L and cost basis correct, stops valid, balance reconciling. <strong>RUN BACKTEST</strong> tests the scoring against historical prices. <strong>CHECK OUTCOMES</strong> resolves 24-hour and 7-day results for scored candidates, and needs the outcome-checker function deployed. <strong>RECALIBRATE</strong> rebuilds derived figures from raw trade data — it cannot fix a pricing or stop problem, which needs a code change.</div>
+    </div>
+
+    <div class="faq-item" data-keywords="position alerts notices delete all muted hidden">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">What do position alerts mean?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">Notices from the position monitor: stop or target hit, stop trailed, stale timeout, swing reversal, or a price it could not fetch. They sit in a scrollable box with a count and a DELETE ALL button. They are hidden in Deterministic mode, where most of them cannot occur — positions still close correctly, you just won&rsquo;t see the notice. Open Positions and Closed Trades always show everything.</div>
+    </div>
+
+  </div>
+
+  <div class="gold-rule"></div>
+
+  <div class="help-section" id="section-funnel">
+    <div class="help-section-title">How Picks Are <em>Chosen</em></div>
+
+    <div class="faq-item" data-keywords="funnel choose scan select coins universe ranking">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">How does AURUM choose what to scan?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">The funnel screens the top 1,000 coins and keeps only what the algorithms can read: a daily range between <span class="mono">1%</span> and <span class="mono">4.5%</span>, market cap above <span class="mono">$150M</span>, and 24-hour volume above <span class="mono">$25M</span>. It ranks the survivors by readability — closeness to a 3% daily range (45%), liquidity (25%), size (20%) — with movement only as a tiebreak (10%). It used to rank by how much a coin was moving, which selected exactly the chaotic, thin assets that lost.</div>
+    </div>
+
+    <div class="faq-item" data-keywords="volatility band why calm range ceiling">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">Why a volatility band?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">Volatility was the strongest predictor in your own data. Across scored candidates, a daily range of <span class="mono">2.5-3.5%</span> won about 70% of the time; <span class="mono">4.5-6%</span> won 31%; above 6%, 14-17%. Volatile coins also need wider stops, so every loss is larger. Within calm coins the composite score predicts outcomes; across all coins it barely does. The band points the algorithms at assets they can read. <strong>Caution:</strong> this was measured over a short period in a falling market.</div>
+    </div>
+
+    <div class="faq-item" data-keywords="excluded stablecoin wrapper tokenized gold peg rwa">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">What gets excluded entirely?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">Stablecoins; tokenized stocks such as bStocks and xStocks (SNDKB was SanDisk wrapped as a token); gold-backed tokens such as XAUT and PAXG; and tokenized loans and money-market funds such as FIGR_HELOC, BUIDL and USDY. They look like ideal calm candidates because they are <strong>pegged to something else</strong> — their charts describe gold or a loan book, not a crypto asset.</div>
+    </div>
+
+    <div class="faq-item" data-keywords="watchlist source funnel compete priority">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">How does my watchlist fit in?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">In crypto, your watchlist goes through the same filters and <strong>competes on the same score</strong> as everything the funnel finds — it no longer jumps the queue. Watchlist coins outside the volatility band sit out that scan and are named in the scan log; they come back whenever they are calm. Every candidate and trade records whether it came from your <strong>watchlist</strong> or the <strong>funnel</strong>, so the two can be compared on outcomes. Stock mode still puts the watchlist first.</div>
+    </div>
+
+    <div class="faq-item" data-keywords="gate threshold signal quality direction opportunity reject">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">What decides whether a scored candidate is traded?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">Three tests from the scoring contract, all of which must pass. <strong>Signal quality</strong>: crypto <span class="mono">45</span>, stocks <span class="mono">60</span> — a floor that tested positive on your data. <strong>Direction</strong>: the composite must clear the band. <strong>Opportunity</strong>: crypto <span class="mono">50</span>, stocks <span class="mono">70</span>. In Swing mode, signal quality still applies but direction is decided by rank instead.</div>
+    </div>
+
+  </div>
+
+  <div class="gold-rule"></div>
+
+  <div class="help-section" id="section-positions">
+    <div class="help-section-title">How Positions Are <em>Managed</em></div>
+
+    <div class="faq-item" data-keywords="stop target set levels volatility 2x reward risk">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">How are stops and targets set?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">From each asset&rsquo;s own volatility. The stop sits about <strong>2x its daily range</strong> from entry and the target at <strong>2:1</strong> — twice the stop distance. A coin moving 3% a day gets a stop about 6% away and a target about 12% away. Calmer coins get tighter levels, volatile ones wider.</div>
+    </div>
+
+    <div class="faq-item" data-keywords="trailing stop breakeven lock profit protect">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">What is the trailing stop?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">Once a position is up <strong>half a day&rsquo;s normal movement</strong>, its stop moves to <strong>breakeven</strong>, then follows the price <strong>one day&rsquo;s movement behind</strong>. It only ever tightens, so a position that has gained can no longer turn into a loss. On a coin moving 3.82% a day it activates at <span class="mono">+1.91%</span> and trails 3.82% behind. Shorts work the same way in reverse. It runs in every mode.</div>
+    </div>
+
+    <div class="faq-item" data-keywords="stale timeout close going nowhere 168 48 hours">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">When does a position close for going nowhere?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">The stale rule. <strong>Swing</strong>: after <span class="mono">168</span> hours (7 days) if it has moved less than 3%. <strong>Day</strong>: after <span class="mono">48</span> hours if under 1.5%. Positions <strong>in profit by 0.5% or more are exempt</strong> — a slow winner isn&rsquo;t going nowhere. A backstop closes anything at <span class="mono">336</span> hours (two weeks) regardless, recorded as <em>max_hold</em>.</div>
+    </div>
+
+    <div class="faq-item" data-keywords="monitor app closed offline background server">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">Are positions managed while the app is closed?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">Yes. The position monitor runs server-side on a schedule and manages every open position in both directions: it prices them, raises trailing stops, applies the stale rule, runs Swing reviews, and closes on stop or target. Opening new positions needs the app; managing them does not.</div>
+    </div>
+
+    <div class="faq-item" data-keywords="price priced coingecko fallback cryptocompare unpriceable">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">How are positions priced?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">From the exact CoinGecko id stored on each position when it opened, so any coin the funnel can open can be priced. If CoinGecko fails or rate-limits, the monitor retries once, then falls back to CryptoCompare. Fallback prices are checked against the entry — one more than 3x away is treated as a different coin sharing the ticker and rejected, rather than risking a false stop. If a cycle misses, the next one checks the price range it missed.</div>
+    </div>
+
+    <div class="faq-item" data-keywords="close reason trailing stale max hold swing review manual">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">What do the close reasons mean?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer"><strong>target_reached</strong> — hit its target. <strong>stop_loss_triggered</strong> — hit its original stop, a loss. <strong>trailing_stop</strong> — gained, then turned, and the trailed stop closed it. <strong>stale_timeout</strong> — flat past the stale window. <strong>max_hold</strong> — reached two weeks. <strong>swing_review</strong> — closed by Swing mode to reverse. <strong>manual_close</strong> — closed by you.</div>
+    </div>
+
+  </div>
+
+  <div class="gold-rule"></div>
+
+  <div class="help-section" id="section-swing">
+    <div class="help-section-title">Swing Mode — <em>Long / Short</em></div>
+
+    <div class="faq-item" data-keywords="swing mode long short what is toggle">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">What is Swing mode?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">A mode, <strong>off by default</strong>, switched with <strong>SWING</strong> on the Simulator. When on, each scan opens <strong>10 longs and 10 shorts</strong> on the Conservative preset instead of longs only, and positions that capture capital can <strong>reverse</strong> — a long that tops out becomes a short. The point is to catch both the climb and the fall. When off, everything runs exactly as before.</div>
+    </div>
+
+    <div class="faq-item" data-keywords="relative rank strongest weakest pick shorts how">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">How does it pick longs and shorts?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">By <strong>relative rank</strong>, not by asking whether a coin will fall. Every candidate is scored, then the <strong>strongest go long and the weakest go short</strong>, and the two sides never overlap. The composite is reasonably good at telling stronger coins from weaker ones, but poor at calling absolute direction. So a short here means <em>expected to lag the longs</em>, not necessarily <em>expected to fall</em>.</div>
+    </div>
+
+    <div class="faq-item" data-keywords="oversold rsi 30 bounce never shorted">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">Why are some weak coins never shorted?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">Anything <strong>oversold — RSI under 30</strong> — is refused as a short. The shorts that lost were all coins near the bottom of a fall that then bounced. Shorting a coin that has already dropped hard is shorting the bottom.</div>
+    </div>
+
+    <div class="faq-item" data-keywords="reversal review 4 hours captured capital flip">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">How do reversals work?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">Never decided at entry. A position is left alone until it has <strong>captured capital</strong> — its trailing stop has reached breakeven. From then, every <strong>4 hours</strong>, the deterministic process scores it fresh on that moment&rsquo;s data. Same direction or neutral: hold. Clearly flipped: close it, locking the gain, and open the opposite position at the same size. If the trailing stop fires first, it rescores at that moment and reverses only if the fresh read agrees. <strong>An original stop hit at a loss never reverses.</strong></div>
+    </div>
+
+    <div class="faq-item" data-keywords="flip back churn repeat reversal guard">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">Can it flip back and forth?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">No. A position opened by a reversal starts with its trailing stop inactive, so it is not reviewed — and cannot reverse again — until it has captured capital of its own.</div>
+    </div>
+
+    <div class="faq-item" data-keywords="live trading paper only wallet perpetual">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">Does Swing mode work with live trading?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">No — it is <strong>paper only</strong>. Your wallet trades on a spot exchange, which cannot short, so Swing refuses to run while live trading is armed. Live shorts would need a perpetual futures venue.</div>
+    </div>
+
+    <div class="faq-item" data-keywords="test run how to start swing first">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">How should I run a Swing test?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">Disarm live trading, set scoring to <strong>DETERMINISTIC</strong>, keep the <strong>Conservative</strong> preset, turn <strong>SWING</strong> on, and tap <strong>FILL TO 10 ONCE</strong>. The scan log reports how many candidates it ranked, the composite range, any oversold coins it skipped, and how many it opened each way. If fewer than twenty usable candidates clear, both sides shrink evenly. Positions are tagged <em>L/S top N</em> or <em>L/S bottom N</em> in their notes. Then let them run — closing them by hand records your decision, not the system&rsquo;s.</div>
+    </div>
+
+    <div class="faq-item" data-keywords="risk market neutral rally hedge">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">What is the risk?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">Half long and half short leaves your net exposure to the market close to zero, so a broad drop that hurts the longs pays the shorts. The bet is that your longs outperform your shorts. In a strong rally even your weakest coins may rise, and the shorts lose. This is untested on your account — treat the first runs as data, not results.</div>
     </div>
 
   </div>
@@ -561,7 +804,7 @@
         <div class="faq-question-text">How many algorithms does AURUM run, and what's the Governor?</div>
         <div class="faq-icon">+</div>
       </div>
-      <div class="faq-answer">AURUM runs <strong>25 algorithms</strong> across four phases — Core Signals, Advanced Analysis, Evolutionary ML, and Deep AI — plus a 26th: the <strong>Governor</strong> (algorithm_orchestrator). The Governor runs last, weighting every algorithm's output by historical accuracy and current market regime, resolving conflicts, and producing one composite score before Claude ever sees the data.</div>
+      <div class="faq-answer"><strong>33</strong> are stored; each scan runs the ones with a real data source — typically <strong>13 to 18</strong> in crypto. The rest are left out entirely rather than scored a neutral 50: stock-only signals in crypto mode, signals with no connected feed, and two excluded permanently — <span class="mono">attention_augmented_gru</span> for its CPU cost and <span class="mono">agentic_llm_workflow</span> because it is not actionable. The most expensive algorithms can be skipped to stay inside the server&rsquo;s CPU limit. The <strong>Governor</strong> runs the suite, weights each algorithm, and returns the composite and direction.</div>
     </div>
 
     <div class="faq-item" data-keywords="momentum detector price velocity volume">
@@ -617,7 +860,7 @@
         <div class="faq-question-text">What is the Governor's signal quality score?</div>
         <div class="faq-icon">+</div>
       </div>
-      <div class="faq-answer">A 0-100 meta-score reflecting how much to trust a given run. It factors in how many of the 25 algorithms actually had real data to work with, how much they agreed with each other, and whether high-impact overrides (like an earnings date warning) were triggered. Claude is instructed to lower its confidence whenever signal quality drops below 60.</div>
+      <div class="faq-answer">How much trustworthy data stood behind a read. In Deterministic mode it is computed from how many algorithms ran. It measures <strong>data sources, not conviction</strong> — and on your data, candidates below 45 lost money while those at 60 and above won most of the time. It is a gate in every mode.</div>
     </div>
 
     <div class="faq-item" data-keywords="improve algorithm change plain english admin">
@@ -667,7 +910,7 @@
         <div class="faq-question-text">Can AURUM trade both directions in crypto?</div>
         <div class="faq-icon">+</div>
       </div>
-      <div class="faq-answer">Yes — both <strong>LONG</strong> and <strong>SHORT</strong> are fully supported in crypto mode. The Governor scores each ticker independently and returns a direction based on composite signal strength. A score below 38 triggers a SHORT instruction with a DEX short execution note (e.g. dYdX perpetual short). The simulator autofill handles both directions identically.</div>
+      <div class="faq-answer">Yes. In the normal scan a candidate goes SHORT when its composite falls below <span class="mono">45</span>, but that is rare — composites cluster around 52, and shorts taken on a low absolute score have lost. <strong>Swing mode</strong> is the reliable way to trade both directions: it opens shorts by relative rank and refuses oversold coins. Live shorts need a perpetual futures venue; the spot wallet cannot short.</div>
     </div>
 
     <div class="faq-item" data-keywords="crypto data free paid capacity algorithms">
@@ -675,7 +918,7 @@
         <div class="faq-question-text">How much of the crypto intelligence works for free?</div>
         <div class="faq-icon">+</div>
       </div>
-      <div class="faq-answer">Approximately <strong>70-75%</strong> capacity on free tier. Connected free sources: Binance funding rates, Alternative.me Fear & Greed Index, CoinGecko global dominance and coin data, Finnhub crypto news, halving cycle dates (hardcoded). Where paid data is absent, Claude fills in contextual estimates based on available signals. Adding Coinglass ($29/month) pushes capacity to ~85%. Full Glassnode + Coinglass suite reaches ~95%+. The check the Admin → System Notes section for the full plug-and-play upgrade list.</div>
+      <div class="faq-answer"><strong>Deterministic scoring is entirely free.</strong> Connected free sources: CoinGecko prices, history and global data; Binance funding rates where a perpetual exists; the Fear &amp; Greed Index; and Finnhub news. Several algorithms have no source yet — options flow, exchange whale flows, macro — and are left out of the score rather than guessed at.</div>
     </div>
 
     <div class="faq-item" data-keywords="crypto regime cycle bull bear halving">
@@ -699,7 +942,7 @@
         <div class="faq-question-text">Does AURUM monitor my trades when the app is closed?</div>
         <div class="faq-icon">+</div>
       </div>
-      <div class="faq-answer">Yes — the <strong>Position Monitor</strong> (quick-service) runs every 15 minutes server-side regardless of whether the app is open. It fetches live prices for every open position, checks stop-loss and target levels, and closes positions automatically when triggered. This works for both stock and crypto trades in both directions (long and short). You open the trade with Claude's instruction, close the app, and the system enforces your stop and target autonomously.</div>
+      <div class="faq-answer">Yes. The position monitor runs server-side and manages every open position in both directions: it prices them from their stored CoinGecko id, raises trailing stops, applies the stale rule, runs Swing reviews when that mode is on, and closes on stop or target. Open a position, close the app, and the system keeps managing it.</div>
     </div>
 
     <div class="faq-item" data-keywords="autonomous offline workflow how it works governor claude position">
@@ -707,12 +950,38 @@
         <div class="faq-question-text">What runs automatically while the app is offline?</div>
         <div class="faq-icon">+</div>
       </div>
-      <div class="faq-answer">Four scheduled processes run server-side continuously:<br><br>
-      <strong>Every 15 minutes</strong> — Position Monitor checks all open trades against stop and target, closes automatically.<br>
-      <strong>Every hour</strong> — Strategy Monitor compares Day vs Swing win rates, switches strategy if one significantly outperforms.<br>
-      <strong>Daily at 10am Eastern</strong> — News feed fetches fresh headlines for your watchlist.<br>
-      <strong>Daily at 10:05am Eastern</strong> — Old news archives automatically.<br><br>
-      Opening new positions still requires you to open the app — the Governor and Claude need your intent to enter a trade.</div>
+      <div class="faq-answer">Server-side, on schedule: the <strong>Position Monitor</strong> prices every open trade, raises trailing stops, applies the stale rule, runs Swing reviews and closes on stop or target. The <strong>Strategy Monitor</strong> compares Day and Swing results. The <strong>news</strong> job fetches headlines for your watchlist. Opening new positions still needs the app. The Diagnostic page&rsquo;s Workers section shows what each one last wrote.</div>
+    </div>
+
+  </div>
+
+  <div class="gold-rule"></div>
+
+  <div class="help-section" id="section-data">
+    <div class="help-section-title">Data &amp; <em>Diagnostics</em></div>
+
+    <div class="faq-item" data-keywords="diagnostic page check system sections workers governor">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">What is the Diagnostic page?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">A separate page, <span class="mono">diagnostic.html</span>, that checks the system end to end: database tables and columns, the scoring contract, write permissions, trade logic, the algorithms, the code your Simulator is actually running, every edge function, the scheduled workers, the Governor in every mode, a full traced workflow, the data pipeline and the price feeds. Run sections one at a time — <strong>Workers, Governor, Live code and Workflow</strong> are the most useful. Keep write tests on; turn Claude paths on only when you want to spend credits.</div>
+    </div>
+
+    <div class="faq-item" data-keywords="shadow log recorded analysis calibration data">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">What gets recorded for analysis?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">Every scored candidate goes to <span class="mono">shadow_log</span>, whether it opened or not — its scores, direction, volatility, source and pipeline version. That is what calibration reads, not your trades. So the data builds up from <strong>scans</strong>, not from how many positions you hold, and deterministic scans add it for free.</div>
+    </div>
+
+    <div class="faq-item" data-keywords="close delete trade win rate record mistake">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">Should I close or delete a trade I don&rsquo;t want in my record?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer"><strong>Closing</strong> records a finished trade and counts toward your win rate. <strong>Deleting</strong> removes it as if it never happened. If a position was opened by mistake or by a bug, delete it rather than close it. Don&rsquo;t delete genuine losses just because they lost — then your win rate stops meaning anything.</div>
     </div>
 
   </div>
@@ -736,7 +1005,7 @@
         <div class="faq-question-text">How does the Paper Trading Simulator work?</div>
         <div class="faq-icon">+</div>
       </div>
-      <div class="faq-answer">The Simulator gives you <strong>$10,000 in simulated capital</strong>. Tap <strong>Get Claude Trade Suggestion</strong> to have the Governor run all 25 algorithms and have Claude propose a complete trade — ticker, entry, stop loss, target, and reasoning. Hit <strong>Apply to Trade Form</strong> to autofill every field, or enter a trade manually. Update prices and close positions to track real gain/loss. No broker account is required — this is the recommended place to validate AURUM's signals before trading real money.</div>
+      <div class="faq-answer">It trades <strong>$10,000 of simulated capital</strong> with no broker and no real money. Pick a scoring mode and a preset, then run <strong>FILL TO 10 ONCE</strong> or <strong>AUTONOMOUS</strong>. Each opened position gets a volatility-sized stop and a 2:1 target, then the position monitor manages it — trailing stop, stale rule and, in Swing mode, reversals. Closed trades feed your win rate and equity curve. See <strong>Operating the Simulator</strong> above for every control.</div>
     </div>
 
     <div class="faq-item" data-keywords="news feed fetch sources how often update">
@@ -797,11 +1066,11 @@
     <div class="glossary-grid">
       <div class="glossary-item">
         <div class="glossary-term">Composite Score</div>
-        <div class="glossary-def">The Governor's 0-100 rating for a stock after weighting all 25 algorithms by reliability and market regime. Drives the verdict (STRONG_BUY through STRONG_SELL) and recommended position size.</div>
+        <div class="glossary-def">The Governor&rsquo;s 0-100 score after weighting every algorithm that actually ran. 50 is neutral. Direction comes from the scoring contract&rsquo;s band — crypto LONG above 55, SHORT below 45.</div>
       </div>
       <div class="glossary-item">
         <div class="glossary-term">Signal Quality</div>
-        <div class="glossary-def">A 0-100 meta-score reflecting how trustworthy a given Governor run is — based on how many algorithms had real data, how much they agreed, and whether any high-impact overrides fired. Below 60, Claude is instructed to lower confidence.</div>
+        <div class="glossary-def">How much trustworthy data stood behind a score. Gates every trade: crypto needs 45, stocks 60. Measures data sources, not conviction.</div>
       </div>
       <div class="glossary-item">
         <div class="glossary-term">Signal Conflict</div>
@@ -899,7 +1168,71 @@
       </div>
       <div class="glossary-item">
         <div class="glossary-term">Position Monitor</div>
-        <div class="glossary-def">AURUM's server-side watchdog (quick-service) that runs every 15 minutes. Fetches live prices for all open trades and closes positions automatically when stop-loss or target is hit — even when the app is closed. Works for both stock and crypto in both long and short directions.</div>
+        <div class="glossary-def">The server-side function (quick-service) that manages open positions on a schedule: prices them, trails stops, applies the stale rule, runs Swing reviews, and closes on stop or target — app open or not.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="glossary-term">Deterministic Mode</div>
+        <div class="glossary-def">Scoring by weighted arithmetic over the algorithm suite, with no AI call. Free and reproducible.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="glossary-term">Scoring Contract</div>
+        <div class="glossary-def">The single stored set of thresholds — signal quality, direction and opportunity floors for crypto and stocks — that every part of the system reads.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="glossary-term">Funnel</div>
+        <div class="glossary-def">The screen that narrows the market to a shortlist worth scoring, by volatility, size and liquidity.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="glossary-term">Volatility Band</div>
+        <div class="glossary-def">The daily-range window the funnel accepts: 1% to 4.5%, ranked toward 3%. Where the algorithms read best.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="glossary-term">Trailing Stop</div>
+        <div class="glossary-def">A stop that moves to breakeven once a position is up half a day&rsquo;s movement, then follows the price one day&rsquo;s movement behind. Only ever tightens.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="glossary-term">Breakeven</div>
+        <div class="glossary-def">A stop placed at the entry price, so the position can no longer close at a loss.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="glossary-term">Stale Timeout</div>
+        <div class="glossary-def">Closes a position that has gone nowhere: 7 days and under 3% for swing, 2 days and under 1.5% for day. Positions in profit are exempt.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="glossary-term">Max Hold</div>
+        <div class="glossary-def">The two-week backstop that closes any position regardless, so capital is never tied up indefinitely.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="glossary-term">Capital Captured</div>
+        <div class="glossary-def">A position whose trailing stop has reached breakeven or beyond. Swing reviews only begin here.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="glossary-term">Swing Mode</div>
+        <div class="glossary-def">The toggleable long/short mode: ten longs and ten shorts by relative rank, with reversals once capital is captured. Paper only.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="glossary-term">Relative Long / Short</div>
+        <div class="glossary-def">Going long the strongest-scoring candidates and short the weakest. Profits when the longs outperform the shorts, in a rising or falling market.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="glossary-term">Swing Reversal</div>
+        <div class="glossary-def">Closing a position that has captured capital and opening the opposite one, when a fresh deterministic read clearly flips direction.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="glossary-term">Oversold (RSI)</div>
+        <div class="glossary-def">A coin whose 14-day RSI is under 30 — usually near the bottom of a fall. Never shorted, because such coins tend to bounce.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="glossary-term">Shadow Log</div>
+        <div class="glossary-def">The record of every scored candidate, opened or not. What calibration and outcome analysis read.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="glossary-term">Source</div>
+        <div class="glossary-def">Whether a candidate or trade came from your watchlist or the funnel, so the two can be compared on results.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="glossary-term">Scale Preset</div>
+        <div class="glossary-def">Conservative, Scaled or Aggressive — how many positions and what size each.</div>
       </div>
     </div>
   </div>
