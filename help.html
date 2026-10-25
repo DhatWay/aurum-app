@@ -732,7 +732,7 @@
         <div class="faq-question-text">What is Swing mode?</div>
         <div class="faq-icon">+</div>
       </div>
-      <div class="faq-answer">A mode, <strong>off by default</strong>, switched with <strong>SWING</strong> on the Simulator. When on, each scan opens <strong>10 longs and 10 shorts</strong> on the Conservative preset instead of longs only, and positions that capture capital can <strong>reverse</strong> — a long that tops out becomes a short. The point is to catch both the climb and the fall. When off, everything runs exactly as before.</div>
+      <div class="faq-answer">A mode, <strong>off by default</strong>, switched with <strong>SWING</strong> on the Simulator. When on, scans aim for <strong>10 longs and 10 shorts</strong> on the Conservative preset — always kept equal — instead of longs only, and positions that capture capital can <strong>reverse</strong> — a long that tops out becomes a short. The point is to catch both the climb and the fall. When off, everything runs exactly as before.</div>
     </div>
 
     <div class="faq-item" data-keywords="relative rank strongest weakest pick shorts how">
@@ -749,6 +749,14 @@
         <div class="faq-icon">+</div>
       </div>
       <div class="faq-answer">Anything <strong>oversold — RSI under 30</strong> — is refused as a short. The shorts that lost were all coins near the bottom of a fall that then bounced. Shorting a coin that has already dropped hard is shorting the bottom.</div>
+    </div>
+
+    <div class="faq-item" data-keywords="balance equal size risk volatility weighted hedge neutral">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">Why are my Swing positions different sizes?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">So both sides carry the same <strong>risk</strong>, not just the same money. Each position is sized inversely to its volatility: a coin moving 4% a day gets a smaller position than one moving 2.5%, so that hitting its stop costs the same. Sizes stay between half and double the preset&rsquo;s standard 5%. The count is kept equal too — shorts are usually the scarcer side, so if a scan finds only four usable shorts it opens only four longs. Together these keep the long and short sides offsetting each other. Only Swing mode sizes this way; the normal scan uses a flat 5%.</div>
     </div>
 
     <div class="faq-item" data-keywords="reversal review 4 hours captured capital flip">
@@ -780,7 +788,7 @@
         <div class="faq-question-text">How should I run a Swing test?</div>
         <div class="faq-icon">+</div>
       </div>
-      <div class="faq-answer">Disarm live trading, set scoring to <strong>DETERMINISTIC</strong>, keep the <strong>Conservative</strong> preset, turn <strong>SWING</strong> on, and tap <strong>FILL TO 10 ONCE</strong>. The scan log reports how many candidates it ranked, the composite range, any oversold coins it skipped, and how many it opened each way. If fewer than twenty usable candidates clear, both sides shrink evenly. Positions are tagged <em>L/S top N</em> or <em>L/S bottom N</em> in their notes. Then let them run — closing them by hand records your decision, not the system&rsquo;s.</div>
+      <div class="faq-answer">Disarm live trading, set scoring to <strong>DETERMINISTIC</strong>, keep the <strong>Conservative</strong> preset, turn <strong>SWING</strong> on, and tap <strong>FILL TO 10 ONCE</strong>. The scan log reports how many candidates it ranked, the composite range, any oversold coins it skipped, and how many it opened each way. If it finds fewer usable shorts, it opens only as many longs to match, so the book stays neutral rather than tipping long. Positions are tagged <em>L/S top N</em> or <em>L/S bottom N</em> in their notes. Then let them run — closing them by hand records your decision, not the system&rsquo;s.</div>
     </div>
 
     <div class="faq-item" data-keywords="risk market neutral rally hedge">
