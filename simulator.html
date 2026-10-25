@@ -825,7 +825,7 @@ footer p { font-size: 0.6rem; letter-spacing: 0.12em; color: var(--muted); text-
       <button id="physics-toggle" onclick="togglePhysics()" style="width:100%; background:transparent; border:1px solid rgba(107,101,96,0.4); color:#6B6560; font-family:'DM Sans',sans-serif; font-size:0.7rem; letter-spacing:0.12em; padding:0.55rem; cursor:pointer;">REGIME: OFF</button>
       <div id="physics-note" style="font-size:0.66rem; color:#6B6560; font-family:'IBM Plex Mono',monospace; margin-top:0.5rem; margin-bottom:0.9rem; line-height:1.6;"></div>
 
-      <div style="font-size:0.62rem; letter-spacing:0.2em; color:#C9A84C; font-family:'IBM Plex Mono',monospace; margin-bottom:0.5rem;">SWING REVERSAL</div>
+      <div style="font-size:0.62rem; letter-spacing:0.2em; color:#C9A84C; font-family:'IBM Plex Mono',monospace; margin-bottom:0.5rem;">SWING · LONG / SHORT</div>
       <button id="swing-toggle" onclick="toggleSwing()" style="width:100%; background:transparent; border:1px solid rgba(107,101,96,0.4); color:#6B6560; font-family:'DM Sans',sans-serif; font-size:0.7rem; letter-spacing:0.12em; padding:0.55rem; cursor:pointer;">SWING: OFF</button>
       <div id="swing-note" style="font-size:0.66rem; color:#6B6560; font-family:'IBM Plex Mono',monospace; margin-top:0.5rem; line-height:1.6;"></div>
     </div>
@@ -2956,16 +2956,25 @@ async function collectDiagnostics() {
   // 2. Every open position must be priceable by whatever monitors it.
   //    An unpriceable position never revalues, so its stop and target are
   //    inert — the HYPE and LTC failure.
+  //    This used to test only a fixed list built into the app, so every coin
+  //    the funnel found outside it — JST, ASTER — was reported unpriceable even
+  //    though the monitor was pricing it fine. The monitor prices from the
+  //    CoinGecko id stored on the trade first, and falls back to its own list.
+  //    This now tests the same two things, in the same order.
   const unpriceable = open.filter(t => {
     if (t.type !== 'crypto') return false;
+    if (t.coingecko_id) return false;
     return !CRYPTO_UNIVERSE_FULL.includes(String(t.ticker).toUpperCase());
   });
   if (unpriceable.length) {
     out.push(diagLine('fail', 'Priceable positions',
-      unpriceable.map(t => t.ticker).join(', ') + ' cannot be priced — stops inactive'));
+      unpriceable.map(t => t.ticker).join(', ') +
+      ' have no stored CoinGecko id and are not on the built-in list — stops inactive. Close by hand.'));
     issues.push('unpriceable');
   } else {
-    out.push(diagLine('ok', 'Priceable positions', open.length + ' open, all mapped'));
+    const byId = open.filter(t => t.type === 'crypto' && t.coingecko_id).length;
+    out.push(diagLine('ok', 'Priceable positions', open.length + ' open, all priceable' +
+      (byId ? ' — ' + byId + ' by stored id' : '')));
   }
 
   // 3. Derived P&L must match its inputs
@@ -3644,8 +3653,11 @@ function renderSwingToggle() {
   }
   if (note) {
     note.textContent = swingEnabled
-      ? 'Target hits offer a 24h reversal. Stop hits offer one only if the fresh rescore independently reads the opposite direction at 65+ conviction — being wrong about up does not establish down.'
-      : 'Off. No reversals offered on any close. Applies to every scoring mode and preset.';
+      ? 'ON — each scan opens ' + preset().positions + ' long and ' + preset().positions + ' short by relative rank: ' +
+        'strongest go long, weakest go short, oversold coins never shorted. Once a position captures capital, ' +
+        'it is re-read fresh every 4 hours and reverses only if that read clearly flips. Paper only.'
+      : 'OFF — longs only, as before. Turn on to run ' + preset().positions + ' long and ' +
+        preset().positions + ' short with automatic reversals.';
   }
 }
 
@@ -3713,7 +3725,9 @@ async function countOpenPositions() {
 // ══════════════════════════════════════════════════════════
 
 const FUNNEL_SCAN_DEPTH = 1000;   // coins pulled before ranking
-const FUNNEL_SHORTLIST  = 25;     // survivors passed to the Governor.
+// let, not const: long/short mode widens it for one scan, because it has to
+// find ten strong AND ten weak candidates, and restores it afterwards.
+let FUNNEL_SHORTLIST  = 25;     // survivors passed to the Governor.
                                   // Was 40 at an ~11% pass rate — paying for 36
                                   // rejections to find 4. The funnel already
                                   // ranked these, so the cut drops the weakest.
@@ -4539,9 +4553,167 @@ async function logShadowCandidates(scored, qualifiedSet) {
   }
 }
 
+// ══════════════════════════════════════════════════════════════════
+// LONG / SHORT MODE  (runs when SWING is on)
+//
+// Opens ten longs and ten shorts by RELATIVE rank: the strongest candidates by
+// deterministic composite go long, the weakest go short. It never asks whether
+// a coin will fall — the composite has been poor at that, and the shorts it
+// took on a low absolute score went on to rise. It only asks which coins are
+// stronger than which, which is the part the composite can actually do.
+//
+// Shorts skip anything oversold (RSI under 30). The four shorts that lost were
+// all coins near the bottom of a fall that then bounced.
+//
+// Half long and half short leaves net exposure to the market close to zero, so
+// the result depends on picking the right coins in each direction rather than
+// on guessing where the whole market goes.
+// ══════════════════════════════════════════════════════════════════
+const LS_SHORTLIST = 45;
+const LS_OVERSOLD_RSI = 30;
+
+// Like scoreTicker, but keeps neutral candidates. Relative ranking needs the
+// composite of EVERY candidate, including ones that read neither way.
+async function scoreForRanking(ticker, balance) {
+  try {
+    const res = await fetchWithTimeout(GOVERNOR_EDGE_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + GOVERNOR_ANON_KEY },
+      body: JSON.stringify({
+        ticker, strategy: currentStrategy, instrument: activeMode === 'crypto' ? 'crypto' : 'stock',
+        mode: activeMode, portfolio_balance: balance, skip_ai: true,
+        coingecko_id: (window._funnelIds && window._funnelIds[String(ticker).toUpperCase()]) || undefined,
+      })
+    }, 45000);
+    if (!res.ok) { noteScoreFailure(ticker, 'http_' + res.status); return null; }
+    const g = await res.json();
+    if (g.error)                         { noteScoreFailure(ticker, 'governor: ' + g.error); return null; }
+    if (!(Number(g.entry_price) > 0))    { noteScoreFailure(ticker, 'no entry price returned'); return null; }
+    if (typeof g.det_composite !== 'number') { noteScoreFailure(ticker, 'no composite — Governor predates long/short'); return null; }
+    checkContractDrift(g);
+    return {
+      ticker,
+      composite:      g.det_composite,
+      rsi:            Number(g.rsi_14),
+      volatility_pct: Number(g.volatility_pct) || 3,
+      entry_price:    Number(g.entry_price),
+      signal_quality: Math.min(40 + (g.algorithms_executed || 0) * 2, 95),
+      gov:            g,
+    };
+  } catch (e) {
+    noteScoreFailure(ticker, (e && e.message) || 'unknown error');
+    return null;
+  }
+}
+
+// Builds the Governor-shaped object openPositionFromSignal expects, with levels
+// for the direction the RANK assigned rather than the one the band would.
+function rankedSignal(c, dir, rank, ofN, balance) {
+  const e = c.entry_price, vol = c.volatility_pct;
+  const dist = e * (2.0 * vol / 100);            // 2x volatility, the validated stop
+  const stop   = dir === 'LONG' ? e - dist : e + dist;
+  const target = dir === 'LONG' ? e + dist * 2 : e - dist * 2;   // 2:1
+  const g = Object.assign({}, c.gov, {
+    ticker:            c.ticker,
+    direction:         dir,
+    entry_price:       e,
+    stop_loss:         roundPrice(stop),
+    target_price:      roundPrice(target),
+    volatility_pct:    vol,
+    signal_quality:    c.signal_quality,
+    composite_score:   c.composite,
+    reward_risk:       2.0,
+    portfolio_balance: balance,
+    confidence:        'L/S ' + (dir === 'LONG' ? 'top' : 'bottom') + ' ' + rank + '/' + ofN,
+  });
+  g.opportunity_score = computeOpportunity(g, c.composite);
+  return g;
+}
+
+async function runLongShortCycle(manualTrigger) {
+  if (liveArmed) {
+    autoLog('Long/short mode is paper-only. Your wallet trades on a spot exchange, which cannot ' +
+            'short. Disarm live trading to run it, or turn SWING off to scan longs only.');
+    return;
+  }
+  if (!manualTrigger && (Date.now() - lastScanAt) < RESCAN_COOLDOWN_MS) return;
+
+  lastScanAt = Date.now();
+  autoCycleRunning = true;
+  const savedShortlist = FUNNEL_SHORTLIST;
+  try {
+    const perSide = preset().positions;
+    const { data: open } = await db.from('paper_trades').select('ticker, direction').eq('status', 'open');
+    const openLong  = (open || []).filter(t => String(t.direction).toLowerCase() === 'long').length;
+    const openShort = (open || []).filter(t => String(t.direction).toLowerCase() === 'short').length;
+    const needLong  = Math.max(0, perSide - openLong);
+    const needShort = Math.max(0, perSide - openShort);
+    if (!needLong && !needShort) {
+      autoLog('Long/short full — ' + openLong + ' long, ' + openShort + ' short.');
+      return;
+    }
+    autoLog('Long/short — need ' + needLong + ' long and ' + needShort + ' short. Scanning wider.');
+
+    FUNNEL_SHORTLIST = LS_SHORTLIST;
+    const held = new Set((open || []).map(t => String(t.ticker).toUpperCase()));
+    const pool = (await getCandidateTickers()).filter(t => !held.has(String(t).toUpperCase()));
+    if (!pool.length) { autoLog('Long/short — no candidates to rank.'); return; }
+
+    const balance = await getPortfolioBalance();
+    scoreFailures = [];
+    const scored = [];
+    for (let i = 0; i < pool.length; i += GOVERNOR_BATCH) {
+      const batch = pool.slice(i, i + GOVERNOR_BATCH);
+      autoLog('Ranking ' + (i + 1) + '-' + Math.min(i + GOVERNOR_BATCH, pool.length) + ' of ' + pool.length + '...');
+      const out = await Promise.all(batch.map(t => scoreForRanking(t, balance)));
+      out.forEach(x => { if (x) scored.push(x); });
+    }
+    if (scoreFailures.length) autoLog(scoreFailures.length + ' could not be scored: ' + summariseScoreFailures());
+
+    // Data quality still gates both sides — that floor was measured, at p=0.016.
+    const lim = limits();
+    const eligible = scored.filter(c => c.signal_quality >= lim.signalQuality)
+                           .sort((a, b) => b.composite - a.composite);
+    if (eligible.length < 2) { autoLog('Long/short — only ' + eligible.length + ' cleared data quality.'); return; }
+
+    // Strongest half long, weakest half short. The two halves never overlap,
+    // so a coin can never be both. If the pool is thin, both sides shrink.
+    const half      = Math.floor(eligible.length / 2);
+    const longSide  = eligible.slice(0, half);
+    const shortSide = eligible.slice(eligible.length - half).reverse();
+    const oversold  = shortSide.filter(c => c.rsi < LS_OVERSOLD_RSI);
+    const longs  = longSide.slice(0, needLong);
+    const shorts = shortSide.filter(c => !(c.rsi < LS_OVERSOLD_RSI)).slice(0, needShort);
+
+    autoLog('Ranked ' + eligible.length + ' — composites ' + eligible[0].composite + ' to ' +
+            eligible[eligible.length - 1].composite + '. ' +
+            (oversold.length ? oversold.length + ' oversold skipped from shorts: ' +
+              oversold.map(c => c.ticker + ' RSI ' + c.rsi).join(', ') + '. ' : '') +
+            'Opening ' + longs.length + ' long, ' + shorts.length + ' short.');
+
+    let opened = 0;
+    for (let i = 0; i < longs.length; i++) {
+      if (await openPositionFromSignal(rankedSignal(longs[i], 'LONG', i + 1, eligible.length, balance), '')) opened++;
+    }
+    for (let i = 0; i < shorts.length; i++) {
+      if (await openPositionFromSignal(rankedSignal(shorts[i], 'SHORT', i + 1, eligible.length, balance), '')) opened++;
+    }
+    autoLog('Long/short — opened ' + opened + '. ' +
+            (longs.length < needLong || shorts.length < needShort
+              ? 'Fewer than requested: the pool held ' + eligible.length + ' usable candidates.' : ''));
+    await loadTrades();
+  } finally {
+    FUNNEL_SHORTLIST = savedShortlist;
+    autoCycleRunning = false;
+  }
+}
+
 async function runAutonomousCycle(manualTrigger) {
   if (autoCycleRunning) return;
   if (!autoModeEnabled && !manualTrigger) return;
+  // SWING mode runs the long/short scan instead. Off, everything below runs
+  // exactly as before.
+  if (swingEnabled) return runLongShortCycle(manualTrigger);
 
   // A scheduled tick previously rescanned the whole universe every 5 minutes
   // whenever the block was short, even if nothing had changed. With 6 of 10
