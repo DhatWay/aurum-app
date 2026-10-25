@@ -1251,6 +1251,15 @@ function positionVolatility(t) {
   return null;
 }
 
+// The database returns these timestamps as a bare "YYYY-MM-DD HH:MM:SS" with
+// no zone marker, and the values are UTC. Read without a marker, the browser
+// takes them as local time — which put every Opened time four hours ahead.
+function parseDbTime(v) {
+  const str = String(v);
+  const hasZone = /[zZ]$|[+-]\d{2}:?\d{2}$/.test(str);
+  return new Date(hasZone ? str : str.replace(' ', 'T') + 'Z');
+}
+
 function describePosition(t) {
   const dir   = String(t.direction || 'long').toLowerCase();
   const isShort = dir === 'short';
@@ -1289,7 +1298,7 @@ function describePosition(t) {
     '  Volatility ' + (vol !== null ? vol.toFixed(2) + '% daily' : '—'),
   ];
   if (t.coingecko_id) lines.push('  CoinGecko  ' + t.coingecko_id);
-  if (t.opened_at)    lines.push('  Opened     ' + new Date(t.opened_at).toLocaleString());
+  if (t.opened_at)    lines.push('  Opened     ' + parseDbTime(t.opened_at).toLocaleString());
   return lines.join('\n');
 }
 
@@ -3653,9 +3662,10 @@ function renderSwingToggle() {
   }
   if (note) {
     note.textContent = swingEnabled
-      ? 'ON — each scan opens ' + preset().positions + ' long and ' + preset().positions + ' short by relative rank: ' +
-        'strongest go long, weakest go short, oversold coins never shorted. Once a position captures capital, ' +
-        'it is re-read fresh every 4 hours and reverses only if that read clearly flips. Paper only.'
+      ? 'ON — aims for ' + preset().positions + ' long and ' + preset().positions + ' short by relative rank, always ' +
+        'kept equal: strongest go long, weakest go short, oversold coins never shorted. Each position is sized ' +
+        'to its volatility so both sides carry the same risk. Once a position captures capital it is re-read ' +
+        'every 4 hours and reverses only if that read clearly flips. Paper only.'
       : 'OFF — longs only, as before. Turn on to run ' + preset().positions + ' long and ' +
         preset().positions + ' short with automatic reversals.';
   }
@@ -4374,7 +4384,9 @@ async function openPositionFromSignal(gov, why) {
   // Size comes from the active preset. The Governor's recommendation is
   // advisory only — capital allocation is a configuration decision, not a
   // per-ticker one, or 30 positions could not fit in one account.
-  const pct = preset().sizePct;
+  // Long/short mode passes an equal-risk size for each position. Every other
+  // path uses the preset's flat size, exactly as before.
+  const pct = Number(gov.size_pct_override) > 0 ? Number(gov.size_pct_override) : preset().sizePct;
   const targetValue = bal * pct / 100;
 
   let shares = targetValue / entry;
@@ -4678,29 +4690,68 @@ async function runLongShortCycle(manualTrigger) {
 
     // Strongest half long, weakest half short. The two halves never overlap,
     // so a coin can never be both. If the pool is thin, both sides shrink.
-    const half      = Math.floor(eligible.length / 2);
-    const longSide  = eligible.slice(0, half);
-    const shortSide = eligible.slice(eligible.length - half).reverse();
-    const oversold  = shortSide.filter(c => c.rsi < LS_OVERSOLD_RSI);
-    const longs  = longSide.slice(0, needLong);
-    const shorts = shortSide.filter(c => !(c.rsi < LS_OVERSOLD_RSI)).slice(0, needShort);
+    const half        = Math.floor(eligible.length / 2);
+    const longSide    = eligible.slice(0, half);
+    const shortSide   = eligible.slice(eligible.length - half).reverse();
+    const oversold    = shortSide.filter(c => c.rsi < LS_OVERSOLD_RSI);
+    const availShorts = shortSide.filter(c => !(c.rsi < LS_OVERSOLD_RSI));
+
+    // ── BALANCE ──
+    // The two sides used to fill independently: every long it wanted, plus
+    // whatever shorts survived the oversold filter. After a week of falling
+    // prices most weak coins are oversold, so a scan opened 7 longs and 3
+    // shorts — about 35% net long, the same exposure that gave back $120 when
+    // the market turned. The whole book now aims for an EQUAL count on each
+    // side. Shorts are the scarce side, so they set the level; longs open only
+    // up to match. If the book is already tilted, a scan adds only to the
+    // light side, and never deepens the tilt.
+    const level    = Math.min(perSide, openLong + longSide.length, openShort + availShorts.length);
+    const addLong  = Math.max(0, level - openLong);
+    const addShort = Math.max(0, level - openShort);
+    const longs    = longSide.slice(0, addLong);
+    const shorts   = availShorts.slice(0, addShort);
+
+    // ── EQUAL-RISK SIZING ──
+    // Equal dollars is not an equal hedge. An ETH short moving 4.2% a day
+    // outweighs a BNB long moving 3.4%, so a market move still hits the two
+    // sides unevenly. Each position is sized inversely to its volatility, so
+    // its stop — always 2x volatility away — puts the same amount at risk.
+    // Weights are normalised across the batch, so the capital deployed is
+    // unchanged and only its distribution moves; each stays between half and
+    // double the preset's standard size.
+    const picked  = longs.concat(shorts);
+    const invVol  = c => 1 / Math.max(Number(c.volatility_pct) || 3, 0.5);
+    const meanInv = picked.length ? picked.reduce((a, c) => a + invVol(c), 0) / picked.length : 1;
+    const basePct = preset().sizePct;
+    const sizeFor = c => Math.min(basePct * Math.min(Math.max(invVol(c) / meanInv, 0.5), 2.0), MAX_POSITION_PCT);
 
     autoLog('Ranked ' + eligible.length + ' — composites ' + eligible[0].composite + ' to ' +
             eligible[eligible.length - 1].composite + '. ' +
             (oversold.length ? oversold.length + ' oversold skipped from shorts: ' +
               oversold.map(c => c.ticker + ' RSI ' + c.rsi).join(', ') + '. ' : '') +
-            'Opening ' + longs.length + ' long, ' + shorts.length + ' short.');
+            'Book ' + openLong + ' long / ' + openShort + ' short; balancing to ' + level + ' each — opening ' +
+            longs.length + ' long, ' + shorts.length + ' short.');
+    if (!picked.length) {
+      autoLog('Long/short — nothing opened. ' +
+              (availShorts.length === 0
+                ? 'No usable shorts this scan, so no longs either — the book stays neutral.'
+                : 'The book is already at its balanced level.'));
+      return;
+    }
 
+    const openOne = async (c, dir, rank) => {
+      const g = rankedSignal(c, dir, rank, eligible.length, balance);
+      g.size_pct_override = sizeFor(c);
+      g.confidence += ' · size ' + g.size_pct_override.toFixed(1) + '%';
+      return openPositionFromSignal(g, '');
+    };
     let opened = 0;
-    for (let i = 0; i < longs.length; i++) {
-      if (await openPositionFromSignal(rankedSignal(longs[i], 'LONG', i + 1, eligible.length, balance), '')) opened++;
-    }
-    for (let i = 0; i < shorts.length; i++) {
-      if (await openPositionFromSignal(rankedSignal(shorts[i], 'SHORT', i + 1, eligible.length, balance), '')) opened++;
-    }
-    autoLog('Long/short — opened ' + opened + '. ' +
-            (longs.length < needLong || shorts.length < needShort
-              ? 'Fewer than requested: the pool held ' + eligible.length + ' usable candidates.' : ''));
+    for (let i = 0; i < longs.length;  i++) if (await openOne(longs[i],  'LONG',  i + 1)) opened++;
+    for (let i = 0; i < shorts.length; i++) if (await openOne(shorts[i], 'SHORT', i + 1)) opened++;
+    autoLog('Long/short — opened ' + opened + '. Book now ' + (openLong + longs.length) + ' long / ' +
+            (openShort + shorts.length) + ' short. ' +
+            (level < perSide ? 'Short of ' + perSide + ' each: only ' + availShorts.length +
+              ' usable shorts this scan, so longs were held to match.' : ''));
     await loadTrades();
   } finally {
     FUNNEL_SHORTLIST = savedShortlist;
