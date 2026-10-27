@@ -4583,6 +4583,10 @@ async function logShadowCandidates(scored, qualifiedSet) {
 // ══════════════════════════════════════════════════════════════════
 const LS_SHORTLIST = 45;
 const LS_OVERSOLD_RSI = 30;
+// A coin moving this much a day gets the preset's standard size; calmer coins
+// get more, jumpier ones less, so every stop costs the same. 3% is the centre
+// of the volatility band the funnel ranks toward.
+const LS_REF_VOL = 3.0;
 
 // Like scoreTicker, but keeps neutral candidates. Relative ranking needs the
 // composite of EVERY candidate, including ones that read neither way.
@@ -4716,14 +4720,21 @@ async function runLongShortCycle(manualTrigger) {
     // outweighs a BNB long moving 3.4%, so a market move still hits the two
     // sides unevenly. Each position is sized inversely to its volatility, so
     // its stop — always 2x volatility away — puts the same amount at risk.
-    // Weights are normalised across the batch, so the capital deployed is
-    // unchanged and only its distribution moves; each stays between half and
-    // double the preset's standard size.
+    //
+    // Sized against a FIXED reference volatility, not against the other
+    // positions in the same scan. Normalising within the scan meant a scan
+    // that opened a single position always gave it the flat standard size:
+    // LTC at 2.1% and XRP at 3.1% both landed at exactly 5.0%, each opened
+    // alone, risking 0.21% and 0.31% while their batch-mates risked 0.26%.
+    // Against a fixed reference, every position risks the same amount however
+    // many open together, scan after scan. Each stays between half and double
+    // the preset's standard size.
     const picked  = longs.concat(shorts);
-    const invVol  = c => 1 / Math.max(Number(c.volatility_pct) || 3, 0.5);
-    const meanInv = picked.length ? picked.reduce((a, c) => a + invVol(c), 0) / picked.length : 1;
     const basePct = preset().sizePct;
-    const sizeFor = c => Math.min(basePct * Math.min(Math.max(invVol(c) / meanInv, 0.5), 2.0), MAX_POSITION_PCT);
+    const sizeFor = c => {
+      const vol = Math.max(Number(c.volatility_pct) || LS_REF_VOL, 0.5);
+      return Math.min(basePct * Math.min(Math.max(LS_REF_VOL / vol, 0.5), 2.0), MAX_POSITION_PCT);
+    };
 
     autoLog('Ranked ' + eligible.length + ' — composites ' + eligible[0].composite + ' to ' +
             eligible[eligible.length - 1].composite + '. ' +
