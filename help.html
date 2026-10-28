@@ -567,7 +567,7 @@
         <div class="faq-question-text">Which scoring mode should I use?</div>
         <div class="faq-icon">+</div>
       </div>
-      <div class="faq-answer"><strong>DETERMINISTIC</strong> for routine scanning. It is free, gives the same answer for the same data, and on your own results it predicted outcomes better than Claude&rsquo;s composite did. <strong>CLAUDE</strong> adds a model review of every candidate, at a cost per call. <strong>BOTH</strong> runs Claude but records the deterministic score alongside it, so you can measure the difference. Position alerts are hidden while Deterministic is active.</div>
+      <div class="faq-answer"><strong>DETERMINISTIC</strong> for routine scanning. It is free, gives the same answer for the same data, and on your own results it predicted outcomes better than Claude&rsquo;s composite did. <strong>CLAUDE</strong> adds a model review of every candidate, at a cost per call. <strong>BOTH</strong> runs Claude but records the deterministic score alongside it, so you can measure the difference.</div>
     </div>
 
     <div class="faq-item" data-keywords="preset conservative scaled aggressive positions size">
@@ -615,7 +615,7 @@
         <div class="faq-question-text">What do position alerts mean?</div>
         <div class="faq-icon">+</div>
       </div>
-      <div class="faq-answer">Notices from the position monitor: stop or target hit, stop trailed, stale timeout, swing reversal, or a price it could not fetch. They sit in a scrollable box with a count and a DELETE ALL button. They are hidden in Deterministic mode, where most of them cannot occur — positions still close correctly, you just won&rsquo;t see the notice. Open Positions and Closed Trades always show everything.</div>
+      <div class="faq-answer">Notices from the position monitor: stop or target hit, stop trailed, stale timeout, swing reversal, or a price it could not fetch. They show in every scoring mode, in a scrollable box with a count and a DELETE ALL button, each labelled and colour-coded: <strong>green</strong> when a stop has been raised or profit banked (<em>STOP TRAILED</em>, <em>TRAILING STOP</em>, <em>TARGET REACHED</em>), <strong>gold</strong> for a swing (<em>SWING REVERSAL</em>), <strong>red</strong> for a loss. These are how the system tells you where your stops are moving and when to swing. Momentary &ldquo;price unavailable&rdquo; misses are left out, since the monitor retries and falls back on its own — System Diagnostics &rarr; SCAN checks for any position that genuinely can&rsquo;t be priced.</div>
     </div>
 
   </div>
