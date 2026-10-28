@@ -662,7 +662,7 @@
         <div class="faq-question-text">What decides whether a scored candidate is traded?</div>
         <div class="faq-icon">+</div>
       </div>
-      <div class="faq-answer">Three tests from the scoring contract, all of which must pass. <strong>Signal quality</strong>: crypto <span class="mono">45</span>, stocks <span class="mono">60</span> — a floor that tested positive on your data. <strong>Direction</strong>: the composite must clear the band. <strong>Opportunity</strong>: crypto <span class="mono">50</span>, stocks <span class="mono">70</span>. In Swing mode, signal quality still applies but direction is decided by rank instead.</div>
+      <div class="faq-answer">Three tests from the scoring contract, all of which must pass. <strong>Signal quality</strong>: crypto <span class="mono">45</span>, stocks <span class="mono">60</span> — a floor that tested positive on your data. <strong>Direction</strong>: the composite must clear the band. <strong>Opportunity</strong>: crypto <span class="mono">50</span>, stocks <span class="mono">70</span>. In Swing mode, signal quality still applies; longs still need a bullish read, and shorts need a confirmed downtrend instead of a bearish composite.</div>
     </div>
 
   </div>
@@ -732,39 +732,71 @@
         <div class="faq-question-text">What is Swing mode?</div>
         <div class="faq-icon">+</div>
       </div>
-      <div class="faq-answer">A mode, <strong>off by default</strong>, switched with <strong>SWING</strong> on the Simulator. When on, scans aim for <strong>10 longs and 10 shorts</strong> on the Conservative preset — always kept equal — instead of longs only, and positions that capture capital can <strong>reverse</strong> — a long that tops out becomes a short. The point is to catch both the climb and the fall. When off, everything runs exactly as before.</div>
+      <div class="faq-answer">A mode, <strong>off by default</strong>, switched with <strong>SWING</strong> on the Simulator. When on, scans open <strong>longs that are predicted to rise and shorts that are predicted to fall</strong> — up to 10 of each on the Conservative preset. And positions it opens can <strong>reverse</strong>: a long that tops out and turns can become a short. The point is to catch both the climb and the fall. When off, everything runs exactly as before, longs only.</div>
     </div>
 
-    <div class="faq-item" data-keywords="relative rank strongest weakest pick shorts how">
+    <div class="faq-item" data-keywords="pick longs shorts how chosen bullish downtrend">
       <div class="faq-question" onclick="toggleFaq(this)">
         <div class="faq-question-text">How does it pick longs and shorts?</div>
         <div class="faq-icon">+</div>
       </div>
-      <div class="faq-answer">By <strong>relative rank</strong>, not by asking whether a coin will fall. Every candidate is scored, then the <strong>strongest go long and the weakest go short</strong>, and the two sides never overlap. The composite is reasonably good at telling stronger coins from weaker ones, but poor at calling absolute direction. So a short here means <em>expected to lag the longs</em>, not necessarily <em>expected to fall</em>.</div>
+      <div class="faq-answer">Each side on its own evidence. A <strong>long</strong> opens when the composite reads bullish. A <strong>short</strong> opens when the coin is in a <strong>confirmed downtrend</strong>: price below its 50-day average, the 20-day average below the 50-day and falling, and a lower high. The composite is not used for shorts — across 350 scored candidates it read bearish once, and that coin rose 16.5%. A coin can never be on both sides.</div>
     </div>
 
-    <div class="faq-item" data-keywords="oversold rsi 30 bounce never shorted">
+    <div class="faq-item" data-keywords="short setup downtrend rally resistance score">
       <div class="faq-question" onclick="toggleFaq(this)">
-        <div class="faq-question-text">Why are some weak coins never shorted?</div>
+        <div class="faq-question-text">What makes a good short?</div>
         <div class="faq-icon">+</div>
       </div>
-      <div class="faq-answer">Anything <strong>oversold — RSI under 30</strong> — is refused as a short. The shorts that lost were all coins near the bottom of a fall that then bounced. Shorting a coin that has already dropped hard is shorting the bottom.</div>
+      <div class="faq-answer">Shorting the <strong>rally inside a downtrend</strong>, never the bottom. The best entry is a coin in a confirmed downtrend that has bounced back toward its 20-day average — that average acts as resistance. Each qualifying coin gets a <strong>setup score out of 100</strong> from how far apart its averages are, how steeply the 20-day is falling, how close the price has rallied to resistance, and whether RSI sits in the 45-58 range a bounce typically reaches. The best setups open first.</div>
     </div>
 
-    <div class="faq-item" data-keywords="balance equal size risk volatility weighted hedge neutral">
+    <div class="faq-item" data-keywords="never shorted oversold capitulation stretched refused">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">Why are some falling coins never shorted?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">Three things disqualify a short. <strong>Oversold</strong> — RSI under 35, where bounces come from. <strong>Capitulation</strong> — a day that fell more than two daily ranges. <strong>Stretched</strong> — more than two daily ranges below its 20-day average. Each of these is a coin that has already fallen hard, and in crypto those tend to bounce. Every short that lost money before was one of them. The scan log lists the most common reasons shorts were refused.</div>
+    </div>
+
+    <div class="faq-item" data-keywords="balance unbalanced more longs than shorts tilt">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">Why don&rsquo;t I get equal longs and shorts?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">Because the book follows the market rather than being forced into balance. In a rally most coins read bullish and few are in downtrends, so you get more longs; in a decline, the reverse. Forcing them equal used to mean shorting coins that weren&rsquo;t falling. If a scan finds no genuine setup on one side, it opens nothing on that side.</div>
+    </div>
+
+    <div class="faq-item" data-keywords="different sizes risk volatility weighted">
       <div class="faq-question" onclick="toggleFaq(this)">
         <div class="faq-question-text">Why are my Swing positions different sizes?</div>
         <div class="faq-icon">+</div>
       </div>
-      <div class="faq-answer">So both sides carry the same <strong>risk</strong>, not just the same money. Each position is sized inversely to its volatility: a coin moving 4% a day gets a smaller position than one moving 2.5%, so that hitting its stop costs the same. Sizes stay between half and double the preset&rsquo;s standard 5%. The count is kept equal too — shorts are usually the scarcer side, so if a scan finds only four usable shorts it opens only four longs. Together these keep the long and short sides offsetting each other. Only Swing mode sizes this way; the normal scan uses a flat 5%.</div>
+      <div class="faq-answer">So every position carries the same <strong>risk</strong>, not just the same money. Each is sized inversely to its volatility: a coin moving 4% a day gets a smaller position than one moving 2.5%, so that hitting its stop costs the same. A coin moving 3% a day gets the standard 5%, and every size stays between half and double that. Only Swing mode sizes this way; the normal scan uses a flat 5%.</div>
     </div>
 
-    <div class="faq-item" data-keywords="reversal review 4 hours captured capital flip">
+    <div class="faq-item" data-keywords="reversal stall turn review trend broken">
       <div class="faq-question" onclick="toggleFaq(this)">
         <div class="faq-question-text">How do reversals work?</div>
         <div class="faq-icon">+</div>
       </div>
-      <div class="faq-answer">Never decided at entry. A position is left alone until it has <strong>captured capital</strong> — its trailing stop has reached breakeven. From then, every <strong>4 hours</strong>, the deterministic process scores it fresh on that moment&rsquo;s data. Same direction or neutral: hold. Clearly flipped: close it, locking the gain, and open the opposite position at the same size. If the trailing stop fires first, it rescores at that moment and reverses only if the fresh read agrees. <strong>An original stop hit at a loss never reverses.</strong></div>
+      <div class="faq-answer">Never decided at entry, and never on a timer. A Swing position is left alone until it has <strong>captured capital</strong> — its trailing stop has reached breakeven — and then <strong>stalled</strong>: its trailing stop hasn&rsquo;t moved for 8 hours, meaning the price has stopped making progress. Only then is it checked. It reverses only on a <strong>confirmed turn</strong>: price through its 20-day average, momentum on the new side, and the old trend no longer intact. A pause inside a healthy trend holds. If the trailing stop fires first, the same check runs at that moment. <strong>An original stop hit at a loss never reverses.</strong></div>
+    </div>
+
+    <div class="faq-item" data-keywords="pullback bounce false reversal trend intact">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">Won&rsquo;t it reverse on every dip?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">No — that is the hardest part to get right, and it was tested directly. A rule built on price and RSI alone fired on every pullback inside a rally and every bounce inside a decline. The deciding ingredient is that the <strong>old trend must have broken</strong>: an uptrend is intact while its 20-day average is above the 50-day and still rising. Across 96 simulated pullbacks and bounces, the rule used here made <strong>zero</strong> false reversals, while catching about 43% of genuine turns. The turns it misses aren&rsquo;t lost — the trailing stop has already banked the gain.</div>
+    </div>
+
+    <div class="faq-item" data-keywords="which positions eligible swing not all">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">Which positions can be reversed?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">Only positions opened by a Swing-mode scan, and the reversals that come from them. Everything else in the book — including anything opened before Swing mode — runs to its stop, its target or its trailing stop and is never reversed.</div>
     </div>
 
     <div class="faq-item" data-keywords="flip back churn repeat reversal guard">
@@ -772,7 +804,7 @@
         <div class="faq-question-text">Can it flip back and forth?</div>
         <div class="faq-icon">+</div>
       </div>
-      <div class="faq-answer">No. A position opened by a reversal starts with its trailing stop inactive, so it is not reviewed — and cannot reverse again — until it has captured capital of its own.</div>
+      <div class="faq-answer">No. A position opened by a reversal starts with its trailing stop inactive, so it must capture capital of its own and then stall before it can be considered again.</div>
     </div>
 
     <div class="faq-item" data-keywords="live trading paper only wallet perpetual">
@@ -788,15 +820,15 @@
         <div class="faq-question-text">How should I run a Swing test?</div>
         <div class="faq-icon">+</div>
       </div>
-      <div class="faq-answer">Disarm live trading, set scoring to <strong>DETERMINISTIC</strong>, keep the <strong>Conservative</strong> preset, turn <strong>SWING</strong> on, and tap <strong>FILL TO 10 ONCE</strong>. The scan log reports how many candidates it ranked, the composite range, any oversold coins it skipped, and how many it opened each way. If it finds fewer usable shorts, it opens only as many longs to match, so the book stays neutral rather than tipping long. Positions are tagged <em>L/S top N</em> or <em>L/S bottom N</em> in their notes. Then let them run — closing them by hand records your decision, not the system&rsquo;s.</div>
+      <div class="faq-answer">Disarm live trading, set scoring to <strong>DETERMINISTIC</strong>, keep the <strong>Conservative</strong> preset, turn <strong>SWING</strong> on, and tap <strong>FILL TO 10 ONCE</strong>. The scan log reports how many candidates read bullish, how many sat in a confirmed downtrend, how many of each it opened, and the main reasons shorts were refused. Each position&rsquo;s note says why it opened — <em>Long #1 of 6 bullish</em> or <em>Downtrend setup 84/100</em>. Then let them run — closing them by hand records your decision, not the system&rsquo;s.</div>
     </div>
 
-    <div class="faq-item" data-keywords="risk market neutral rally hedge">
+    <div class="faq-item" data-keywords="risk short rally untested">
       <div class="faq-question" onclick="toggleFaq(this)">
         <div class="faq-question-text">What is the risk?</div>
         <div class="faq-icon">+</div>
       </div>
-      <div class="faq-answer">Half long and half short leaves your net exposure to the market close to zero, so a broad drop that hurts the longs pays the shorts. The bet is that your longs outperform your shorts. In a strong rally even your weakest coins may rise, and the shorts lose. This is untested on your account — treat the first runs as data, not results.</div>
+      <div class="faq-answer">Shorts lose in a rally, and because the book follows the market it is not hedged: when most of what it holds is long, a broad drop hurts. The downtrend rule is standard practice but <strong>untested on your account</strong> — your earlier exports don&rsquo;t include the moving averages needed to backtest it. Treat the first weeks as data, not results.</div>
     </div>
 
   </div>
@@ -918,7 +950,7 @@
         <div class="faq-question-text">Can AURUM trade both directions in crypto?</div>
         <div class="faq-icon">+</div>
       </div>
-      <div class="faq-answer">Yes. In the normal scan a candidate goes SHORT when its composite falls below <span class="mono">45</span>, but that is rare — composites cluster around 52, and shorts taken on a low absolute score have lost. <strong>Swing mode</strong> is the reliable way to trade both directions: it opens shorts by relative rank and refuses oversold coins. Live shorts need a perpetual futures venue; the spot wallet cannot short.</div>
+      <div class="faq-answer">Yes. In the normal scan a candidate goes SHORT when its composite falls below <span class="mono">45</span>, but that is rare — composites cluster around 52, and shorts taken on a low absolute score have lost. <strong>Swing mode</strong> is the way to trade both directions: it opens shorts only on a confirmed downtrend read from price structure, and refuses coins that are oversold, capitulating or stretched. Live shorts need a perpetual futures venue; the spot wallet cannot short.</div>
     </div>
 
     <div class="faq-item" data-keywords="crypto data free paid capacity algorithms">
@@ -1212,19 +1244,15 @@
       </div>
       <div class="glossary-item">
         <div class="glossary-term">Capital Captured</div>
-        <div class="glossary-def">A position whose trailing stop has reached breakeven or beyond. Swing reviews only begin here.</div>
+        <div class="glossary-def">A position whose trailing stop has reached breakeven or beyond. A Swing position is only checked for a reversal once it is captured and has stalled.</div>
       </div>
       <div class="glossary-item">
         <div class="glossary-term">Swing Mode</div>
-        <div class="glossary-def">The toggleable long/short mode: ten longs and ten shorts by relative rank, with reversals once capital is captured. Paper only.</div>
-      </div>
-      <div class="glossary-item">
-        <div class="glossary-term">Relative Long / Short</div>
-        <div class="glossary-def">Going long the strongest-scoring candidates and short the weakest. Profits when the longs outperform the shorts, in a rising or falling market.</div>
+        <div class="glossary-def">The toggleable mode that opens longs predicted to rise and shorts in a confirmed downtrend, each on its own evidence, and reverses a Swing position when it stalls and the move genuinely turns. Paper only.</div>
       </div>
       <div class="glossary-item">
         <div class="glossary-term">Swing Reversal</div>
-        <div class="glossary-def">Closing a position that has captured capital and opening the opposite one, when a fresh deterministic read clearly flips direction.</div>
+        <div class="glossary-def">Closing a Swing position that has captured capital and stalled, and opening the opposite one, when the move has genuinely turned and the old trend has broken.</div>
       </div>
       <div class="glossary-item">
         <div class="glossary-term">Oversold (RSI)</div>
@@ -1241,6 +1269,18 @@
       <div class="glossary-item">
         <div class="glossary-term">Scale Preset</div>
         <div class="glossary-def">Conservative, Scaled or Aggressive — how many positions and what size each.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="glossary-term">Downtrend Setup</div>
+        <div class="glossary-def">What a short needs: price below its 50-day average, the 20-day below the 50-day and falling, a lower high, and the price not oversold, capitulating or stretched. Scored out of 100.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="glossary-term">Stall</div>
+        <div class="glossary-def">When a position&rsquo;s trailing stop hasn&rsquo;t moved for 8 hours — the price has stopped making progress. The moment Swing mode checks for a turn.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="glossary-term">Trend Broken</div>
+        <div class="glossary-def">An uptrend whose 20-day average is no longer above the 50-day and rising, or the mirror for a downtrend. Required before any reversal, so pullbacks and bounces are never mistaken for turns.</div>
       </div>
     </div>
   </div>
