@@ -3662,10 +3662,10 @@ function renderSwingToggle() {
   }
   if (note) {
     note.textContent = swingEnabled
-      ? 'ON — aims for ' + preset().positions + ' long and ' + preset().positions + ' short by relative rank, always ' +
-        'kept equal: strongest go long, weakest go short, oversold coins never shorted. Each position is sized ' +
-        'to its volatility so both sides carry the same risk. Once a position captures capital it is re-read ' +
-        'every 4 hours and reverses only if that read clearly flips. Paper only.'
+      ? 'ON — opens up to ' + preset().positions + ' longs that read bullish and up to ' + preset().positions +
+        ' shorts in a confirmed downtrend, each on its own evidence. Every position is sized so its stop risks ' +
+        'the same. Once a Swing position has captured capital and stalls, it is checked for a genuine turn and ' +
+        'reversed only if the old trend has broken. Paper only.'
       : 'OFF — longs only, as before. Turn on to run ' + preset().positions + ' long and ' +
         preset().positions + ' short with automatic reversals.';
   }
@@ -4460,6 +4460,11 @@ async function openPositionFromSignal(gov, why) {
     // The trailing stop sizes itself to this: it activates once the position
     // is up half of it, and follows the price one full unit behind.
     entry_volatility_pct: Number(gov.volatility_pct) > 0 ? Number(gov.volatility_pct) : null,
+    // Only positions opened by a Swing-mode scan are ever reviewed for a
+    // reversal; everything else runs to its stop, target or trailing stop.
+    swing_eligible:       gov.swing_eligible === true,
+    // The stall clock. The monitor resets it whenever the trailing stop moves.
+    stop_moved_at:        new Date().toISOString(),
     shares,
     direction,
     strategy:             currentStrategy,
@@ -4568,21 +4573,26 @@ async function logShadowCandidates(scored, qualifiedSet) {
 // ══════════════════════════════════════════════════════════════════
 // LONG / SHORT MODE  (runs when SWING is on)
 //
-// Opens ten longs and ten shorts by RELATIVE rank: the strongest candidates by
-// deterministic composite go long, the weakest go short. It never asks whether
-// a coin will fall — the composite has been poor at that, and the shorts it
-// took on a low absolute score went on to rise. It only asks which coins are
-// stronger than which, which is the part the composite can actually do.
+// Opens longs that are predicted to rise and shorts that are predicted to
+// fall — each on its own evidence, up to the preset's count per side.
 //
-// Shorts skip anything oversold (RSI under 30). The four shorts that lost were
-// all coins near the bottom of a fall that then bounced.
+//   LONGS  — the deterministic composite reads bullish (above the contract's
+//            direction band). The composite has some measured support on the
+//            long side.
+//   SHORTS — the Governor's price-structure read finds a confirmed downtrend
+//            and the price rallying back toward resistance. The composite is
+//            not used for shorts: it almost never reads bearish, and when it
+//            did, the coin rose.
 //
-// Half long and half short leaves net exposure to the market close to zero, so
-// the result depends on picking the right coins in each direction rather than
-// on guessing where the whole market goes.
+// The book is not forced into balance. It follows the market: long-heavy in a
+// rally, short-heavy in a decline, light on both when neither side offers a
+// real setup. Every position is sized so its stop risks the same amount.
+//
+// Positions opened here are swing-eligible. Once one has captured capital and
+// then stalls, the monitor checks whether the move has genuinely turned, and
+// reverses it only if so.
 // ══════════════════════════════════════════════════════════════════
 const LS_SHORTLIST = 45;
-const LS_OVERSOLD_RSI = 30;
 // A coin moving this much a day gets the preset's standard size; calmer coins
 // get more, jumpier ones less, so every stop costs the same. 3% is the centre
 // of the volatility band the funnel ranks toward.
@@ -4606,6 +4616,7 @@ async function scoreForRanking(ticker, balance) {
     if (g.error)                         { noteScoreFailure(ticker, 'governor: ' + g.error); return null; }
     if (!(Number(g.entry_price) > 0))    { noteScoreFailure(ticker, 'no entry price returned'); return null; }
     if (typeof g.det_composite !== 'number') { noteScoreFailure(ticker, 'no composite — Governor predates long/short'); return null; }
+    if (!g.short_setup) { noteScoreFailure(ticker, 'no short setup — redeploy the latest clever-responder'); return null; }
     checkContractDrift(g);
     return {
       ticker,
@@ -4614,6 +4625,7 @@ async function scoreForRanking(ticker, balance) {
       volatility_pct: Number(g.volatility_pct) || 3,
       entry_price:    Number(g.entry_price),
       signal_quality: Math.min(40 + (g.algorithms_executed || 0) * 2, 95),
+      shortSetup:     g.short_setup || null,
       gov:            g,
     };
   } catch (e) {
@@ -4640,7 +4652,9 @@ function rankedSignal(c, dir, rank, ofN, balance) {
     composite_score:   c.composite,
     reward_risk:       2.0,
     portfolio_balance: balance,
-    confidence:        'L/S ' + (dir === 'LONG' ? 'top' : 'bottom') + ' ' + rank + '/' + ofN,
+    confidence:        dir === 'LONG'
+                         ? 'Long #' + rank + ' of ' + ofN + ' bullish'
+                         : 'Downtrend setup ' + ((c.shortSetup && c.shortSetup.score) || 0) + '/100 · #' + rank + ' of ' + ofN,
   });
   g.opportunity_score = computeOpportunity(g, c.composite);
   return g;
@@ -4688,47 +4702,53 @@ async function runLongShortCycle(manualTrigger) {
 
     // Data quality still gates both sides — that floor was measured, at p=0.016.
     const lim = limits();
-    const eligible = scored.filter(c => c.signal_quality >= lim.signalQuality)
-                           .sort((a, b) => b.composite - a.composite);
-    if (eligible.length < 2) { autoLog('Long/short — only ' + eligible.length + ' cleared data quality.'); return; }
+    const quality = scored.filter(c => c.signal_quality >= lim.signalQuality);
+    if (!quality.length) { autoLog('Long/short — nothing cleared data quality.'); return; }
 
-    // Strongest half long, weakest half short. The two halves never overlap,
-    // so a coin can never be both. If the pool is thin, both sides shrink.
-    const half        = Math.floor(eligible.length / 2);
-    const longSide    = eligible.slice(0, half);
-    const shortSide   = eligible.slice(eligible.length - half).reverse();
-    const oversold    = shortSide.filter(c => c.rsi < LS_OVERSOLD_RSI);
-    const availShorts = shortSide.filter(c => !(c.rsi < LS_OVERSOLD_RSI));
+    // ── DIRECTION BY SIGNAL, EACH SIDE ON ITS OWN EVIDENCE ──
+    // A long is opened because the read is bullish; a short because the coin
+    // is in a confirmed downtrend. Not "strongest half long, weakest half
+    // short": that shorted coins reading mildly bullish (composites of 51 to
+    // 54), and they rose. Each side now trades only what genuinely qualifies,
+    // so the book follows the market — long-heavy in a rally, short-heavy in a
+    // decline — rather than being forced into balance.
+    //
+    // LONGS use the composite, which has some measured support on the long
+    // side. SHORTS do not: across 350 scored candidates the composite read
+    // bearish once, and that coin rose 16.5%. Shorts come from the Governor's
+    // price-structure read instead — price below its 50-day average, the
+    // 20-day below the 50-day and falling, a lower high, and the price
+    // rallying back toward resistance rather than collapsing. Coins that are
+    // oversold, capitulating or stretched far below their average are refused.
+    const longPool = quality.filter(c => c.composite > lim.direction)
+                            .sort((a, b) => b.composite - a.composite);
+    const longSet  = new Set(longPool.map(c => c.ticker));
+    const shortPool = quality.filter(c => c.shortSetup && c.shortSetup.qualifies && !longSet.has(c.ticker))
+                             .sort((a, b) => b.shortSetup.score - a.shortSetup.score);
+    const longs  = longPool.slice(0, needLong);
+    const shorts = shortPool.slice(0, needShort);
 
-    // ── BALANCE ──
-    // The two sides used to fill independently: every long it wanted, plus
-    // whatever shorts survived the oversold filter. After a week of falling
-    // prices most weak coins are oversold, so a scan opened 7 longs and 3
-    // shorts — about 35% net long, the same exposure that gave back $120 when
-    // the market turned. The whole book now aims for an EQUAL count on each
-    // side. Shorts are the scarce side, so they set the level; longs open only
-    // up to match. If the book is already tilted, a scan adds only to the
-    // light side, and never deepens the tilt.
-    const level    = Math.min(perSide, openLong + longSide.length, openShort + availShorts.length);
-    const addLong  = Math.max(0, level - openLong);
-    const addShort = Math.max(0, level - openShort);
-    const longs    = longSide.slice(0, addLong);
-    const shorts   = availShorts.slice(0, addShort);
+    // Why the rest were not shorted — the most common reasons, for the log.
+    // Grouped by kind, so 'oversold (RSI 28)' and 'oversold (RSI 31)' count together.
+    const kind = why => /oversold/.test(why) ? 'oversold'
+      : /capitulation/.test(why) ? 'capitulating'
+      : /stretched/.test(why) ? 'stretched below the 20-day'
+      : /price is above its 50-day/.test(why) ? 'above the 50-day'
+      : /20-day average is above/.test(why) ? '20-day above the 50-day'
+      : /not falling/.test(why) ? '20-day not falling'
+      : /lower high/.test(why) ? 'no lower high'
+      : /history/.test(why) ? 'too little history' : why;
+    const refusals = {};
+    quality.filter(c => c.shortSetup && !c.shortSetup.qualifies && !longSet.has(c.ticker))
+           .forEach(c => { const why = (c.shortSetup.failed || [])[0]; if (why) { const k = kind(why); refusals[k] = (refusals[k] || 0) + 1; } });
+    const topRefusals = Object.entries(refusals).sort((a, b) => b[1] - a[1]).slice(0, 3)
+                              .map(([why, n]) => n + ' × ' + why).join('; ');
 
     // ── EQUAL-RISK SIZING ──
-    // Equal dollars is not an equal hedge. An ETH short moving 4.2% a day
-    // outweighs a BNB long moving 3.4%, so a market move still hits the two
-    // sides unevenly. Each position is sized inversely to its volatility, so
-    // its stop — always 2x volatility away — puts the same amount at risk.
-    //
-    // Sized against a FIXED reference volatility, not against the other
-    // positions in the same scan. Normalising within the scan meant a scan
-    // that opened a single position always gave it the flat standard size:
-    // LTC at 2.1% and XRP at 3.1% both landed at exactly 5.0%, each opened
-    // alone, risking 0.21% and 0.31% while their batch-mates risked 0.26%.
-    // Against a fixed reference, every position risks the same amount however
-    // many open together, scan after scan. Each stays between half and double
-    // the preset's standard size.
+    // Each position is sized inversely to its volatility, so its stop — always
+    // 2x volatility away — puts the same amount at risk. Against a fixed
+    // reference, so a position opened alone is sized the same as one opened
+    // with others. Each stays between half and double the standard size.
     const picked  = longs.concat(shorts);
     const basePct = preset().sizePct;
     const sizeFor = c => {
@@ -4736,33 +4756,27 @@ async function runLongShortCycle(manualTrigger) {
       return Math.min(basePct * Math.min(Math.max(LS_REF_VOL / vol, 0.5), 2.0), MAX_POSITION_PCT);
     };
 
-    autoLog('Ranked ' + eligible.length + ' — composites ' + eligible[0].composite + ' to ' +
-            eligible[eligible.length - 1].composite + '. ' +
-            (oversold.length ? oversold.length + ' oversold skipped from shorts: ' +
-              oversold.map(c => c.ticker + ' RSI ' + c.rsi).join(', ') + '. ' : '') +
-            'Book ' + openLong + ' long / ' + openShort + ' short; balancing to ' + level + ' each — opening ' +
-            longs.length + ' long, ' + shorts.length + ' short.');
+    autoLog('Scored ' + quality.length + ' — ' + longPool.length + ' read bullish, ' + shortPool.length +
+            ' in a confirmed downtrend. Opening ' + longs.length + ' long, ' + shorts.length + ' short.' +
+            (topRefusals ? ' Not shorted: ' + topRefusals + '.' : ''));
     if (!picked.length) {
-      autoLog('Long/short — nothing opened. ' +
-              (availShorts.length === 0
-                ? 'No usable shorts this scan, so no longs either — the book stays neutral.'
-                : 'The book is already at its balanced level.'));
+      autoLog('Long/short — nothing opened: no candidate read bullish or sat in a confirmed downtrend this scan.');
       return;
     }
 
-    const openOne = async (c, dir, rank) => {
-      const g = rankedSignal(c, dir, rank, eligible.length, balance);
+    const openOne = async (c, dir, rank, ofN) => {
+      const g = rankedSignal(c, dir, rank, ofN, balance);
       g.size_pct_override = sizeFor(c);
       g.confidence += ' · size ' + g.size_pct_override.toFixed(1) + '%';
+      // Opened as part of a swing, so the stall review may consider it later.
+      g.swing_eligible = true;
       return openPositionFromSignal(g, '');
     };
     let opened = 0;
-    for (let i = 0; i < longs.length;  i++) if (await openOne(longs[i],  'LONG',  i + 1)) opened++;
-    for (let i = 0; i < shorts.length; i++) if (await openOne(shorts[i], 'SHORT', i + 1)) opened++;
+    for (let i = 0; i < longs.length;  i++) if (await openOne(longs[i],  'LONG',  i + 1, longPool.length))  opened++;
+    for (let i = 0; i < shorts.length; i++) if (await openOne(shorts[i], 'SHORT', i + 1, shortPool.length)) opened++;
     autoLog('Long/short — opened ' + opened + '. Book now ' + (openLong + longs.length) + ' long / ' +
-            (openShort + shorts.length) + ' short. ' +
-            (level < perSide ? 'Short of ' + perSide + ' each: only ' + availShorts.length +
-              ' usable shorts this scan, so longs were held to match.' : ''));
+            (openShort + shorts.length) + ' short.');
     await loadTrades();
   } finally {
     FUNNEL_SHORTLIST = savedShortlist;
