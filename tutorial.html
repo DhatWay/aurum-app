@@ -787,33 +787,33 @@
     <div class="step-number">Step 08 of 12</div>
     <div class="step-title">Swing <em>Mode</em></div>
     <div class="step-body">
-      Swing mode trades both directions. Turn it on with <strong>SWING</strong> on the Simulator; turn it off and everything runs exactly as before.
+      Swing mode trades both directions — longs predicted to rise, shorts predicted to fall. Turn it on with <strong>SWING</strong> on the Simulator; turn it off and everything runs exactly as before.
     </div>
     <div class="feature-list">
       <div class="feature-item">
-        <div class="feature-icon">RANK</div>
-        <div class="feature-text"><strong>Ten long, ten short — kept equal</strong> — Every candidate is scored, then the strongest go long and the weakest go short. If usable shorts are scarce, it opens only as many longs to match. A short means <em>expected to lag the longs</em>, not necessarily <em>expected to fall</em>.</div>
+        <div class="feature-icon">LONG</div>
+        <div class="feature-text"><strong>Longs on a bullish read</strong> — The composite must read bullish. Each side trades only what genuinely qualifies, so the book follows the market rather than being forced into balance.</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">SHORT</div>
+        <div class="feature-text"><strong>Shorts on a confirmed downtrend</strong> — Price below its 50-day average, the 20-day below the 50-day and falling, a lower high. Best entry: the price rallying back toward its 20-day average. Never oversold, never mid-crash.</div>
       </div>
       <div class="feature-item">
         <div class="feature-icon">SIZE</div>
-        <div class="feature-text"><strong>Sized by risk</strong> — Each position is sized to its volatility, so a stop costs the same on a calm coin as on a jumpy one. That keeps the long and short sides genuinely offsetting.</div>
+        <div class="feature-text"><strong>Sized by risk</strong> — Each position is sized to its volatility, so a stop costs the same on a calm coin as on a jumpy one.</div>
       </div>
       <div class="feature-item">
-        <div class="feature-icon">RSI</div>
-        <div class="feature-text"><strong>No shorting the bottom</strong> — Coins with RSI under 30 are never shorted. Coins that have already fallen hard tend to bounce.</div>
+        <div class="feature-icon">STALL</div>
+        <div class="feature-text"><strong>Reversal at a stall</strong> — Nothing about reversing is decided at entry. Once a Swing position has captured capital and its trailing stop stops moving for 8 hours, it is checked for a turn.</div>
       </div>
       <div class="feature-item">
-        <div class="feature-icon">REVIEW</div>
-        <div class="feature-text"><strong>Reversal, decided late</strong> — Nothing about reversing is decided at entry. Once a position has captured capital, it is scored fresh every 4 hours. If that read clearly flips, the position closes with its gain and the opposite one opens.</div>
-      </div>
-      <div class="feature-item">
-        <div class="feature-icon">GUARD</div>
-        <div class="feature-text"><strong>No flip-flopping</strong> — A reversed position must capture capital of its own before it can reverse again. An original stop hit at a loss never reverses.</div>
+        <div class="feature-icon">TURN</div>
+        <div class="feature-text"><strong>Only a confirmed turn</strong> — It reverses only when the old trend has broken, not on a pullback. Tested on 96 pullbacks and bounces: zero false reversals. An original stop hit at a loss never reverses.</div>
       </div>
     </div>
     <div class="highlight-box">
       <div class="highlight-label">Paper only</div>
-      <div class="highlight-text">Your wallet trades on a spot exchange, which cannot short, so Swing mode refuses to run while live trading is armed. Half long and half short leaves your net market exposure near zero — the bet is that your longs beat your shorts. It is untested on your account, so treat the first runs as data.</div>
+      <div class="highlight-text">Your wallet trades on a spot exchange, which cannot short, so Swing mode refuses to run while live trading is armed. Only positions opened in Swing mode can ever be reversed. The downtrend rule is standard practice but untested on your account, so treat the first runs as data.</div>
     </div>
     <div class="step-nav">
       <button class="btn-nav" onclick="prevStep()">← Previous</button>
