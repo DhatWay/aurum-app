@@ -2644,22 +2644,23 @@ async function loadActiveStrategy() {
 
 async function loadPositionAlerts() {
   try {
+    // price_unavailable is left out in every mode: it fires whenever one price
+    // fetch misses, and the monitor retries and falls back to a second provider
+    // on its own. Whether a position genuinely cannot be priced is checked by
+    // System Diagnostics → SCAN instead.
     const { data } = await db.from('position_alerts')
-      .select('*').eq('read', false)
+      .select('*').eq('read', false).neq('alert_type', 'price_unavailable')
       .order('created_at', { ascending: false }).limit(50);
 
     const container = document.getElementById('position-alerts-container');
     if (!container) return;
 
-    // Deterministic mode runs without a model, and most alerts here report what
-    // the Governor's live read decided — stop tightening, swing reversals —
-    // which cannot happen with no model call. What remains is mainly
-    // price_unavailable noise. Muted while deterministic; rows still
-    // accumulate and reappear the moment you switch back.
-    if (scoringMode === 'deterministic') {
-      container.style.display = 'none';
-      return;
-    }
+    // Alerts used to be hidden entirely in deterministic mode, on the grounds
+    // that they mostly reported what Claude's live read decided. That stopped
+    // being true: the two that matter most here — the trailing stop moving
+    // (stop_trailed) and a swing reversing (swing_reversal) — are pure
+    // arithmetic and fire in deterministic mode. Hiding them hid exactly what
+    // this system exists to tell you. They now show in every mode.
 
     if (!data || !data.length) {
       container.style.display = 'none';
@@ -2668,10 +2669,16 @@ async function loadPositionAlerts() {
 
     container.style.display = 'block';
     const colors = {
+      // Green: profit protected or banked. Gold: a swing. Red: a loss.
+      stop_trailed:        'var(--positive)',
+      trailing_stop:       'var(--positive)',
+      target_reached:      'var(--positive)',
+      swing_reversal:      'var(--gold)',
       stop_tightened:      'rgba(201,168,76,0.8)',
       direction_reversal:  'var(--danger)',
-      target_reached:      'var(--positive)',
       stop_loss_triggered: 'var(--danger)',
+      stale_timeout:       'var(--muted)',
+      max_hold:            'var(--muted)',
       manual_close:        'var(--muted)',
     };
 
@@ -2685,7 +2692,7 @@ async function loadPositionAlerts() {
       '<div style="max-height:260px;overflow-y:auto;-webkit-overflow-scrolling:touch;padding-right:0.3rem;">' +
       data.map(a => {
         const color = colors[a.alert_type] || 'var(--muted)';
-        const time  = new Date(a.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+        const time  = parseDbTime(a.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
         return '<div style="border-left:3px solid ' + color + ';padding:0.6rem 0.8rem;margin-bottom:0.4rem;background:rgba(0,0,0,0.3);display:flex;justify-content:space-between;align-items:flex-start;gap:0.5rem;">' +
           '<div style="flex:1;">' +
             '<div style="font-size:0.65rem;color:' + color + ';font-family:\'IBM Plex Mono\',monospace;letter-spacing:0.1em;margin-bottom:0.2rem;">' + a.alert_type.toUpperCase().replace(/_/g,' ') + ' · ' + a.ticker + ' · ' + time + '</div>' +
