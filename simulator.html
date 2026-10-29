@@ -1238,7 +1238,7 @@ let OPEN_POSITIONS = [];
 // Must match quick-service. The trailing stop activates once a position is up
 // TRAIL_ACTIVATE_X of its volatility, then follows TRAIL_DISTANCE_X behind.
 const TRAIL_ACTIVATE_X = 0.5;
-const TRAIL_DISTANCE_X = 1.0;
+const TRAIL_DISTANCE_X = 0.5;   // must match quick-service
 
 function positionVolatility(t) {
   const v = Number(t.entry_volatility_pct);
@@ -3669,7 +3669,7 @@ function renderSwingToggle() {
   }
   if (note) {
     note.textContent = swingEnabled
-      ? 'ON — opens up to ' + preset().positions + ' longs that read bullish and up to ' + preset().positions +
+      ? 'ON — opens up to ' + preset().positions + ' longs scoring ' + LS_LONG_MIN + '+ and up to ' + preset().positions +
         ' shorts in a confirmed downtrend, each on its own evidence. Every position is sized so its stop risks ' +
         'the same. Once a Swing position has captured capital and stalls, it is checked for a genuine turn and ' +
         'reversed only if the old trend has broken. Paper only.'
@@ -4600,6 +4600,10 @@ async function logShadowCandidates(scored, qualifiedSet) {
 // reverses it only if so.
 // ══════════════════════════════════════════════════════════════════
 const LS_SHORTLIST = 45;
+// Minimum composite for a Swing long. Your September record — 79% — was made
+// entirely of longs scoring 62 or more; if 60 still lets losers through, 62 is
+// the next step and matches what worked.
+const LS_LONG_MIN = 60;
 // A coin moving this much a day gets the preset's standard size; calmer coins
 // get more, jumpier ones less, so every stop costs the same. 3% is the centre
 // of the volatility band the funnel ranks toward.
@@ -4727,7 +4731,12 @@ async function runLongShortCycle(manualTrigger) {
     // 20-day below the 50-day and falling, a lower high, and the price
     // rallying back toward resistance rather than collapsing. Coins that are
     // oversold, capitulating or stretched far below their average are refused.
-    const longPool = quality.filter(c => c.composite > lim.direction)
+    // Swing longs need a composite of at least LS_LONG_MIN, above the contract's
+    // direction band. On the October 27 batch every long scoring 56-57 that
+    // closed hit its stop — TRUMP, DASH, RENDER — while three of the four
+    // scoring 60+ held. Those were flagged as marginal before they ran. The
+    // contract is left alone, so the normal long-only scan is unchanged.
+    const longPool = quality.filter(c => c.composite >= LS_LONG_MIN && c.composite > lim.direction)
                             .sort((a, b) => b.composite - a.composite);
     const longSet  = new Set(longPool.map(c => c.ticker));
     const shortPool = quality.filter(c => c.shortSetup && c.shortSetup.qualifies && !longSet.has(c.ticker))
