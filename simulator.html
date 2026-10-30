@@ -821,7 +821,7 @@ footer p { font-size: 0.6rem; letter-spacing: 0.12em; color: var(--muted); text-
     </div>
 
     <div style="border-top:1px solid rgba(107,101,96,0.2); margin-top:0.9rem; padding-top:0.9rem;">
-      <div style="font-size:0.62rem; letter-spacing:0.2em; color:#C9A84C; font-family:'IBM Plex Mono',monospace; margin-bottom:0.5rem;">REGIME PHYSICS</div>
+      <div style="font-size:0.62rem; letter-spacing:0.2em; color:#C9A84C; font-family:'IBM Plex Mono',monospace; margin-bottom:0.5rem;">MARKET REGIME</div>
       <button id="physics-toggle" onclick="togglePhysics()" style="width:100%; background:transparent; border:1px solid rgba(107,101,96,0.4); color:#6B6560; font-family:'DM Sans',sans-serif; font-size:0.7rem; letter-spacing:0.12em; padding:0.55rem; cursor:pointer;">REGIME: OFF</button>
       <div id="physics-note" style="font-size:0.66rem; color:#6B6560; font-family:'IBM Plex Mono',monospace; margin-top:0.5rem; margin-bottom:0.9rem; line-height:1.6;"></div>
 
@@ -3529,9 +3529,14 @@ function renderPhysicsToggle() {
     btn.style.background  = physicsEnabled ? 'rgba(201,168,76,0.08)' : 'transparent';
   }
   if (note) {
+    // This switch used to describe a physics algorithm that was never built, so
+    // it did nothing. It now controls the market-regime gate.
     note.textContent = physicsEnabled
-      ? 'Hurst, entropy and tail risk weighted at 1.8x. Momentum signals gain weight in a trending regime and lose it in a mean-reverting one.'
-      : 'Off. The reading is still computed and logged to shadow_log for evaluation, but carries no weight in any scoring mode.';
+      ? 'ON — before each crypto scan, BTC and ETH are checked. While either is in a confirmed downtrend ' +
+        '(price at least 2% below its 50-day average, the 20-day below the 50-day and falling), no new ' +
+        'longs open. Shorts are unaffected. Each scan logs what BTC and ETH are reading.'
+      : 'OFF — longs open whichever way BTC and ETH are trending, as before. Turn on to pause new longs ' +
+        'while the market is in a downtrend.';
   }
 }
 
@@ -4647,6 +4652,61 @@ const LS_LONG_MIN = 60;
 // of the volatility band the funnel ranks toward.
 const LS_REF_VOL = 3.0;
 
+// ══════════════════════════════════════════════════════════════════
+// MARKET REGIME
+//
+// The scan used to buy the best longs available whichever way the market was
+// heading. On October 27 it opened ten longs while ETH sat in a confirmed
+// downtrend — flagged in that very scan as a short setup scoring 73 — and when
+// the selling spread, the longs were stopped out. Nothing in it asked "is the
+// market falling?"
+//
+// This asks BTC and ETH. BTC leads the market and ETH leads the altcoins, and
+// these longs are mostly altcoins, which fall roughly twice as hard as bitcoin
+// in a sell-off. While EITHER is in a confirmed downtrend — price at least 2%
+// below its 50-day average, the 20-day below the 50-day and still falling — no
+// new longs open. Shorts are unaffected: a downtrend is when they should work.
+// Tested across 30 market paths each: a steady decline pauses longs 29 times
+// in 30; a rally, and a recovery that has only just started, never do.
+//
+// Controlled by the MARKET REGIME switch, which is OFF by default. Crypto has
+// been in a bear market for a year, so BTC and ETH are often in downtrends —
+// and the September record of 79% was made inside that bear market. Whether
+// this would have blocked those winners is untested.
+// ══════════════════════════════════════════════════════════════════
+async function readMarketRegime() {
+  const read = async (t) => {
+    try {
+      const res = await fetchWithTimeout(GOVERNOR_EDGE_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + GOVERNOR_ANON_KEY },
+        body: JSON.stringify({ ticker: t, mode: 'crypto', instrument: 'crypto', strategy: currentStrategy, skip_ai: true })
+      }, 45000);
+      if (!res.ok) return null;
+      const g = await res.json();
+      return (g && !g.error && g.trend) ? g.trend : null;
+    } catch (e) { return null; }
+  };
+  const [btc, eth] = await Promise.all([read('BTC'), read('ETH')]);
+  const label = t => t === null ? 'unreadable' : t;
+  let longsPaused, why;
+  if (btc === null || eth === null) {
+    // Can't confirm the market isn't falling, so hold off rather than guess.
+    longsPaused = true;  why = 'could not read the market direction';
+  } else if (btc === 'down' || eth === 'down') {
+    longsPaused = true;
+    why = (btc === 'down' && eth === 'down') ? 'BTC and ETH both in a downtrend'
+        : (btc === 'down' ? 'BTC' : 'ETH') + ' in a downtrend';
+  } else {
+    longsPaused = false; why = 'neither BTC nor ETH in a downtrend';
+  }
+  return {
+    btc, eth, longsPaused,
+    line: 'Market regime — BTC ' + label(btc) + ', ETH ' + label(eth) + '. ' +
+          (longsPaused ? 'Longs paused: ' + why + '. Shorts unaffected.' : 'Longs open: ' + why + '.'),
+  };
+}
+
 // Like scoreTicker, but keeps neutral candidates. Relative ranking needs the
 // composite of EVERY candidate, including ones that read neither way.
 async function scoreForRanking(ticker, balance) {
@@ -4749,6 +4809,13 @@ async function runLongShortCycle(manualTrigger) {
     }
     if (scoreFailures.length) autoLog(scoreFailures.length + ' could not be scored: ' + summariseScoreFailures());
 
+    // Market regime: read once per scan, only when the switch is on.
+    let regime = null;
+    if (physicsEnabled && activeMode === 'crypto') {
+      regime = await readMarketRegime();
+      autoLog(regime.line);
+    }
+
     // Data quality still gates both sides — that floor was measured, at p=0.016.
     const lim = limits();
     // The second volatility gate, on the Governor's own reading.
@@ -4780,7 +4847,7 @@ async function runLongShortCycle(manualTrigger) {
     // closed hit its stop — TRUMP, DASH, RENDER — while three of the four
     // scoring 60+ held. Those were flagged as marginal before they ran. The
     // contract is left alone, so the normal long-only scan is unchanged.
-    const longPool = quality.filter(c => c.composite >= LS_LONG_MIN && c.composite > lim.direction)
+    const longPool = (regime && regime.longsPaused) ? [] : quality.filter(c => c.composite >= LS_LONG_MIN && c.composite > lim.direction)
                             .sort((a, b) => b.composite - a.composite);
     const longSet  = new Set(longPool.map(c => c.ticker));
     const shortPool = quality.filter(c => c.shortSetup && c.shortSetup.qualifies && !longSet.has(c.ticker))
@@ -4894,6 +4961,12 @@ async function runAutonomousCycle(manualTrigger) {
     }
 
     const pool = await getCandidateTickers();
+    // Market regime: read once per cycle, only when the switch is on.
+    let regime = null;
+    if (pool.length && physicsEnabled && activeMode === 'crypto') {
+      regime = await readMarketRegime();
+      autoLog(regime.line);
+    }
     if (!pool.length) {
       autoLog('No eligible tickers. Every candidate already holds ' + MAX_PER_TICKER + ' positions.');
       return;
@@ -4931,8 +5004,16 @@ async function runAutonomousCycle(manualTrigger) {
         const why = cryptoBandRejection(g);
         if (why) rejectLog.push(g.ticker + ' ' + why); else banded.push(g);
       });
-      // Hard filter before spending a Claude call
-      const qualified = banded.filter(passesConviction);
+      // Hard filter before spending a Claude call. With longs paused by the
+      // market regime, any long that clears is set aside and logged.
+      let qualified = banded.filter(passesConviction);
+      if (regime && regime.longsPaused) {
+        const pausedLongs = qualified.filter(g => String(g.direction).toUpperCase() === 'LONG');
+        if (pausedLongs.length) {
+          pausedLongs.forEach(g => rejectLog.push(g.ticker + ' long paused — market in a downtrend'));
+          qualified = qualified.filter(g => String(g.direction).toUpperCase() !== 'LONG');
+        }
+      }
       banded.filter(g => !passesConviction(g)).forEach(g => {
         rejectLog.push(g.ticker + ' ' + rejectionReason(g));
       });
