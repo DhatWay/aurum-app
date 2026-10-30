@@ -646,7 +646,7 @@
         <div class="faq-question-text">What gets excluded entirely?</div>
         <div class="faq-icon">+</div>
       </div>
-      <div class="faq-answer">Stablecoins; tokenized stocks such as bStocks and xStocks (SNDKB was SanDisk wrapped as a token); gold-backed tokens such as XAUT and PAXG; and tokenized loans and money-market funds such as FIGR_HELOC, BUIDL and USDY. They look like ideal calm candidates because they are <strong>pegged to something else</strong> — their charts describe gold or a loan book, not a crypto asset.</div>
+      <div class="faq-answer">Stablecoins — including any coin whose symbol contains <em>USD</em>, which catches the many a fixed list misses; tokenized stocks such as bStocks and xStocks (SNDKB was SanDisk wrapped as a token); gold-backed tokens such as XAUT and PAXG; and tokenized loans and money-market funds such as FIGR_HELOC, BUIDL and USDY. They look like ideal calm candidates because they are <strong>pegged to something else</strong> — their charts describe gold or a loan book, not a crypto asset.</div>
     </div>
 
     <div class="faq-item" data-keywords="watchlist source funnel compete priority">
@@ -665,6 +665,14 @@
       <div class="faq-answer">Three tests from the scoring contract, all of which must pass. <strong>Signal quality</strong>: crypto <span class="mono">45</span>, stocks <span class="mono">60</span> — a floor that tested positive on your data. <strong>Direction</strong>: the composite must clear the band. <strong>Opportunity</strong>: crypto <span class="mono">50</span>, stocks <span class="mono">70</span>. In Swing mode, signal quality still applies; longs still need a bullish read, and shorts need a confirmed downtrend instead of a bearish composite.</div>
     </div>
 
+
+    <div class="faq-item" data-keywords="scan opened nothing stand aside volatile screen unavailable empty">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">Why did a scan open nothing?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">Usually because it chose to stand aside, and the scan log says which reason. <strong>&ldquo;Market screen unavailable&rdquo;</strong> — the market data provider didn&rsquo;t respond; try again in a few minutes. <strong>&ldquo;No coins inside the volatility band&rdquo;</strong> — the whole market is moving too violently to read, which typically happens during or just after a sell-off. In both cases it opens nothing rather than trade blind. It used to fall back to a fixed list of major coins with every filter switched off, which on October 29 opened seven positions at 8–15% daily volatility with stops up to 30% away. Every scored coin is also checked against the band a second time, on its own fresh reading, so nothing outside it can open by any route.</div>
+    </div>
   </div>
 
   <div class="gold-rule"></div>
