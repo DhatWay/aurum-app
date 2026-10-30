@@ -3790,6 +3790,23 @@ function fmtPrice(v) {
 // Below ~1.5% the win rate is high but the moves are too small to reach a
 // 2:1 target. Volatility was the single strongest predictor in the whole
 // dataset at p=0.0005, and nothing in the system acted on it.
+// ── THE SECOND GATE ──
+// The screen judges volatility from the 24-hour range CoinGecko reports for its
+// market list. The Governor measures it again, coin by coin, when it scores. If
+// any route ever delivers a coin outside the band — a fallback, a watchlist
+// entry, a market that moved between the screen and the score — this rejects it
+// after scoring, on the Governor's own reading. Nothing outside the band opens.
+// Crypto only: the band is calibrated on crypto and does not apply to stocks.
+function cryptoBandRejection(g) {
+  if (activeMode !== 'crypto') return null;
+  if (/USD/i.test(String(g.ticker || ''))) return 'a dollar-pegged stablecoin';
+  const vol = Number(g.volatility_pct);
+  if (!(vol > 0)) return null;
+  if (vol > VOL_HARD_MAX) return 'volatility ' + vol.toFixed(2) + '%, above the ' + VOL_HARD_MAX + '% ceiling';
+  if (vol < VOL_HARD_MIN) return 'volatility ' + vol.toFixed(2) + '%, below the ' + VOL_HARD_MIN + '% floor';
+  return null;
+}
+
 // The hard limits only remove what measurably loses: above 6% the win rate is
 // 16.7% then 14.3%, which no ranking should rescue. Below 1% a 2:1 target is
 // out of reach. Everything between is allowed through and RANKED, because only
@@ -3915,6 +3932,10 @@ async function screenCryptoUniverse(watchSymbols) {
     !WRAPPER_RE.test(String(c.name || '')) &&
     !WRAPPER_RE.test(String(c.id   || '')) &&
     !STABLE_RE.test(String(c.symbol || '')) &&
+    // Any symbol containing USD is a dollar-pegged token. A fixed list cannot
+    // keep up with them — REUSD slipped through at $1.11 — but the symbol
+    // gives every one of them away: USDE, SUSDE, USD0, CRVUSD, REUSD, USDY.
+    !/usd/i.test(String(c.symbol || '')) &&
     !PEG_SYM_RE.test(String(c.symbol || '')) &&
     !RWA_RE.test(String(c.symbol || '')) &&
     !RWA_RE.test(String(c.name || '')) &&
@@ -3991,10 +4012,27 @@ async function getCandidateTickers() {
     // CoinGecko is unreachable, so a feed outage degrades rather than breaks.
     autoLog('Screening ' + FUNNEL_SCAN_DEPTH + ' coins, watchlist included...');
     const screened = await screenCryptoUniverse((watchlist || []).map(s => s.ticker));
-    universe = screened && screened.length
-      ? screened.slice(0, Math.max(uniLimit, FUNNEL_SHORTLIST))
-      : CRYPTO_UNIVERSE.slice(0, uniLimit);
-    if (screened) autoLog('Funnel surfaced ' + universe.length + ' movers from ' + FUNNEL_SCAN_DEPTH + ' coins.');
+    // This used to fall back to a fixed list of 15 majors — with every filter
+    // switched off — in two cases: when the screen failed, and when it worked
+    // but found nothing calm enough to trade. The second is the dangerous one.
+    // On a violent day the screen correctly finds no coin inside the band,
+    // which is the system saying "stand aside"; the fallback overrode that and
+    // scanned the most volatile coins anyway. That is how BNB, SOL, ETH, UNI,
+    // DOGE, LTC and TRX opened on October 29 at 8-15% daily volatility with
+    // stops 17-30% away. And it logged nothing, so it looked like a normal scan.
+    // Now both cases stand aside, and say why.
+    if (screened === null) {
+      autoLog('Market screen unavailable — CoinGecko did not respond. Skipping this scan ' +
+              'rather than trade an unfiltered list. Try again in a few minutes.');
+      universe = [];
+    } else if (!screened.length) {
+      autoLog('Market screen found no coins inside the ' + VOL_HARD_MIN + '–' + VOL_HARD_MAX +
+              '% volatility band — the market is too volatile to read. Standing aside this scan.');
+      universe = [];
+    } else {
+      universe = screened.slice(0, Math.max(uniLimit, FUNNEL_SHORTLIST));
+      autoLog('Funnel surfaced ' + universe.length + ' candidates from ' + FUNNEL_SCAN_DEPTH + ' coins.');
+    }
   } else {
     universe = (typeof TICKER_DATABASE !== 'undefined' ? TICKER_DATABASE.map(x => x.t) : []).slice(0, uniLimit);
   }
@@ -4713,7 +4751,13 @@ async function runLongShortCycle(manualTrigger) {
 
     // Data quality still gates both sides — that floor was measured, at p=0.016.
     const lim = limits();
-    const quality = scored.filter(c => c.signal_quality >= lim.signalQuality);
+    // The second volatility gate, on the Governor's own reading.
+    const outOfBand = scored.map(c => [c, cryptoBandRejection(c)]).filter(x => x[1]);
+    if (outOfBand.length) {
+      autoLog('Not traded — outside the volatility band: ' +
+              outOfBand.map(x => x[0].ticker + ' (' + x[1] + ')').join('; ') + '.');
+    }
+    const quality = scored.filter(c => !cryptoBandRejection(c) && c.signal_quality >= lim.signalQuality);
     if (!quality.length) { autoLog('Long/short — nothing cleared data quality.'); return; }
 
     // ── DIRECTION BY SIGNAL, EACH SIDE ON ITS OWN EVIDENCE ──
@@ -4881,9 +4925,15 @@ async function runAutonomousCycle(manualTrigger) {
       }
       if (!scored.length) continue;
 
+      // The second volatility gate, on the Governor's own reading.
+      const banded = [];
+      scored.forEach(g => {
+        const why = cryptoBandRejection(g);
+        if (why) rejectLog.push(g.ticker + ' ' + why); else banded.push(g);
+      });
       // Hard filter before spending a Claude call
-      const qualified = scored.filter(passesConviction);
-      scored.filter(g => !passesConviction(g)).forEach(g => {
+      const qualified = banded.filter(passesConviction);
+      banded.filter(g => !passesConviction(g)).forEach(g => {
         rejectLog.push(g.ticker + ' ' + rejectionReason(g));
       });
 
