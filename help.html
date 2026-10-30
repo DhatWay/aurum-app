@@ -618,6 +618,14 @@
       <div class="faq-answer">Notices from the position monitor: stop or target hit, stop trailed, stale timeout, swing reversal, or a price it could not fetch. They show in every scoring mode, in a scrollable box with a count and a DELETE ALL button, each labelled and colour-coded: <strong>green</strong> when a stop has been raised or profit banked (<em>STOP TRAILED</em>, <em>TRAILING STOP</em>, <em>TARGET REACHED</em>), <strong>gold</strong> for a swing (<em>SWING REVERSAL</em>), <strong>red</strong> for a loss. These are how the system tells you where your stops are moving and when to swing. Momentary &ldquo;price unavailable&rdquo; misses are left out, since the monitor retries and falls back on its own — System Diagnostics &rarr; SCAN checks for any position that genuinely can&rsquo;t be priced.</div>
     </div>
 
+
+    <div class="faq-item" data-keywords="market regime switch btc eth downtrend pause longs bear">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">What does the MARKET REGIME switch do?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">It stops the system buying longs while the whole market is falling. Before each crypto scan it checks <strong>BTC and ETH</strong> — BTC leads the market, ETH leads the altcoins. While <strong>either</strong> is in a confirmed downtrend (price at least 2% below its 50-day average, the 20-day below the 50-day and still falling), no new longs open. Shorts carry on, since a downtrend is when they should work. Each scan logs what BTC and ETH are reading. On October 27 the scan opened ten longs while ETH was in a confirmed downtrend, and most were stopped out; with this on, it would have opened only the two shorts. <strong>It starts OFF</strong>, for one honest reason: crypto has been in a bear market for a year, and your September record of 79% was made inside it. Whether this would have blocked those winners too is untested — so turn it on, watch what the log says it pauses, and turn it off if it&rsquo;s holding back longs that look strong.</div>
+    </div>
   </div>
 
   <div class="gold-rule"></div>
@@ -671,7 +679,7 @@
         <div class="faq-question-text">Why did a scan open nothing?</div>
         <div class="faq-icon">+</div>
       </div>
-      <div class="faq-answer">Usually because it chose to stand aside, and the scan log says which reason. <strong>&ldquo;Market screen unavailable&rdquo;</strong> — the market data provider didn&rsquo;t respond; try again in a few minutes. <strong>&ldquo;No coins inside the volatility band&rdquo;</strong> — the whole market is moving too violently to read, which typically happens during or just after a sell-off. In both cases it opens nothing rather than trade blind. It used to fall back to a fixed list of major coins with every filter switched off, which on October 29 opened seven positions at 8–15% daily volatility with stops up to 30% away. Every scored coin is also checked against the band a second time, on its own fresh reading, so nothing outside it can open by any route.</div>
+      <div class="faq-answer">Usually because it chose to stand aside, and the scan log says which reason. <strong>&ldquo;Market screen unavailable&rdquo;</strong> — the market data provider didn&rsquo;t respond; try again in a few minutes. <strong>&ldquo;No coins inside the volatility band&rdquo;</strong> — the whole market is moving too violently to read, which typically happens during or just after a sell-off. In both cases it opens nothing rather than trade blind. And with <strong>MARKET REGIME</strong> on, a scan can open shorts but no longs when BTC or ETH is in a downtrend — the log says so. It used to fall back to a fixed list of major coins with every filter switched off, which on October 29 opened seven positions at 8–15% daily volatility with stops up to 30% away. Every scored coin is also checked against the band a second time, on its own fresh reading, so nothing outside it can open by any route.</div>
     </div>
   </div>
 
