@@ -3757,18 +3757,29 @@ let FUNNEL_SHORTLIST  = 25;     // survivors passed to the Governor.
 // Prices span eight orders of magnitude here — SNDKB at $1,488 and AMP at
 // $0.0032 go through the same code. Rounding everything to 2dp stored AMP's
 // stop as exactly 0.00, which can never trigger. Scale precision to magnitude.
+// Decimal places to keep for a price. At or above one cent, unchanged: 2 above
+// $100, 4 above $1, 6 above one cent. Below one cent this used to be a fixed 8,
+// which left BTT, at $0.00000035, with only two significant digits — its price
+// could move only in steps of about 2.9%, wider than its 2.02% trailing stop,
+// and its stop and target landed at -8.57% and +17.14% instead of -8.1% and
+// +16.2%. Below one cent it now keeps six significant figures, the precision
+// every other coin already gets. Must match priceDecimals in quick-service.
+function priceDecimals(a) {
+  if (a >= 100)  return 2;
+  if (a >= 1)    return 4;
+  if (a >= 0.01) return 6;
+  if (!(a > 0))  return 8;
+  return Math.min(20, Math.max(8, 5 - Math.floor(Math.log10(a))));
+}
 function roundPrice(v) {
   const n = Number(v);
   if (!isFinite(n) || n === 0) return 0;
-  const a = Math.abs(n);
-  const dp = a >= 100 ? 2 : a >= 1 ? 4 : a >= 0.01 ? 6 : 8;
-  return parseFloat(n.toFixed(dp));
+  return parseFloat(n.toFixed(priceDecimals(Math.abs(n))));
 }
 function fmtPrice(v) {
   const n = Number(v);
   if (!isFinite(n)) return '—';
-  const a = Math.abs(n);
-  const dp = a >= 100 ? 2 : a >= 1 ? 4 : a >= 0.01 ? 6 : 8;
+  const dp = priceDecimals(Math.abs(n));
   // Trailing zeros past 2dp are noise: $8.1300 reads worse than $8.13, but
   // $0.0032 must keep every digit it has.
   let out = n.toFixed(dp);
