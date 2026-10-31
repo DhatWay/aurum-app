@@ -3879,24 +3879,41 @@ function movementScore(c) { return qualityScore(c); }
 // candidate is logged and when its position opens.
 let CANDIDATE_SOURCE = {};
 
+const MARKET_PROXY_URL = 'https://zpcbbwynvvyldavxzjng.supabase.co/functions/v1/market-proxy';
+// Why the last market screen failed, so the scan log can say so — and when, so
+// a failed screen isn't retried for a minute. Every request counts against
+// CoinGecko's limit, refused ones included, so rapid retries only deepen it.
+let lastScreenFailure = '';
+let screenFailedAt    = 0;
+const SCREEN_RETRY_MS = 60_000;
+
 async function screenCryptoUniverse(watchSymbols) {
   const watchSet = new Set((watchSymbols || []).map(s => String(s).toUpperCase()));
-  const perPage = 250;
-  const pages   = Math.ceil(FUNNEL_SCAN_DEPTH / perPage);
-  const all     = [];
-
-  for (let p = 1; p <= pages; p++) {
-    try {
-      const res = await fetch(
-        'https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd' +
-        '&order=market_cap_desc&per_page=' + perPage + '&page=' + p +
-        '&price_change_percentage=24h'
-      );
-      if (!res.ok) break;
-      const rows = await res.json();
-      if (!Array.isArray(rows) || !rows.length) break;
-      all.push(...rows);
-    } catch (e) { break; }
+  // Fetched through market-proxy, not straight from the phone. CoinGecko limits
+  // keyless requests per IP address, shared with everyone on that address, and a
+  // phone on mobile data shares its address with a great many people — so the
+  // direct call was refused constantly. The proxy uses your CoinGecko key if one
+  // is set, paces the pages, waits out a rate limit instead of failing on the
+  // first refusal, and keeps the screen for three minutes so repeat scans reuse it.
+  const all = [];
+  lastScreenFailure = '';
+  try {
+    const res = await fetchWithTimeout(MARKET_PROXY_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + GOVERNOR_ANON_KEY },
+      body: JSON.stringify({ endpoint: 'coingecko_markets', depth: FUNNEL_SCAN_DEPTH }),
+    }, 60000);
+    const data = await res.json().catch(() => ({}));
+    if (res.ok && Array.isArray(data.rows)) {
+      all.push(...data.rows);
+      if (data.partial && data.note) {
+        autoLog('Market screen partial — ' + all.length + ' of ' + FUNNEL_SCAN_DEPTH + ' coins (' + data.note + ').');
+      }
+    } else {
+      lastScreenFailure = data.error || ('market-proxy returned HTTP ' + res.status);
+    }
+  } catch (e) {
+    lastScreenFailure = 'market-proxy could not be reached — check it is deployed';
   }
   if (!all.length) return null;
 
@@ -4013,10 +4030,21 @@ async function getCandidateTickers() {
 
   let universe;
   if (isCrypto) {
-    // Screen the live market first. Falls back to the static list if
-    // CoinGecko is unreachable, so a feed outage degrades rather than breaks.
-    autoLog('Screening ' + FUNNEL_SCAN_DEPTH + ' coins, watchlist included...');
-    const screened = await screenCryptoUniverse((watchlist || []).map(s => s.ticker));
+    // Screen the live market first. If the screen fails or finds nothing calm
+    // enough, the scan stands aside — it never falls back to an unfiltered list.
+    const sinceFail   = Date.now() - screenFailedAt;
+    const coolingDown = screenFailedAt > 0 && sinceFail < SCREEN_RETRY_MS;
+    let screened;
+    if (coolingDown) {
+      autoLog('Market screen failed ' + Math.round(sinceFail / 1000) + 's ago (' + (lastScreenFailure || 'no reply') +
+              '). Waiting ' + Math.ceil((SCREEN_RETRY_MS - sinceFail) / 1000) +
+              's before asking again — every retry counts against CoinGecko\'s limit.');
+      universe = [];
+    } else {
+      autoLog('Screening ' + FUNNEL_SCAN_DEPTH + ' coins, watchlist included...');
+      screened = await screenCryptoUniverse((watchlist || []).map(s => s.ticker));
+      screenFailedAt = (screened === null) ? Date.now() : 0;
+    }
     // This used to fall back to a fixed list of 15 majors — with every filter
     // switched off — in two cases: when the screen failed, and when it worked
     // but found nothing calm enough to trade. The second is the dangerous one.
@@ -4026,9 +4054,11 @@ async function getCandidateTickers() {
     // DOGE, LTC and TRX opened on October 29 at 8-15% daily volatility with
     // stops 17-30% away. And it logged nothing, so it looked like a normal scan.
     // Now both cases stand aside, and say why.
-    if (screened === null) {
-      autoLog('Market screen unavailable — CoinGecko did not respond. Skipping this scan ' +
-              'rather than trade an unfiltered list. Try again in a few minutes.');
+    if (coolingDown) {
+      // already logged above
+    } else if (screened === null) {
+      autoLog('Market screen unavailable — ' + (lastScreenFailure || 'no reply') +
+              '. Skipping this scan rather than trade an unfiltered list.');
       universe = [];
     } else if (!screened.length) {
       autoLog('Market screen found no coins inside the ' + VOL_HARD_MIN + '–' + VOL_HARD_MAX +
