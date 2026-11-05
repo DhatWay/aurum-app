@@ -607,7 +607,7 @@
         <div class="faq-question-text">What do the System Diagnostics buttons do?</div>
         <div class="faq-icon">+</div>
       </div>
-      <div class="faq-answer"><strong>SCAN</strong> checks your live data: one portfolio row, every position priceable, P&amp;L and cost basis correct, stops valid, balance reconciling. <strong>RUN BACKTEST</strong> tests the scoring against historical prices. <strong>CHECK OUTCOMES</strong> resolves 24-hour and 7-day results for scored candidates, and needs the outcome-checker function deployed. <strong>RECALIBRATE</strong> rebuilds derived figures from raw trade data — it cannot fix a pricing or stop problem, which needs a code change.</div>
+      <div class="faq-answer"><strong>SCAN</strong> checks your live data: one portfolio row, every position priceable, P&amp;L and cost basis correct, stops valid, balance reconciling. <strong>RUN BACKTEST</strong> tests the scoring against historical prices. <strong>CHECK OUTCOMES</strong> records 24-hour and 7-day results for scored candidates straight away — the same job your <em>quick-function</em> checker already runs on its own every hour, so you rarely need to press it. SCAN also reports <strong>Outcome recording</strong>: how many results are recorded and when the last was written. If the hourly checker ever stops, a banner appears at the top of the simulator when you open it — amber while the affected rows can still be measured, red once any have passed their window and been lost. <strong>RECALIBRATE</strong> rebuilds derived figures from raw trade data — it cannot fix a pricing or stop problem, which needs a code change.</div>
     </div>
 
     <div class="faq-item" data-keywords="position alerts notices delete all muted hidden">
