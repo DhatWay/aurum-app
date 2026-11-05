@@ -4281,12 +4281,104 @@ function summariseScoreFailures() {
   }).join(' | ');
 }
 
-async function scoreTicker(ticker, balance) {
-  try {
+// ══════════════════════════════════════════════════════════════════
+// STOCK SCORING PACE
+//
+// Twelve Data's free plan allows 8 credits a minute, and the Governor spends
+// one on each stock it scores (two only when the stock's history has not yet
+// caught up with today while the market is open). A scan used to fire its
+// whole universe at once: on November 4 it tried 60 stocks in 22 seconds, the
+// first 4 scored, and every other request was refused. Stock scoring is now
+// paced to the limit, and a refusal is waited out and retried rather than
+// counted as a failure. Crypto is unaffected — it is priced through CoinGecko.
+// ══════════════════════════════════════════════════════════════════
+const TWELVE_CREDITS_PER_MIN = 8;
+const twelveSpent = [];       // when each recent credit was spent, over a rolling minute
+let twelvePerStock = 1;       // what a stock costs, as the Governor last reported it
+let twelveBlockedUntil = 0;   // after a refusal, nothing goes out before this
+
+// Waits until n credits fit inside the rolling minute — and past any refusal —
+// then records them as spent.
+async function twelvePace(n) {
+  for (;;) {
+    const now = Date.now();
+    while (twelveSpent.length && now - twelveSpent[0] >= 60000) twelveSpent.shift();
+    const fits = twelveSpent.length + n <= TWELVE_CREDITS_PER_MIN;
+    if (now >= twelveBlockedUntil && fits) {
+      for (let i = 0; i < n; i++) twelveSpent.push(now);
+      return;
+    }
+    const wait = Math.max(twelveBlockedUntil - now, fits ? 0 : 60000 - (now - twelveSpent[0]) + 300, 50);
+    if (now - (twelvePace.lastLog || 0) > 20000) {
+      autoLog('Pacing stock scoring to Twelve Data\'s 8-a-minute limit — continuing in ' + Math.ceil(wait / 1000) + 's.');
+      twelvePace.lastLog = now;
+    }
+    await new Promise(r => setTimeout(r, wait));
+  }
+}
+
+// Calls the Governor for a scan. Stocks are paced, reserving what a stock last
+// cost; a stock refused on the per-minute limit is waited out and retried, up
+// to twice. A refusal blocks further requests until the minute resets, but
+// the record of what was already sent is kept — clearing it would let a fresh
+// burst out the moment the block ended. Returns a small response-like object
+// whose body has already been read, so any failure's reason reaches the log.
+async function governorScanFetch(payload, timeoutMs) {
+  const isStock = payload.mode !== 'crypto';
+  for (let attempt = 0; ; attempt++) {
+    const reserved = isStock ? twelvePerStock : 0;
+    if (isStock) await twelvePace(reserved);
     const res = await fetchWithTimeout(GOVERNOR_EDGE_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + GOVERNOR_ANON_KEY },
-      body: JSON.stringify({
+      body: JSON.stringify(payload),
+    }, timeoutMs);
+    const body = await res.json().catch(() => null);
+    if (res.status === 429 && body && body.rate_limited && attempt < 2) {
+      const waitS = Math.min(Math.max(Number(body.retry_after_s) || 60, 5), 65);
+      twelveBlockedUntil = Math.max(twelveBlockedUntil, Date.now() + waitS * 1000);
+      autoLog(payload.ticker + ': Twelve Data\'s minute limit was reached — waiting ' + waitS + 's, then retrying.');
+      continue;
+    }
+    if (isStock && body && Number(body.twelve_credits) > 0) {
+      const used = Number(body.twelve_credits);
+      for (let i = reserved; i < used; i++) twelveSpent.push(Date.now());   // the part not reserved
+      twelvePerStock = used;
+    }
+    return { ok: res.ok, status: res.status, body, json: async () => body };
+  }
+}
+
+// A short reason with no ticker in it, so the scan log can group failures.
+function governorFailureReason(res, ticker) {
+  const b = res && res.body;
+  if (b && b.rate_limited) return 'Twelve Data limit — still refused after waiting';
+  if (b && b.error) {
+    const e = String(b.error);
+    if (/TWELVE_DATA_KEY secret is not set/.test(e)) return 'TWELVE_DATA_KEY secret not set';
+    if (/no price history/.test(e))                  return 'no price history — check the symbol';
+    return 'governor: ' + e.split(String(ticker)).join('it').slice(0, 90);
+  }
+  return 'http_' + (res ? res.status : '?');
+}
+
+// US regular session: 9:30 to 16:00 New York time, Monday to Friday. Market
+// holidays are not accounted for.
+function isUSMarketOpen(now = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York', weekday: 'short',
+    hour: 'numeric', minute: 'numeric', hour12: false,
+  }).formatToParts(now);
+  const get = (t) => (parts.find(p => p.type === t) || {}).value;
+  const day = get('weekday');
+  if (day === 'Sat' || day === 'Sun') return false;
+  const mins = (Number(get('hour')) % 24) * 60 + Number(get('minute'));
+  return mins >= 570 && mins < 960;
+}
+
+async function scoreTicker(ticker, balance) {
+  try {
+    const res = await governorScanFetch({
         ticker,
         // Pass the id the funnel already resolved, so coins outside the
         // Governor's static map can still be priced.
@@ -4299,14 +4391,13 @@ async function scoreTicker(ticker, balance) {
         // reading of them. This skips the Anthropic call entirely, so the scan
         // costs nothing and runs with no API key.
         skip_ai:           scoringMode === 'deterministic'
-      })
       // Opus with 500 max_tokens routinely takes 20-40s, and the Governor runs
       // up to 8s of algorithms in front of it. At 30s the browser abandoned
       // calls that Anthropic had already billed, and every abandoned call
       // returned a bare null — so the scan reported nothing scored, nothing
       // rejected, and no reason, having paid for all of it.
-    }, scoringMode === 'deterministic' ? 45000 : 90000);
-    if (!res.ok) { noteScoreFailure(ticker, 'http_' + res.status); return null; }
+      }, scoringMode === 'deterministic' ? 45000 : 90000);
+    if (!res.ok) { noteScoreFailure(ticker, governorFailureReason(res, ticker)); return null; }
     const g = await res.json();
     if (g.error)         { noteScoreFailure(ticker, 'governor: ' + g.error); return null; }
     if (!g.entry_price)  { noteScoreFailure(ticker, 'no entry price returned'); return null; }
@@ -4877,16 +4968,12 @@ async function readMarketRegime() {
 // composite of EVERY candidate, including ones that read neither way.
 async function scoreForRanking(ticker, balance) {
   try {
-    const res = await fetchWithTimeout(GOVERNOR_EDGE_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + GOVERNOR_ANON_KEY },
-      body: JSON.stringify({
+    const res = await governorScanFetch({
         ticker, strategy: currentStrategy, instrument: activeMode === 'crypto' ? 'crypto' : 'stock',
         mode: activeMode, portfolio_balance: balance, skip_ai: true,
         coingecko_id: (window._funnelIds && window._funnelIds[String(ticker).toUpperCase()]) || undefined,
-      })
-    }, 45000);
-    if (!res.ok) { noteScoreFailure(ticker, 'http_' + res.status); return null; }
+      }, 45000);
+    if (!res.ok) { noteScoreFailure(ticker, governorFailureReason(res, ticker)); return null; }
     const g = await res.json();
     if (g.error)                         { noteScoreFailure(ticker, 'governor: ' + g.error); return null; }
     if (!(Number(g.entry_price) > 0))    { noteScoreFailure(ticker, 'no entry price returned'); return null; }
@@ -5080,6 +5167,17 @@ async function runLongShortCycle(manualTrigger) {
 async function runAutonomousCycle(manualTrigger) {
   if (autoCycleRunning) return;
   if (!autoModeEnabled && !manualTrigger) return;
+  // Stock scans run only while the US market is open. Outside those hours
+  // every price is the last close, so a position would open at a price that
+  // will not exist when trading resumes. Crypto trades around the clock.
+  // Covers both scans: the Swing scan is only ever started from here.
+  if (activeMode !== 'crypto' && !isUSMarketOpen()) {
+    if (manualTrigger || Date.now() - (runAutonomousCycle.closedLogged || 0) > 3600000) {
+      autoLog('US market is closed — stock scans run 9:30 am to 4:00 pm New York time, Monday to Friday. Nothing opened.');
+      runAutonomousCycle.closedLogged = Date.now();
+    }
+    return;
+  }
   // SWING mode runs the long/short scan instead. Off, everything below runs
   // exactly as before.
   if (swingEnabled) return runLongShortCycle(manualTrigger);
