@@ -1727,17 +1727,27 @@ let priceCache = {};
 let watchlistTickers = [];
 
 // ── PRICE FEED ──
-const TWELVE_KEY = '1fbbfd6ec92c489ca009d00e7127fbe3';
-
+// Used only by GET CLAUDE TRADE SUGGESTION, to replace the suggestion's entry
+// with a live price. It used to call Twelve Data straight from this page with
+// the key written in, readable by anyone who viewed the page source. It now
+// goes through market-proxy, which holds the key as a Supabase secret.
+//
+// Stocks only. Twelve Data is a stock-market feed: in crypto mode this sent
+// BTC, ETH and the rest to it, and "BTC" there is not Bitcoin — so a crypto
+// suggestion's entry could be overwritten with an unrelated stock's price.
 async function fetchLivePrices(tickers) {
-  if (!tickers || !tickers.length) return {};
+  if (!tickers || !tickers.length || activeMode === 'crypto') return {};
   try {
-    const symbols = tickers.slice(0, 8).join(',');
-    const res = await fetch('https://api.twelvedata.com/quote?symbol=' + symbols + '&apikey=' + TWELVE_KEY);
+    const list = tickers.slice(0, 8);
+    const res = await fetchWithTimeout(MARKET_PROXY_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + GOVERNOR_ANON_KEY },
+      body: JSON.stringify({ endpoint: 'twelve_quote', symbol: list.join(',') }),
+    }, 20000);
     if (!res.ok) return {};
     const data = await res.json();
     const prices = {};
-    const quotes = tickers.length === 1 ? { [tickers[0]]: data } : data;
+    const quotes = list.length === 1 ? { [list[0]]: data } : data;
     Object.entries(quotes).forEach(([ticker, q]) => {
       if (!q || q.code || !q.close) return;
       const price = parseFloat(q.close);
@@ -3426,7 +3436,9 @@ async function runOutcomeCheck() {
   // CURRENT price whenever pressed and wrote it as a 24-hour outcome, which is
   // why no row in shadow_log ever carried a real one — measured horizons ran
   // from 39 to 100 hours.
-  const OUTCOME_FN_URL = SUPABASE_URL + '/functions/v1/outcome-checker';
+  // The checker is deployed as quick-function. This pointed at 'outcome-checker',
+  // a name nothing was ever deployed under, so the button reached nothing.
+  const OUTCOME_FN_URL = SUPABASE_URL + '/functions/v1/quick-function';
 
   try {
     const res = await fetch(OUTCOME_FN_URL, {
