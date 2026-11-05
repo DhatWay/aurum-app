@@ -669,6 +669,8 @@ footer p { font-size: 0.6rem; letter-spacing: 0.12em; color: var(--muted); text-
 <div id="live-banner" style="display:none; position:sticky; top:0; z-index:2500; background:#2a0f0f; border-bottom:1px solid rgba(139,58,58,0.7); color:#E8C9C9; font-family:'IBM Plex Mono',monospace; font-size:0.7rem; letter-spacing:0.12em; text-align:center; padding:0.55rem 1rem;">
   ● LIVE EXECUTION ARMED — POSITIONS OPEN WITH REAL FUNDS ON BASE
 </div>
+<!-- Shown only when outcome recording has a problem. See readOutcomeHealth. -->
+<div id="outcome-banner" style="display:none; border-bottom:1px solid; font-family:'IBM Plex Mono',monospace; font-size:0.68rem; letter-spacing:0.04em; line-height:1.5; text-align:center; padding:0.55rem 1rem;"></div>
 
 <header>
   <div class="logo">AU<span>PRIVATE INTELLIGENCE</span></div>
@@ -2953,6 +2955,99 @@ function diagLine(status, label, detail) {
          (detail ? ' <span style="color:#6B6560;">— ' + detail + '</span>' : '') + '</div>';
 }
 
+// ══════════════════════════════════════════════════════════════════
+// OUTCOME RECORDING HEALTH
+//
+// The hourly checker (job 11, calling quick-function) measures each scored row
+// while it is inside its window: 24-30 hours old for the 24-hour outcome,
+// 168-180 for the 7-day. A row it cannot price still gets a reason written to
+// outcome_error, so a row with neither an outcome nor a reason was never looked
+// at. That is how a stopped checker shows itself — and it went unnoticed from
+// September 12 into November, because nothing here was looking.
+//
+// Two levels:
+//   warn  a row has sat inside its window 2+ hours untouched. The checker runs
+//         hourly, so it has missed at least one run — and the row can still be
+//         measured if it is fixed now.
+//   fail  a row passed its window untouched. That outcome is lost for good.
+//
+// Lost rows count only if their window closed after OUTCOME_WATCH_FROM. The
+// checker was first deployed on November 5; rows whose window closed before it
+// existed could never have been measured, and are history, not a fault.
+// ══════════════════════════════════════════════════════════════════
+const OUTCOME_WATCH_FROM = Date.parse('2026-11-06T00:00:00Z');
+const OUTCOME_PASSES = [
+  { label: '24h', pct: 'outcome_24h_pct', at: 'outcome_24h_checked_at', minH: 24,  maxH: 30  },
+  { label: '7d',  pct: 'outcome_7d_pct',  at: 'outcome_7d_checked_at',  minH: 168, maxH: 180 },
+];
+const OUTCOME_GRACE_H    = 2;    // inside the window this long, untouched: overdue
+const OUTCOME_LOOKBACK_H = 48;   // a lost row stays flagged this long after its window closed
+
+async function readOutcomeHealth() {
+  const H = 3600000, now = Date.now();
+  const iso = (t) => new Date(t).toISOString();
+  const passes = await Promise.all(OUTCOME_PASSES.map(async (p) => {
+    const [cnt, last, pending] = await Promise.all([
+      db.from('shadow_log').select('id', { count: 'exact', head: true }).not(p.pct, 'is', null),
+      db.from('shadow_log').select(p.at).not(p.at, 'is', null).order(p.at, { ascending: false }).limit(1),
+      // Unmeasured rows from those 2+ hours into their window back to those
+      // whose window closed up to 48 hours ago.
+      db.from('shadow_log').select('scored_at, outcome_error').is(p.pct, null)
+        .lt('scored_at',  iso(now - (p.minH + OUTCOME_GRACE_H) * H))
+        .gte('scored_at', iso(now - (p.maxH + OUTCOME_LOOKBACK_H) * H))
+        .limit(1000),
+    ]);
+    const err = cnt.error || last.error || pending.error;
+    if (err) throw err;
+    let overdue = 0, lost = 0;
+    for (const r of (pending.data || [])) {
+      if (String(r.outcome_error || '').startsWith(p.label + ':')) continue;   // attempted, unpriceable
+      const closes = parseDbTime(r.scored_at).getTime() + p.maxH * H;
+      if (closes > now) overdue++;                      // still inside its window
+      else if (closes >= OUTCOME_WATCH_FROM) lost++;    // passed it untouched
+    }
+    return { label: p.label, recorded: cnt.count || 0, lastAt: (last.data && last.data[0] && last.data[0][p.at]) || null, overdue, lost };
+  }));
+  const overdue = passes.reduce((s, p) => s + p.overdue, 0);
+  const lost    = passes.reduce((s, p) => s + p.lost, 0);
+  return { passes, overdue, lost, status: lost ? 'fail' : overdue ? 'warn' : 'ok' };
+}
+
+function agoText(v) {
+  if (!v) return 'none yet';
+  const h = (Date.now() - parseDbTime(v).getTime()) / 3600000;
+  if (h < 1)  return Math.max(1, Math.round(h * 60)) + 'm ago';
+  if (h < 48) return Math.round(h) + 'h ago';
+  return Math.round(h / 24) + 'd ago';
+}
+
+function outcomeTotals(oh) {
+  return oh.passes.map(p => p.label + ': ' + p.recorded + ' recorded, last ' + agoText(p.lastAt)).join(' · ');
+}
+
+// Runs once as the page opens. Silent while outcomes are being recorded; a
+// banner only when a row is overdue or lost. Never holds up the page.
+async function checkOutcomeHealthOnOpen() {
+  try {
+    const oh = await readOutcomeHealth();
+    const el = document.getElementById('outcome-banner');
+    if (!el || oh.status === 'ok') return;
+    const lost = oh.status === 'fail';
+    el.style.background  = lost ? '#2a0f0f' : '#2a230f';
+    el.style.borderColor = lost ? 'rgba(139,58,58,0.7)' : 'rgba(201,168,76,0.6)';
+    el.style.color       = lost ? '#E8C9C9' : '#E8DDB5';
+    el.innerHTML = (lost
+        ? '✕ OUTCOMES LOST — ' + oh.lost + ' scored row' + (oh.lost === 1 ? '' : 's') +
+          ' passed the measuring window unmeasured. The hourly checker is not running.'
+        : '! OUTCOMES OVERDUE — ' + oh.overdue + ' row' + (oh.overdue === 1 ? ' has' : 's have') +
+          ' waited 2+ hours to be measured. The hourly checker may have stopped; fix it now and ' +
+          (oh.overdue === 1 ? 'it' : 'they') + ' can still be saved.') +
+      ' Check job 11 and quick-function.' +
+      ' <span onclick="this.parentElement.style.display=\'none\'" style="cursor:pointer;margin-left:0.6rem;opacity:0.8;">✕</span>';
+    el.style.display = 'block';
+  } catch (e) { /* a health check must never break the page */ }
+}
+
 async function collectDiagnostics() {
   const issues = [];
   const out = [];
@@ -3068,6 +3163,24 @@ async function collectDiagnostics() {
   out.push(deployed > startBal + realized
     ? diagLine('fail', 'Deployed capital', '$' + deployed.toFixed(2) + ' exceeds $' + expectedBal.toFixed(2))
     : diagLine('ok', 'Deployed capital', '$' + deployed.toFixed(2) + ' of $' + expectedBal.toFixed(2)));
+
+  // 8. Outcome recording — the totals, and whether the hourly checker is keeping up
+  try {
+    const oh = await readOutcomeHealth();
+    if (oh.lost) {
+      issues.push('outcomes_lost');
+      out.push(diagLine('fail', 'Outcome recording', oh.lost + ' row(s) passed their window unmeasured — those outcomes are lost. ' +
+        'The hourly checker is not running: check job 11 and quick-function. ' + outcomeTotals(oh)));
+    } else if (oh.overdue) {
+      issues.push('outcomes_overdue');
+      out.push(diagLine('warn', 'Outcome recording', oh.overdue + ' row(s) have waited 2+ hours inside their window unmeasured — ' +
+        'the hourly checker may have stopped, and they can still be saved if it is fixed now. ' + outcomeTotals(oh)));
+    } else {
+      out.push(diagLine('ok', 'Outcome recording', outcomeTotals(oh)));
+    }
+  } catch (e) {
+    out.push(diagLine('warn', 'Outcome recording', 'could not read shadow_log: ' + ((e && e.message) || 'unknown')));
+  }
 
   return { out, issues, port, open, realized, startBal, deployed };
 }
@@ -5181,6 +5294,7 @@ loadScoringMode();
 loadSwingSetting();
 loadLiveArmed();
 loadPhysicsSetting();
+checkOutcomeHealthOnOpen();
 </script>
 
 <script src="tickers.js"></script>
