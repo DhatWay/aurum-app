@@ -476,15 +476,18 @@ let connectedWallet = null;
 
 // ── PRICE FEED ENGINE ──
 
+// Stocks only. Twelve Data is a stock-market feed: in crypto mode this sent
+// BTC, ETH and the rest to it, and "BTC" there is not Bitcoin — so a crypto
+// trade idea's entry could be overwritten with an unrelated stock's price.
 async function fetchLivePrices(tickers) {
-  if (!tickers || !tickers.length) return {};
+  if (!tickers || !tickers.length || activeMode === 'crypto') return {};
   try {
-    const symbols = tickers.slice(0, 8).join(',');
-    const res = await marketProxy({ endpoint: 'twelve_quote', symbol: symbols });
+    const list = tickers.slice(0, 8);
+    const res = await marketProxy({ endpoint: 'twelve_quote', symbol: list.join(',') });
     if (!res.ok) return {};
     const data = await res.json();
     const prices = {};
-    const quotes = tickers.length === 1 ? { [tickers[0]]: data } : data;
+    const quotes = list.length === 1 ? { [list[0]]: data } : data;
     Object.entries(quotes).forEach(([ticker, q]) => {
       if (!q || q.code || !q.close) return;
       const price = parseFloat(q.close);
@@ -584,7 +587,27 @@ async function init() {
   renderManualOrderFields();
   renderAutoOrderFields();
   await refreshPrices();
-  priceRefreshInterval = setInterval(refreshPrices, 30000);
+  // Every 30 seconds used to pull up to 8 quotes — 16 credits a minute against
+  // Twelve Data's free limit of 8, enough to spend the day's 800 in under an
+  // hour. Now every 5 minutes, and only while the US market is open and this
+  // page is on screen: stock prices do not move while the market is closed.
+  priceRefreshInterval = setInterval(() => {
+    if (isUSMarketOpen() && document.visibilityState === 'visible') refreshPrices();
+  }, 5 * 60 * 1000);
+}
+
+// US regular session: 9:30 to 16:00 New York time, Monday to Friday. Market
+// holidays are not accounted for; on those days it refreshes as if open.
+function isUSMarketOpen(now = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York', weekday: 'short',
+    hour: 'numeric', minute: 'numeric', hour12: false,
+  }).formatToParts(now);
+  const get = (t) => (parts.find(p => p.type === t) || {}).value;
+  const day = get('weekday');
+  if (day === 'Sat' || day === 'Sun') return false;
+  const mins = (Number(get('hour')) % 24) * 60 + Number(get('minute'));
+  return mins >= 570 && mins < 960;
 }
 
 async function loadWatchlistTickers() {
