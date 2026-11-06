@@ -849,6 +849,15 @@ footer p { font-size: 0.6rem; letter-spacing: 0.12em; color: var(--muted); text-
     <div id="diag-output" style="font-size:0.68rem; font-family:'IBM Plex Mono',monospace; margin-top:0.8rem; line-height:1.7;"></div>
   </div>
 
+  <div style="border:1px solid rgba(201,168,76,0.25); padding:1rem; margin-bottom:1.5rem;">
+    <div style="display:flex; justify-content:space-between; align-items:center; gap:0.5rem; margin-bottom:0.5rem;">
+      <div style="font-size:0.62rem; letter-spacing:0.2em; color:#C9A84C; font-family:'IBM Plex Mono',monospace;">BACKGROUND EXPERIMENT · FAST-COIN SHORTS</div>
+      <button onclick="loadExperiment()" style="background:transparent; border:1px solid rgba(107,101,96,0.4); color:#6B6560; font-family:'IBM Plex Mono',monospace; font-size:0.58rem; letter-spacing:0.12em; padding:0.3rem 0.6rem; cursor:pointer;">REFRESH</button>
+    </div>
+    <div style="font-size:0.68rem; color:#6B6560; margin-bottom:0.8rem; line-height:1.6;">Runs every hour on its own, apart from your book. It takes pretend shorts on coins moving 4.5&ndash;10% a day that are in a confirmed downtrend and don&rsquo;t read bullish, and manages them with the same stops, targets and trailing stop as your real positions. Every pretend stop risks $30.</div>
+    <div id="experiment-output" style="font-size:0.68rem; font-family:'IBM Plex Mono',monospace; line-height:1.7; color:#B8B0A0;">Loading&hellip;</div>
+  </div>
+
   <div id="position-alerts-container" style="display:none; margin-bottom:1.5rem;">
     <div style="font-size:0.65rem;letter-spacing:0.2em;color:var(--gold);font-family:'IBM Plex Mono',monospace;margin-bottom:0.5rem;">⚠ POSITION ALERTS</div>
   </div>
@@ -3046,6 +3055,91 @@ async function checkOutcomeHealthOnOpen() {
       ' <span onclick="this.parentElement.style.display=\'none\'" style="cursor:pointer;margin-left:0.6rem;opacity:0.8;">✕</span>';
     el.style.display = 'block';
   } catch (e) { /* a health check must never break the page */ }
+}
+
+// ══════════════════════════════════════════════════════════════════
+// BACKGROUND EXPERIMENT — FAST-COIN SHORTS
+//
+// The shadow-shorts function opens and manages pretend shorts in
+// experiment_trades every hour, apart from the real book. This only reads and
+// summarises them, beside the real book's shorts for comparison. It never
+// writes anything.
+// ══════════════════════════════════════════════════════════════════
+function expEsc(v) {
+  return String(v == null ? '' : v).replace(/[&<>"']/g, ch =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]);
+}
+function expPct(n) { return (n >= 0 ? '+' : '') + n.toFixed(1) + '%'; }
+function expUsd(n) { return (n >= 0 ? '+$' : '-$') + Math.abs(n).toFixed(2); }
+function expStats(list, pct, usd) {
+  const n = list.length;
+  if (!n) return null;
+  const won = list.filter(r => Number(r[usd]) > 0).length;
+  const avg = list.reduce((s, r) => s + (Number(r[pct]) || 0), 0) / n;
+  const tot = list.reduce((s, r) => s + (Number(r[usd]) || 0), 0);
+  return { n, win: Math.round(100 * won / n), avg, tot };
+}
+
+async function loadExperiment() {
+  const box = document.getElementById('experiment-output');
+  if (!box) return;
+  try {
+    const [ex, real] = await Promise.all([
+      db.from('experiment_trades').select('*').eq('experiment', 'fast_shorts')
+        .order('opened_at', { ascending: false }).limit(500),
+      db.from('paper_trades').select('gain_loss, gain_loss_pct').eq('direction', 'short').eq('status', 'closed'),
+    ]);
+    if (ex.error) throw ex.error;
+    const rows = ex.data || [];
+    if (!rows.length) {
+      box.innerHTML = '<span style="color:#6B6560;">No pretend shorts yet. It looks every hour, and the first appears as soon as a fast coin qualifies.</span>';
+      return;
+    }
+    const closed = rows.filter(r => r.status === 'closed'), open = rows.filter(r => r.status === 'open');
+    const lines = [];
+    const all = expStats(closed, 'pnl_pct', 'pnl_usd');
+    lines.push(all
+      ? '<strong>Closed: ' + all.n + '</strong> · won ' + all.win + '% · average ' + expPct(all.avg) + ' · total ' + expUsd(all.tot)
+      : 'Closed: none yet');
+    if (open.length) {
+      const unreal = open.reduce((s, r) => s + (Number(r.entry_price) - Number(r.current_price || r.entry_price)) * Number(r.shares || 0), 0);
+      lines.push('Open: ' + open.length + ' · currently ' + expUsd(unreal));
+    }
+    // Did it only work while the whole market was falling?
+    const falling = closed.filter(r => r.btc_trend === 'down' || r.eth_trend === 'down');
+    const notFalling = closed.filter(r => !(r.btc_trend === 'down' || r.eth_trend === 'down'));
+    const f = expStats(falling, 'pnl_pct', 'pnl_usd'), nf = expStats(notFalling, 'pnl_pct', 'pnl_usd');
+    if (f)  lines.push('While BTC or ETH was falling: ' + f.n + ' · won ' + f.win + '% · average ' + expPct(f.avg));
+    if (nf) lines.push('Otherwise: ' + nf.n + ' · won ' + nf.win + '% · average ' + expPct(nf.avg));
+    const rs = expStats(real.data || [], 'gain_loss_pct', 'gain_loss');
+    lines.push('<span style="color:#6B6560;">Your real shorts, for comparison: ' +
+      (rs ? rs.n + ' · won ' + rs.win + '% · average ' + expPct(rs.avg) : 'none closed yet') + '</span>');
+    if (closed.length) {
+      const by = {};
+      closed.forEach(r => { by[r.exit_reason] = (by[r.exit_reason] || 0) + 1; });
+      const names = { target: 'target', trailing_stop: 'trailing stop', stop: 'stop', max_hold: '7 days' };
+      lines.push('<span style="color:#6B6560;">Exits: ' + Object.keys(by).map(k => (names[k] || k) + ' ' + by[k]).join(' · ') + '</span>');
+    }
+    const recent = rows.slice(0, 6).map(r => {
+      const pct = r.status === 'closed'
+        ? Number(r.pnl_pct) || 0
+        : (Number(r.entry_price) - Number(r.current_price || r.entry_price)) / Number(r.entry_price) * 100;
+      const colour = pct >= 0 ? 'var(--positive)' : 'var(--danger)';
+      const what = r.status === 'closed'
+        ? ({ target: 'target', trailing_stop: 'trailing stop', stop: 'stop', max_hold: '7 days' })[r.exit_reason] || r.exit_reason
+        : 'open';
+      return '<span style="color:#B8B0A0;">' + expEsc(r.ticker) + '</span> <span style="color:' + colour + ';">' + expPct(pct) +
+             '</span> <span style="color:#6B6560;">' + expEsc(what) + ' · ' +
+             parseDbTime(r.opened_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + '</span>';
+    });
+    lines.push('<div style="margin-top:0.5rem; border-top:1px solid rgba(107,101,96,0.25); padding-top:0.5rem;">' + recent.join('<br>') + '</div>');
+    box.innerHTML = lines.join('<br>');
+  } catch (e) {
+    const msg = (e && e.message) || String(e);
+    box.innerHTML = /experiment_trades|does not exist|relation/i.test(msg)
+      ? '<span style="color:#6B6560;">Not set up yet — run create_experiment_trades.sql in Supabase.</span>'
+      : '<span style="color:var(--danger);">Could not read the experiment: ' + expEsc(msg) + '</span>';
+  }
 }
 
 async function collectDiagnostics() {
@@ -5393,6 +5487,7 @@ loadSwingSetting();
 loadLiveArmed();
 loadPhysicsSetting();
 checkOutcomeHealthOnOpen();
+loadExperiment();
 </script>
 
 <script src="tickers.js"></script>
