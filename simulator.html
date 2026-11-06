@@ -1013,7 +1013,10 @@ footer p { font-size: 0.6rem; letter-spacing: 0.12em; color: var(--muted); text-
   <!-- OPEN POSITIONS -->
   <div style="display:flex; justify-content:space-between; align-items:center;">
     <div class="section-label">Open Positions</div>
-    <button id="copy-positions-btn" onclick="copyOpenPositions()" style="background:transparent; border:1px solid rgba(201,168,76,0.4); color:#C9A84C; font-family:'IBM Plex Mono',monospace; font-size:0.6rem; letter-spacing:0.12em; padding:0.35rem 0.7rem; cursor:pointer;">COPY ALL</button>
+    <div style="display:flex; gap:0.4rem;">
+      <button id="report-btn" onclick="downloadFullReport()" style="background:transparent; border:1px solid rgba(201,168,76,0.4); color:#C9A84C; font-family:'IBM Plex Mono',monospace; font-size:0.6rem; letter-spacing:0.12em; padding:0.35rem 0.7rem; cursor:pointer;">REPORT PDF</button>
+      <button id="copy-positions-btn" onclick="copyOpenPositions()" style="background:transparent; border:1px solid rgba(201,168,76,0.4); color:#C9A84C; font-family:'IBM Plex Mono',monospace; font-size:0.6rem; letter-spacing:0.12em; padding:0.35rem 0.7rem; cursor:pointer;">COPY ALL</button>
+    </div>
   </div>
   <div class="trades-table">
     <div class="trades-header">
@@ -1311,6 +1314,251 @@ function describePosition(t) {
   if (t.coingecko_id) lines.push('  CoinGecko  ' + t.coingecko_id);
   if (t.opened_at)    lines.push('  Opened     ' + parseDbTime(t.opened_at).toLocaleString());
   return lines.join('\n');
+}
+
+// ══════════════════════════════════════════════════════════════════
+// FULL REPORT (PDF)
+//
+// One document with everything real: the account, every open position, every
+// closed trade, and the background experiment. The report page has its own
+// PDF, but it is built from the old picks table, which an early function
+// filled with random scores, not trades. The PDF library loads only when the
+// button is pressed, from cdnjs, with unpkg as a fallback.
+// ══════════════════════════════════════════════════════════════════
+const PDF_LIB_URLS = [
+  'https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js',
+  'https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js',
+];
+function loadPdfLib() {
+  if (window.PDFLib && window.PDFLib.PDFDocument) return Promise.resolve(window.PDFLib);
+  return PDF_LIB_URLS.reduce((prev, url) => prev.catch(() => new Promise((resolve, reject) => {
+    const sc = document.createElement('script');
+    sc.src = url;
+    sc.onload  = () => (window.PDFLib && window.PDFLib.PDFDocument) ? resolve(window.PDFLib) : reject(new Error('PDF library unusable'));
+    sc.onerror = () => { sc.remove(); reject(new Error('could not load the PDF library — check your connection')); };
+    document.head.appendChild(sc);
+  })), Promise.reject(new Error('not loaded')));
+}
+
+// Plain text only: the PDF's built-in fonts draw a basic Western character set,
+// and a single character outside it would stop the whole file from building.
+function pdfSafe(v) {
+  return String(v == null ? '' : v)
+    .replace(/[\u2012-\u2015]/g, '-').replace(/[\u2018\u2019]/g, "'").replace(/[\u201C\u201D]/g, '"')
+    .replace(/\u2026/g, '...').replace(/\u2265/g, '>=').replace(/\u2264/g, '<=').replace(/\u00B7/g, '|')
+    .replace(/[^\x20-\x7E]/g, '');
+}
+
+const REPORT_REASONS = {
+  stop_loss_triggered: 'stop', stop: 'stop', trailing_stop: 'trailing stop', target_reached: 'target',
+  target: 'target', stale_timeout: 'timed out', max_hold: 'max hold', swing_review: 'swing reversal',
+  manual_close: 'closed by you',
+};
+const reportReason = (r) => REPORT_REASONS[r] || String(r || '').replace(/_/g, ' ');
+
+// Turns database rows into the figures and table rows the report draws. Pure:
+// no database, no PDF library.
+function reportData(port, open, closed, exp, now) {
+  const P = port || {};
+  const money = n => Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const signedUsd = n => (n >= 0 ? '+$' : '-$') + money(n);
+  const usd = n => (n < 0 ? '-$' : '$') + money(n);
+  const pct = n => (n >= 0 ? '+' : '') + n.toFixed(2) + '%';
+  const tone = n => n > 0 ? 'up' : n < 0 ? 'down' : null;
+  const day = v => v ? parseDbTime(v).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' }) : '';
+  const market = t => String(t.type || '').toLowerCase() === 'crypto' ? 'Crypto' : 'Stock';
+  const entryOf = t => Number(t.effective_entry || t.entry_price) || 0;
+  const openMove = t => {
+    const e = entryOf(t), c = Number(t.current_price) || e, sh = Number(t.shares) || 0;
+    const d = String(t.direction || '').toLowerCase() === 'short' ? e - c : c - e;
+    return { usd: d * sh, pct: e ? d / e * 100 : 0 };
+  };
+  const stats = list => {
+    const n = list.length, gl = list.map(t => Number(t.gain_loss) || 0), pc = list.map(t => Number(t.gain_loss_pct) || 0);
+    return n ? { n, won: gl.filter(x => x > 0).length, total: gl.reduce((a, b) => a + b, 0),
+                 avg: pc.reduce((a, b) => a + b, 0) / n, best: Math.max(...pc), worst: Math.min(...pc) } : null;
+  };
+
+  const start = Number(P.starting_balance) || 10000;
+  const balance = Number(P.current_balance) || start;
+  const openUsd = open.reduce((s, t) => s + openMove(t).usd, 0);
+  const all = stats(closed), crypto = stats(closed.filter(t => market(t) === 'Crypto')), stock = stats(closed.filter(t => market(t) === 'Stock'));
+  const account = [
+    ['Starting balance', usd(start)],
+    ['Balance',          usd(balance)],
+    ['Open P&L',         signedUsd(openUsd), tone(openUsd)],
+    ['Equity',           usd(balance + openUsd)],
+    ['Return',           pct((balance + openUsd - start) / start * 100), tone(balance + openUsd - start)],
+    ['Open positions',   String(open.length)],
+    ['Closed trades',    all ? all.n + '  |  won ' + Math.round(100 * all.won / all.n) + '%  |  average ' + pct(all.avg) + '  |  total ' + signedUsd(all.total) : 'none', all ? tone(all.total) : null],
+  ];
+  if (all) account.push(['Best / worst trade', pct(all.best) + '  /  ' + pct(all.worst)]);
+  if (crypto) account.push(['Crypto', crypto.n + ' closed  |  won ' + Math.round(100 * crypto.won / crypto.n) + '%  |  total ' + signedUsd(crypto.total), tone(crypto.total)]);
+  if (stock)  account.push(['Stocks', stock.n + ' closed  |  won ' + Math.round(100 * stock.won / stock.n) + '%  |  total ' + signedUsd(stock.total), tone(stock.total)]);
+
+  const openRows = open.map(t => {
+    const m = openMove(t);
+    return [t.ticker, market(t), String(t.direction || '').toUpperCase(), fmtPrice(entryOf(t)), fmtPrice(Number(t.current_price) || entryOf(t)),
+            t.stop_loss != null ? fmtPrice(Number(t.stop_loss)) : '', t.target_price != null ? fmtPrice(Number(t.target_price)) : '',
+            { v: signedUsd(m.usd), tone: tone(m.usd) }, { v: pct(m.pct), tone: tone(m.pct) }, day(t.opened_at)];
+  });
+  const closedRows = closed.map(t => {
+    const g = Number(t.gain_loss) || 0, gp = Number(t.gain_loss_pct) || 0;
+    return [day(t.closed_at), t.ticker, market(t), String(t.direction || '').toUpperCase(), fmtPrice(entryOf(t)),
+            fmtPrice(Number(t.current_price) || entryOf(t)), { v: signedUsd(g), tone: tone(g) }, { v: pct(gp), tone: tone(gp) },
+            reportReason(t.close_reason)];
+  });
+
+  let experiment = null;
+  if (exp) {
+    const ec = exp.filter(r => r.status === 'closed'), eo = exp.filter(r => r.status === 'open');
+    const es = list => { const n = list.length; return n ? { n, won: list.filter(r => Number(r.pnl_usd) > 0).length,
+      avg: list.reduce((a, r) => a + (Number(r.pnl_pct) || 0), 0) / n, total: list.reduce((a, r) => a + (Number(r.pnl_usd) || 0), 0) } : null; };
+    const falling = r => r.btc_trend === 'down' || r.eth_trend === 'down';
+    const summary = [];
+    const sAll = es(ec), sF = es(ec.filter(falling)), sN = es(ec.filter(r => !falling(r)));
+    summary.push(['Closed', sAll ? sAll.n + '  |  won ' + Math.round(100 * sAll.won / sAll.n) + '%  |  average ' + pct(sAll.avg) + '  |  total ' + signedUsd(sAll.total) : 'none yet', sAll ? tone(sAll.total) : null]);
+    summary.push(['Open', String(eo.length)]);
+    if (sF) summary.push(['While BTC or ETH was falling', sF.n + '  |  won ' + Math.round(100 * sF.won / sF.n) + '%  |  average ' + pct(sF.avg), tone(sF.avg)]);
+    if (sN) summary.push(['Otherwise', sN.n + '  |  won ' + Math.round(100 * sN.won / sN.n) + '%  |  average ' + pct(sN.avg), tone(sN.avg)]);
+    const realShorts = stats(closed.filter(t => String(t.direction || '').toLowerCase() === 'short'));
+    summary.push(['Your real shorts', realShorts ? realShorts.n + '  |  won ' + Math.round(100 * realShorts.won / realShorts.n) + '%  |  average ' + pct(realShorts.avg) : 'none closed']);
+    const rows = exp.map(r => {
+      const e = Number(r.entry_price) || 0, last = r.status === 'closed' ? Number(r.exit_price) : Number(r.current_price || e);
+      const pp = r.status === 'closed' ? Number(r.pnl_pct) || 0 : (e ? (e - last) / e * 100 : 0);
+      const pu = r.status === 'closed' ? Number(r.pnl_usd) || 0 : (e - last) * (Number(r.shares) || 0);
+      return [day(r.opened_at), r.ticker, r.status === 'closed' ? 'closed' : 'open', fmtPrice(e), fmtPrice(last || e),
+              { v: signedUsd(pu), tone: tone(pu) }, { v: pct(pp), tone: tone(pp) },
+              r.status === 'closed' ? reportReason(r.exit_reason) : '', (r.btc_trend || '-') + ' / ' + (r.eth_trend || '-')];
+    });
+    experiment = { summary, rows };
+  }
+  const generated = now.toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+  return { generated, account, openRows, closedRows, experiment };
+}
+
+// Draws the report. Takes the PDF library and the prepared figures; returns the file.
+async function buildFullReport(PDFLib, d) {
+  const { PDFDocument, StandardFonts, rgb } = PDFLib;
+  const doc  = await PDFDocument.create();
+  const font = await doc.embedFont(StandardFonts.Helvetica);
+  const bold = await doc.embedFont(StandardFonts.HelveticaBold);
+  doc.setTitle('AURUM full report');
+  const W = 612, H = 792, L = 40, R = 572, TOP = 748, BOTTOM = 60;
+  const C = { ink: rgb(0.13, 0.13, 0.13), dim: rgb(0.45, 0.43, 0.40), gold: rgb(0.60, 0.48, 0.18),
+              up: rgb(0.10, 0.48, 0.24), down: rgb(0.70, 0.17, 0.17), rule: rgb(0.84, 0.82, 0.77), band: rgb(0.95, 0.94, 0.91) };
+  let page = doc.addPage([W, H]), y = TOP;
+  const ensure = (h) => { if (y - h >= BOTTOM) return false; page = doc.addPage([W, H]); y = TOP; return true; };
+  const fit = (s, f, size, w) => {
+    s = pdfSafe(s);
+    if (!w || f.widthOfTextAtSize(s, size) <= w) return s;
+    while (s.length > 1 && f.widthOfTextAtSize(s + '..', size) > w) s = s.slice(0, -1);
+    return s + '..';
+  };
+  const text = (s, x, yy, o = {}) => {
+    const f = o.bold ? bold : font, size = o.size || 9, str = fit(s, f, size, o.w);
+    const dx = o.align === 'right' ? (o.w || 0) - f.widthOfTextAtSize(str, size) : 0;
+    page.drawText(str, { x: x + dx, y: yy, size, font: f, color: o.color || C.ink });
+  };
+  const heading = (t) => {
+    ensure(46); y -= 10;
+    text(t.toUpperCase(), L, y, { bold: true, size: 10, color: C.gold }); y -= 6;
+    page.drawLine({ start: { x: L, y }, end: { x: R, y }, thickness: 0.6, color: C.rule }); y -= 15;
+  };
+  const pairs = (list) => list.forEach(([label, value, tone]) => {
+    ensure(14);
+    text(label, L, y, { color: C.dim, w: 170 });
+    text(value, L + 180, y, { bold: true, color: tone ? C[tone] : C.ink, w: R - L - 180 });
+    y -= 14;
+  });
+  const table = (cols, rows) => {
+    const rowH = 13;
+    const header = () => {
+      page.drawRectangle({ x: L, y: y - 3.5, width: R - L, height: rowH, color: C.band });
+      let x = L;
+      cols.forEach(c => { text(c.h, x + 2, y, { bold: true, size: 7.5, color: C.dim, w: c.w - 4, align: c.align }); x += c.w; });
+      y -= rowH;
+    };
+    ensure(rowH * 2); header();
+    if (!rows.length) { text('None.', L + 2, y, { size: 8, color: C.dim }); y -= rowH; }
+    rows.forEach(r => {
+      if (ensure(rowH)) header();
+      let x = L;
+      cols.forEach((c, k) => {
+        const cell = r[k], v = (cell && typeof cell === 'object') ? cell : { v: cell };
+        text(v.v, x + 2, y, { size: 8, color: v.tone ? C[v.tone] : C.ink, w: c.w - 4, align: c.align });
+        x += c.w;
+      });
+      y -= rowH;
+    });
+    y -= 4;
+  };
+
+  text('AURUM', L, y, { bold: true, size: 22, color: C.gold }); y -= 16;
+  text('FULL REPORT', L, y, { bold: true, size: 9, color: C.dim });
+  text('Generated ' + d.generated, L + 180, y, { size: 9, color: C.dim }); y -= 12;
+
+  heading('Account');
+  pairs(d.account);
+
+  heading('Open positions (' + d.openRows.length + ')');
+  table([{ h: 'TICKER', w: 52 }, { h: 'MARKET', w: 40 }, { h: 'SIDE', w: 36 }, { h: 'ENTRY', w: 64, align: 'right' },
+         { h: 'NOW', w: 64, align: 'right' }, { h: 'STOP', w: 64, align: 'right' }, { h: 'TARGET', w: 64, align: 'right' },
+         { h: 'P&L', w: 54, align: 'right' }, { h: '%', w: 48, align: 'right' }, { h: 'OPENED', w: 46 }], d.openRows);
+
+  heading('Closed trades (' + d.closedRows.length + ')');
+  table([{ h: 'CLOSED', w: 50 }, { h: 'TICKER', w: 52 }, { h: 'MARKET', w: 40 }, { h: 'SIDE', w: 36 },
+         { h: 'ENTRY', w: 66, align: 'right' }, { h: 'EXIT', w: 66, align: 'right' }, { h: 'P&L', w: 58, align: 'right' },
+         { h: '%', w: 50, align: 'right' }, { h: 'HOW IT CLOSED', w: 114 }], d.closedRows);
+
+  heading('Background experiment - fast-coin shorts');
+  if (!d.experiment) {
+    text('Not set up yet.', L, y, { color: C.dim }); y -= 14;
+  } else {
+    pairs(d.experiment.summary);
+    y -= 4;
+    table([{ h: 'OPENED', w: 50 }, { h: 'TICKER', w: 52 }, { h: 'STATUS', w: 44 }, { h: 'ENTRY', w: 66, align: 'right' },
+           { h: 'EXIT / NOW', w: 66, align: 'right' }, { h: 'P&L', w: 56, align: 'right' }, { h: '%', w: 50, align: 'right' },
+           { h: 'HOW IT CLOSED', w: 80 }, { h: 'BTC / ETH', w: 68 }], d.experiment.rows);
+  }
+
+  const pages = doc.getPages();
+  pages.forEach((pg, i) => {
+    pg.drawText(pdfSafe('AURUM  |  Full report  |  ' + d.generated + '  |  Page ' + (i + 1) + ' of ' + pages.length),
+                { x: L, y: 32, size: 7, font, color: C.dim });
+  });
+  return doc.save();
+}
+
+async function downloadFullReport() {
+  const btn = document.getElementById('report-btn');
+  const label = btn ? btn.textContent : '';
+  if (btn) { btn.disabled = true; btn.textContent = 'BUILDING...'; }
+  try {
+    const PDFLib = await loadPdfLib();
+    const [port, open, closed, exp] = await Promise.all([
+      db.from('paper_portfolio').select('*').limit(1),
+      db.from('paper_trades').select('*').eq('status', 'open').order('opened_at', { ascending: false }),
+      db.from('paper_trades').select('*').eq('status', 'closed').order('closed_at', { ascending: false }),
+      db.from('experiment_trades').select('*').eq('experiment', 'fast_shorts').order('opened_at', { ascending: false }),
+    ]);
+    for (const r of [port, open, closed]) if (r.error) throw r.error;
+    const now = new Date();
+    const data = reportData((port.data || [])[0], open.data || [], closed.data || [], exp.error ? null : (exp.data || []), now);
+    const bytes = await buildFullReport(PDFLib, data);
+    const url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'AURUM-report-' + now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0') + '.pdf';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 30000);
+    if (btn) btn.textContent = 'DOWNLOADED';
+  } catch (e) {
+    if (btn) btn.textContent = 'FAILED';
+    alert('Could not build the report: ' + ((e && e.message) || e));
+  } finally {
+    setTimeout(() => { if (btn) { btn.disabled = false; btn.textContent = label; } }, 2500);
+  }
 }
 
 async function copyOpenPositions() {
@@ -2848,7 +3096,7 @@ function renderPresetUI() {
 // Seeded from scoring_contract at startup. These literals are the fallback
 // used only if that read fails, and they match the row the table ships with.
 let THRESHOLDS = {
-  stock:  { opportunity: 70, direction: 60, signalQuality: 60 },
+  stock:  { opportunity: 53, direction: 60, signalQuality: 60 },
   crypto: { opportunity: 50, direction: 55, signalQuality: 45 },
 };
 let contractVersion = 0;
@@ -4042,6 +4290,22 @@ function cryptoBandRejection(g) {
   return null;
 }
 
+// ── EARNINGS ──
+// A stock with a report due within a week is not opened. An earnings surprise
+// can gap a stock straight past its stop, and a swing trade opened now would
+// very likely be held through it. 7 days is the earnings algorithm's own
+// danger zone. Stocks only.
+const EARNINGS_SKIP_DAYS = 7;
+function earningsRejection(g) {
+  if (activeMode === 'crypto' || g == null || g.earnings_days == null) return null;
+  const d = Number(g.earnings_days);
+  if (!Number.isFinite(d)) return null;
+  return (d >= 0 && d <= EARNINGS_SKIP_DAYS) ? 'earnings in ' + d + ' day' + (d === 1 ? '' : 's') : null;
+}
+// Every entry gate the scans apply after scoring: the volatility band, then
+// the earnings window.
+function entryRejection(g) { return cryptoBandRejection(g) || earningsRejection(g); }
+
 // The hard limits only remove what measurably loses: above 6% the win rate is
 // 16.7% then 14.3%, which no ranking should rescue. Below 1% a 2:1 target is
 // out of reach. Everything between is allowed through and RANKED, because only
@@ -5082,6 +5346,7 @@ async function scoreForRanking(ticker, balance) {
       entry_price:    Number(g.entry_price),
       signal_quality: Math.min(40 + (g.algorithms_executed || 0) * 2, 95),
       shortSetup:     g.short_setup || null,
+      earnings_days:  g.earnings_days ?? null,
       gov:            g,
     };
   } catch (e) {
@@ -5165,13 +5430,13 @@ async function runLongShortCycle(manualTrigger) {
 
     // Data quality still gates both sides — that floor was measured, at p=0.016.
     const lim = limits();
-    // The second volatility gate, on the Governor's own reading.
-    const outOfBand = scored.map(c => [c, cryptoBandRejection(c)]).filter(x => x[1]);
-    if (outOfBand.length) {
-      autoLog('Not traded — outside the volatility band: ' +
-              outOfBand.map(x => x[0].ticker + ' (' + x[1] + ')').join('; ') + '.');
+    // The entry gates, on the Governor's own reading: the volatility band, and
+    // for stocks, a report due within a week.
+    const gated = scored.map(c => [c, entryRejection(c)]).filter(x => x[1]);
+    if (gated.length) {
+      autoLog('Not traded: ' + gated.map(x => x[0].ticker + ' (' + x[1] + ')').join('; ') + '.');
     }
-    const quality = scored.filter(c => !cryptoBandRejection(c) && c.signal_quality >= lim.signalQuality);
+    const quality = scored.filter(c => !entryRejection(c) && c.signal_quality >= lim.signalQuality);
     if (!quality.length) { autoLog('Long/short — nothing cleared data quality.'); return; }
 
     // ── DIRECTION BY SIGNAL, EACH SIDE ON ITS OWN EVIDENCE ──
@@ -5359,7 +5624,7 @@ async function runAutonomousCycle(manualTrigger) {
       // The second volatility gate, on the Governor's own reading.
       const banded = [];
       scored.forEach(g => {
-        const why = cryptoBandRejection(g);
+        const why = entryRejection(g);
         if (why) rejectLog.push(g.ticker + ' ' + why); else banded.push(g);
       });
       // Hard filter before spending a Claude call. With longs paused by the
