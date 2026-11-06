@@ -689,6 +689,14 @@
       </div>
       <div class="faq-answer">Usually because it chose to stand aside, and the scan log says which reason. <strong>&ldquo;US market is closed&rdquo;</strong> — in stock mode, scans run only from 9:30 am to 4:00 pm New York time, Monday to Friday; outside those hours every price is the last close. Stock scans are also <strong>paced</strong> to Twelve Data&rsquo;s free limit of 8 a minute, so checking 60 stocks takes about 8 minutes — the log says when it&rsquo;s waiting, and a stock refused on the limit is waited out and retried rather than skipped. <strong>&ldquo;Market screen unavailable&rdquo;</strong> — CoinGecko didn&rsquo;t supply the market list, and the log now says why: rate-limited, key rejected, or unreachable. The screen goes through your <em>market-proxy</em> function rather than straight from your phone, because CoinGecko limits keyless requests per internet address, shared with everyone on that address. A free CoinGecko Demo key, set as <code>COINGECKO_API_KEY</code> on market-proxy, gives you 100 requests a minute of your own. After a failure it waits a minute before asking again, since every refused request counts against the limit too. <strong>&ldquo;No coins inside the volatility band&rdquo;</strong> — the whole market is moving too violently to read, which typically happens during or just after a sell-off. In both cases it opens nothing rather than trade blind. And with <strong>MARKET REGIME</strong> on, a scan can open shorts but no longs when BTC or ETH is in a downtrend — the log says so. It used to fall back to a fixed list of major coins with every filter switched off, which on October 29 opened seven positions at 8–15% daily volatility with stops up to 30% away. Every scored coin is also checked against the band a second time, on its own fresh reading, so nothing outside it can open by any route.</div>
     </div>
+
+    <div class="faq-item" data-keywords="stocks bar opportunity insider earnings report gate picked">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">How does it pick stocks?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">The same way as crypto, with three stock-specific pieces. <strong>The bar:</strong> a stock opens when its composite reads above 60 with a signal quality of at least 60 — the normal scan and Swing now agree on this. The normal scan used to also demand an opportunity score of 70, which works out to a composite of 89 or more, so no stock could ever pass; it is now 53, what the composite bar of 60 implies. <strong>Insiders and earnings:</strong> the Governor reads every open-market purchase and sale insiders have filed in the last 90 days, and the company&rsquo;s last four quarters of beating or missing earnings estimates. Routine filings — share awards, gifts, option exercises — are ignored. <strong>Earnings gate:</strong> a stock with a report due within 7 days is not opened, because an earnings surprise can gap a stock straight past its stop. Stock scans run only while the US market is open, paced to Twelve Data&rsquo;s 8 requests a minute.</div>
+    </div>
   </div>
 
   <div class="gold-rule"></div>
@@ -1120,6 +1128,14 @@
       <div class="faq-answer">The History page logs <strong>every pick AURUM has ever made</strong> — score, brief, signal breakdown, date, and outcome. Filter by All, Real, Simulated, or Score 80+. This is your verified track record — the foundation of AURUM's credibility over time. Nothing is deleted or hidden.</div>
     </div>
 
+
+    <div class="faq-item" data-keywords="pdf report download export full report">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">How do I download a report?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">Tap <strong>REPORT PDF</strong>, beside COPY ALL above your open positions. It builds one document with everything: your balance, open P&amp;L and return; win rate and totals, split by crypto and stocks; every open position with its stop and target; every closed trade and how it closed; and the background experiment&rsquo;s results beside your real shorts. It saves straight to your downloads. The report page has its own PDF, but that one is built from an old table of picks filled with random scores, not your trades.</div>
+    </div>
   </div>
 
   <div class="gold-rule"></div>
