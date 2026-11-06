@@ -328,7 +328,7 @@ const REAL_BARS = { prices: null, volumes: null };
 // Handing the lifted functions an empty object made THRESHOLDS[mode] undefined,
 // and limits() then threw reading .direction off it.
 const FALLBACK_CONTRACT = {
-  stock:  { opportunity: 70, direction: 60, signalQuality: 60 },
+  stock:  { opportunity: 53, direction: 60, signalQuality: 60 },
   crypto: { opportunity: 50, direction: 55, signalQuality: 45 }
 };
 // The Governor excludes this one: a real GRU pass costs ~3.8s CPU and is what
