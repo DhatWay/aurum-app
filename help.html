@@ -626,6 +626,14 @@
       </div>
       <div class="faq-answer">It stops the system buying longs while the whole market is falling. Before each crypto scan it checks <strong>BTC and ETH</strong> — BTC leads the market, ETH leads the altcoins. While <strong>either</strong> is in a confirmed downtrend (price at least 2% below its 50-day average, the 20-day below the 50-day and still falling), no new longs open. Shorts carry on, since a downtrend is when they should work. Each scan logs what BTC and ETH are reading. On October 27 the scan opened ten longs while ETH was in a confirmed downtrend, and most were stopped out; with this on, it would have opened only the two shorts. <strong>It starts OFF</strong>, for one honest reason: crypto has been in a bear market for a year, and your September record of 79% was made inside it. Whether this would have blocked those winners too is untested — so turn it on, watch what the log says it pauses, and turn it off if it&rsquo;s holding back longs that look strong.</div>
     </div>
+
+    <div class="faq-item" data-keywords="background experiment fast coin shorts shadow test theory">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">What is the background experiment?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">A test of one theory, run apart from your book: <strong>coins moving 4.5&ndash;10% a day, in a confirmed downtrend and not reading bullish, are worth shorting.</strong> In September&rsquo;s data, shorting coins moving over 6% a day averaged +1.45% and won 67% of the time — but on September 10 they bounced 5% at once, so only a forward test can say whether it holds. Every hour, on its own, it screens the market for fast coins, scores them through the Governor, and takes a <em>pretend</em> short on each one that qualifies — managed with the same stop, target, trailing stop and 7-day limit as a real position, with every stop risking $30. It also notes which way BTC and ETH were heading, so you can see whether it only works when the whole market is falling. It never touches your balance, positions, open slots or win rate. Results appear in the <strong>Background Experiment</strong> panel under System Diagnostics, beside your real shorts for comparison. Give it two to three weeks before reading much into it.</div>
+    </div>
   </div>
 
   <div class="gold-rule"></div>
