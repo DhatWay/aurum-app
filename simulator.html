@@ -3332,15 +3332,33 @@ async function loadExperiment() {
   const box = document.getElementById('experiment-output');
   if (!box) return;
   try {
-    const [ex, real] = await Promise.all([
+    const [ex, real, runs] = await Promise.all([
       db.from('experiment_trades').select('*').eq('experiment', 'fast_shorts')
         .order('opened_at', { ascending: false }).limit(500),
       db.from('paper_trades').select('gain_loss, gain_loss_pct').eq('direction', 'short').eq('status', 'closed'),
+      db.from('experiment_runs').select('*').order('run_at', { ascending: false }).limit(1),
     ]);
     if (ex.error) throw ex.error;
+    // The latest hourly run: what it looked at and why each coin was passed, so
+    // an hour that found nothing is visibly different from one that never ran.
+    // Missing silently if the run log has not been set up.
+    let runHtml = '';
+    const run = (!runs.error && runs.data && runs.data[0]) || null;
+    if (run) {
+      const ageH = (Date.now() - parseDbTime(run.run_at).getTime()) / 3600000;
+      const when = parseDbTime(run.run_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+      const opened = Array.isArray(run.opened) ? run.opened : [], passed = Array.isArray(run.passed) ? run.passed : [];
+      const notes = Array.isArray(run.notes) ? run.notes : [];
+      runHtml = '<div style="color:#B8B0A0;">Last check ' + expEsc(when) + ' · ' + Number(run.fast_coins || 0) + ' fast coins · looked at ' +
+                Number(run.checked || 0) + ' · opened ' + (opened.length ? expEsc(opened.map(o => String(o).split(' ')[0]).join(', ')) : 'none') + '</div>';
+      if (ageH > 2.5) runHtml += '<div style="color:var(--gold);">No check for ' + Math.round(ageH) + ' hours — the hourly run may have stopped.</div>';
+      if (passed.length) runHtml += '<div style="color:#6B6560;">Passed: ' + passed.slice(0, 6).map(expEsc).join(' · ') + (passed.length > 6 ? ' · +' + (passed.length - 6) + ' more' : '') + '</div>';
+      if (notes.length) runHtml += '<div style="color:#6B6560;">' + notes.map(expEsc).join(' · ') + '</div>';
+      runHtml += '<div style="margin:0.5rem 0; border-top:1px solid rgba(107,101,96,0.25);"></div>';
+    }
     const rows = ex.data || [];
     if (!rows.length) {
-      box.innerHTML = '<span style="color:#6B6560;">No pretend shorts yet. It looks every hour, and the first appears as soon as a fast coin qualifies.</span>';
+      box.innerHTML = runHtml + '<span style="color:#6B6560;">No pretend shorts yet. It looks every hour, and the first appears as soon as a fast coin qualifies.</span>';
       return;
     }
     const closed = rows.filter(r => r.status === 'closed'), open = rows.filter(r => r.status === 'open');
@@ -3381,7 +3399,7 @@ async function loadExperiment() {
              parseDbTime(r.opened_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + '</span>';
     });
     lines.push('<div style="margin-top:0.5rem; border-top:1px solid rgba(107,101,96,0.25); padding-top:0.5rem;">' + recent.join('<br>') + '</div>');
-    box.innerHTML = lines.join('<br>');
+    box.innerHTML = runHtml + lines.join('<br>');
   } catch (e) {
     const msg = (e && e.message) || String(e);
     box.innerHTML = /experiment_trades|does not exist|relation/i.test(msg)
