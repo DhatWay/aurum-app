@@ -789,7 +789,7 @@ footer p { font-size: 0.6rem; letter-spacing: 0.12em; color: var(--muted); text-
       <div class="analytics-value gold" id="profit-factor">—</div>
     </div>
     <div class="analytics-cell">
-      <div class="analytics-label">Total Commission</div>
+      <div class="analytics-label">Trading Fees</div>
       <div class="analytics-value" id="total-commission">—</div>
     </div>
     <div class="analytics-cell">
@@ -847,6 +847,17 @@ footer p { font-size: 0.6rem; letter-spacing: 0.12em; color: var(--muted); text-
     <div id="contract-drift" style="display:none; font-size:0.68rem; font-family:'IBM Plex Mono',monospace; color:#8B3A3A; border:1px solid rgba(139,58,58,0.4); padding:0.5rem; margin-top:0.6rem; line-height:1.5;"></div>
     <div id="outcome-output" style="font-size:0.68rem; font-family:'IBM Plex Mono',monospace; margin-top:0.6rem; line-height:1.7;"></div>
     <div id="diag-output" style="font-size:0.68rem; font-family:'IBM Plex Mono',monospace; margin-top:0.8rem; line-height:1.7;"></div>
+  </div>
+
+  <div style="border:1px solid rgba(201,168,76,0.25); padding:1rem; margin-bottom:1.5rem;">
+    <div style="display:flex; justify-content:space-between; align-items:center; gap:0.5rem; margin-bottom:0.5rem;">
+      <div style="font-size:0.62rem; letter-spacing:0.2em; color:#C9A84C; font-family:'IBM Plex Mono',monospace;">EXITS &amp; FEES</div>
+      <button onclick="copyReplay()" id="replay-copy-btn" style="display:none; background:transparent; border:1px solid rgba(107,101,96,0.4); color:#6B6560; font-family:'IBM Plex Mono',monospace; font-size:0.58rem; letter-spacing:0.12em; padding:0.3rem 0.6rem; cursor:pointer;">COPY</button>
+    </div>
+    <div style="font-size:0.68rem; color:#6B6560; margin-bottom:0.8rem; line-height:1.6;">A loss costs the same under every rule: the original stop, two days&rsquo; movement away. The rules differ in how a winner is handled. The replay walks each of your closed trades through its real hourly prices under every rule, with Kraken&rsquo;s fees, so you can pick the one that does best on your own trades.</div>
+    <div id="exit-status" style="font-size:0.68rem; font-family:'IBM Plex Mono',monospace; line-height:1.7; color:#B8B0A0; margin-bottom:0.7rem;">Loading&hellip;</div>
+    <button onclick="runExitReplay()" id="replay-btn" style="width:100%; background:transparent; border:1px solid rgba(201,168,76,0.4); color:#C9A84C; font-family:'DM Sans',sans-serif; font-size:0.7rem; letter-spacing:0.12em; padding:0.6rem; cursor:pointer;">REPLAY MY TRADES</button>
+    <div id="replay-output" style="font-size:0.68rem; font-family:'IBM Plex Mono',monospace; margin-top:0.7rem; line-height:1.7; color:#B8B0A0;"></div>
   </div>
 
   <div style="border:1px solid rgba(201,168,76,0.25); padding:1rem; margin-bottom:1.5rem;">
@@ -1249,10 +1260,115 @@ async function initPortfolio() {
 // The rows last rendered, kept so COPY ALL copies exactly what is on screen.
 let OPEN_POSITIONS = [];
 
-// Must match quick-service. The trailing stop activates once a position is up
-// TRAIL_ACTIVATE_X of its volatility, then follows TRAIL_DISTANCE_X behind.
-const TRAIL_ACTIVATE_X = 0.5;
-const TRAIL_DISTANCE_X = 0.5;   // must match quick-service
+// ── Exit rules ──
+// One rule is in force at a time; the position monitor applies it. Every rule
+// keeps the original stop two days' movement from entry, so a loser costs the
+// same under all of them — they differ in how a winner is handled. Distances
+// are in days of the coin's normal movement, its volatility when it opened.
+// Must match EXIT_RULES and manageExit in quick-service.
+const EXIT_RULES = {
+  now:   { trailFrom: 0.5, trailBy: 0.5, target: true },
+  wide:  { trailFrom: 1.0, trailBy: 1.5, target: true },
+  scale: { beAt: 1.0, scaleAt: 2.0, runnerBy: 1.5, target: false },
+  plain: { target: true },
+};
+const EXIT_RULE_ORDER = ['now', 'wide', 'scale', 'plain'];
+const EXIT_RULE_NAMES = {
+  now:   'Current — trail half a day behind',
+  wide:  'Wide trail — a day and a half behind',
+  scale: 'Scale out — bank half at 1R, let the rest run',
+  plain: 'No trailing — stop and target only',
+};
+const SCALE_FRACTION = 0.5;
+let activeExitRule = 'now';
+let exitRuleSince  = null;
+let exitRuleReady  = false;
+
+// What the rule wants at this price: whether to bank part of the position now,
+// and the stop it would set. The stop is a candidate only — a stop is moved
+// just when the candidate is tighter, so it never loosens.
+function manageExit(rule, dir, entry, vol, price, scaled) {
+  const isLong = dir !== 'short';
+  const gain   = (isLong ? price - entry : entry - price) / entry * 100;
+  const scale  = rule.scaleAt !== undefined && !scaled && gain >= rule.scaleAt * vol;
+  const behind = x => isLong ? Math.max(entry, price * (1 - x * vol / 100))
+                             : Math.min(entry, price * (1 + x * vol / 100));
+  const cands = [];
+  if (rule.beAt !== undefined && gain >= rule.beAt * vol) cands.push(entry);
+  if (rule.trailFrom !== undefined && rule.trailBy !== undefined && gain >= rule.trailFrom * vol) cands.push(behind(rule.trailBy));
+  if (rule.runnerBy !== undefined && (scaled || scale)) cands.push(behind(rule.runnerBy));
+  if (!cands.length) return { scale, stop: null };
+  return { scale, stop: isLong ? Math.max(...cands) : Math.min(...cands) };
+}
+
+// ── Trading costs ──
+// Charged on every close, in and out, at the taker rate. Crypto longs are
+// spot trades, crypto shorts perpetual futures. Kraken Pro's published
+// schedule, November 2026; the tier comes from this account's own 30-day spot
+// volume. Futures funding is not included; stocks keep their commission.
+// [30-day spot volume from, spot taker %, futures taker %]. Must match
+// KRAKEN_TIERS in quick-service.
+const KRAKEN_TIERS = [
+  [0, 0.80, 0.05], [2500, 0.60, 0.045], [10000, 0.38, 0.04], [25000, 0.35, 0.035],
+  [50000, 0.30, 0.03], [100000, 0.25, 0.0275], [250000, 0.22, 0.025], [500000, 0.20, 0.0225],
+  [1000000, 0.18, 0.02], [2500000, 0.15, 0.018], [5000000, 0.12, 0.0175], [10000000, 0.10, 0.017],
+];
+function feeTier(volume) {
+  let i = 0;
+  KRAKEN_TIERS.forEach((t, k) => { if (volume >= t[0]) i = k; });
+  return { tier: i + 1, spot: KRAKEN_TIERS[i][1], perp: KRAKEN_TIERS[i][2], volume };
+}
+async function loadFeeRates() {
+  const nowMs = Date.now(), since = nowMs - 30 * 86400000;
+  const at = v => v ? parseDbTime(v).getTime() : 0;
+  let volume = 0;
+  try {
+    const { data } = await db.from('paper_trades').select('*')
+      .eq('type', 'crypto').eq('direction', 'long')
+      .gte('opened_at', new Date(nowMs - 60 * 86400000).toISOString());
+    (data || []).forEach(t => {
+      const entry = Number(t.effective_entry || t.entry_price) || 0;
+      const left = Number(t.shares) || 0, sold = Number(t.scaled_shares) || 0;
+      if (at(t.opened_at) >= since) volume += entry * (left + sold);
+      if (sold && at(t.scaled_out_at) >= since) volume += (Number(t.scale_price) || entry) * sold;
+      if (t.status === 'closed' && at(t.closed_at) >= since) volume += (Number(t.current_price) || entry) * left;
+    });
+  } catch (e) { /* unread: the first tier, the dearest */ }
+  return feeTier(volume);
+}
+function tradeFee(trade, entry, exitPrice, shares, rates, partial) {
+  if (String(trade.type).toLowerCase() !== 'crypto') {
+    const c = Number(trade.commission || 1.30);
+    return partial ? c / 2 : c;
+  }
+  const pct = String(trade.direction).toLowerCase() === 'short' ? rates.perp : rates.spot;
+  return (entry + exitPrice) * shares * pct / 100;
+}
+// The whole trade at its final close: what is left plus anything a scale-out
+// banked earlier. The percentage is on the full original position.
+function closeFigures(trade, entry, exitPrice, shares, direction, fee) {
+  const runnerGross = (direction === 'short' ? entry - exitPrice : exitPrice - entry) * shares;
+  const banked      = Number(trade.banked_gl) || 0;
+  const feesBefore  = Number(trade.fees_paid) || 0;
+  const slip        = Number(trade.slippage_cost) || 0;
+  const net         = runnerGross + banked - fee - slip;
+  const basis       = entry * (shares + (Number(trade.scaled_shares) || 0));
+  return { gross: runnerGross + banked + feesBefore, fees: feesBefore + fee, net, netPct: basis > 0 ? net / basis * 100 : 0 };
+}
+const r2 = n => Math.round(n * 100) / 100;
+
+// Columns added by add_exit_rules_and_fees.sql. Until it has been run, a close
+// that names them is retried without them, so it still goes through.
+const NEW_TRADE_COLS = ['banked_gl', 'scaled_shares', 'scaled_out_at', 'scale_price', 'fees_paid'];
+async function updateTradeRow(label, id, patch) {
+  const first = await db.from('paper_trades').update(patch).eq('id', id);
+  if (first.error && NEW_TRADE_COLS.some(c => c in patch) && /column|schema cache/i.test(String(first.error.message || ''))) {
+    const p = Object.assign({}, patch);
+    NEW_TRADE_COLS.forEach(c => delete p[c]);
+    return writeOrWarn(label, db.from('paper_trades').update(p).eq('id', id));
+  }
+  return writeOrWarn(label, Promise.resolve(first));
+}
 
 function positionVolatility(t) {
   const v = Number(t.entry_volatility_pct);
@@ -1285,20 +1401,28 @@ function describePosition(t) {
   const pct   = function(a) { return (a >= 0 ? '+' : '') + a.toFixed(2) + '%'; };
   const move  = function(px) { return ((isShort ? entry - px : px - entry) / entry) * 100; };
 
-  // A stop at or past entry means the trailing stop has already moved it.
+  // A stop at or past entry means the exit rule has already moved it.
   const trailing = stop !== null && (isShort ? stop <= entry : stop >= entry);
+  const rule  = EXIT_RULES[activeExitRule] || EXIT_RULES.now;
+  const at    = x => fmtPrice(isShort ? entry * (1 - x * vol / 100) : entry * (1 + x * vol / 100)) + ' (' + pct(x * vol) + ')';
+  const banked = Number(t.banked_gl) || 0;
+  const scaled = !!t.scaled_out_at;
   let trailLine;
   if (vol === null) {
-    trailLine = 'volatility unknown — trailing inactive';
+    trailLine = 'volatility unknown — exits inactive';
+  } else if (activeExitRule === 'plain') {
+    trailLine = 'no trailing — original stop and target only';
+  } else if (activeExitRule === 'scale') {
+    trailLine = scaled
+      ? 'half banked' + (t.scale_price ? ' at ' + fmtPrice(Number(t.scale_price)) : '') + ' — the rest trails ' +
+        (rule.runnerBy * vol).toFixed(2) + '% behind, no target'
+      : (trailing ? 'at breakeven' : 'breakeven at ' + at(rule.beAt)) + ', half banks at ' + at(rule.scaleAt);
   } else if (trailing) {
     const locked = move(stop);
-    trailLine = 'ACTIVE — following ' + (TRAIL_DISTANCE_X * vol).toFixed(2) + '% behind price, ' +
+    trailLine = 'ACTIVE — following ' + (rule.trailBy * vol).toFixed(2) + '% behind price, ' +
                 (locked > 0.05 ? 'locking in ' + pct(locked) : 'at breakeven');
   } else {
-    const actPx = isShort ? entry * (1 - TRAIL_ACTIVATE_X * vol / 100)
-                          : entry * (1 + TRAIL_ACTIVATE_X * vol / 100);
-    trailLine = 'activates at ' + fmtPrice(actPx) + ' (' + pct(TRAIL_ACTIVATE_X * vol) +
-                '), then follows ' + (TRAIL_DISTANCE_X * vol).toFixed(2) + '% behind';
+    trailLine = 'activates at ' + at(rule.trailFrom) + ', then follows ' + (rule.trailBy * vol).toFixed(2) + '% behind';
   }
 
   const lines = [
@@ -1307,10 +1431,11 @@ function describePosition(t) {
     '  Entry      ' + fmtPrice(entry),
     '  Current    ' + fmtPrice(cur) + '   ' + pct(move(cur)),
     '  Stop       ' + (stop !== null ? fmtPrice(stop) + '   ' + pct(move(stop)) + (trailing ? '  (trailed)' : '  (original)') : '—'),
-    '  Target     ' + (tgt !== null ? fmtPrice(tgt) + '   ' + pct(move(tgt)) : '—'),
-    '  Trail      ' + trailLine,
+    '  Target     ' + (!rule.target ? 'none under this rule' : tgt !== null ? fmtPrice(tgt) + '   ' + pct(move(tgt)) : '—'),
+    '  Exit       ' + trailLine,
     '  Volatility ' + (vol !== null ? vol.toFixed(2) + '% daily' : '—'),
   ];
+  if (banked) lines.push('  Banked     ' + (banked >= 0 ? '+$' : '-$') + Math.abs(banked).toFixed(2) + ' from the half already closed');
   if (t.coingecko_id) lines.push('  CoinGecko  ' + t.coingecko_id);
   if (t.opened_at)    lines.push('  Opened     ' + parseDbTime(t.opened_at).toLocaleString());
   return lines.join('\n');
@@ -1393,6 +1518,10 @@ function reportData(port, open, closed, exp, now) {
     ['Closed trades',    all ? all.n + '  |  won ' + Math.round(100 * all.won / all.n) + '%  |  average ' + pct(all.avg) + '  |  total ' + signedUsd(all.total) : 'none', all ? tone(all.total) : null],
   ];
   if (all) account.push(['Best / worst trade', pct(all.best) + '  /  ' + pct(all.worst)]);
+  const feesPaid = closed.reduce((s, t) => s + (Number(t.fees_paid) > 0 ? Number(t.fees_paid)
+                     : (market(t) === 'Crypto' ? 0 : Number(t.commission) || 0)), 0) +
+                   open.reduce((s, t) => s + (Number(t.fees_paid) || 0), 0);
+  account.push(['Trading fees paid', usd(feesPaid)]);
   if (crypto) account.push(['Crypto', crypto.n + ' closed  |  won ' + Math.round(100 * crypto.won / crypto.n) + '%  |  total ' + signedUsd(crypto.total), tone(crypto.total)]);
   if (stock)  account.push(['Stocks', stock.n + ' closed  |  won ' + Math.round(100 * stock.won / stock.n) + '%  |  total ' + signedUsd(stock.total), tone(stock.total)]);
 
@@ -1625,7 +1754,7 @@ async function loadTrades() {
         <div class="trade-val">${entryLabel}</div>
         <div class="trade-val">${currentLabel}</div>
         <div>${t.stop_loss ? '<span class="stop-badge' + (stopTriggered ? ' triggered' : '') + '">' + stopLabel + (stopTriggered ? ' !' : '') + '</span>' : '<span style="color:var(--muted);font-size:0.65rem">—</span>'}</div>
-        <div class="trade-gl ${gl >= 0 ? 'positive' : 'negative'}">${gl >= 0 ? '+' : ''}$${Math.abs(gl).toFixed(2)} (${glPct >= 0 ? '+' : ''}${glPct.toFixed(2)}%)</div>
+        <div class="trade-gl ${gl >= 0 ? 'positive' : 'negative'}">${gl >= 0 ? '+' : ''}$${Math.abs(gl).toFixed(2)} (${glPct >= 0 ? '+' : ''}${glPct.toFixed(2)}%)${Number(t.banked_gl) ? '<div style="font-size:0.6rem;color:var(--muted);">' + (Number(t.banked_gl) >= 0 ? '+$' : '-$') + Math.abs(Number(t.banked_gl)).toFixed(2) + ' banked</div>' : ''}</div>
         ${t.type === 'crypto' && t.dex ? `<div style="font-size:0.65rem;color:var(--gold);font-family:'IBM Plex Mono',monospace;letter-spacing:0.08em;">${t.dex}${t.trading_pair ? ' · ' + t.trading_pair : ''}</div>` : '<div></div>'}
         <div style="font-size:0.65rem;font-family:'IBM Plex Mono',monospace;color:${(t.live_signal_quality||50) >= 60 ? 'var(--positive)' : (t.live_signal_quality||50) >= 40 ? 'var(--muted)' : 'var(--danger)'};">SQ: ${t.live_signal_quality || t.entry_signal_quality || '—'}/100</div>
         <button class="close-btn" onclick="closeTrade('${t.id}')">Close</button>
@@ -1642,7 +1771,7 @@ async function loadHistory() {
   // Analytics and the equity curve must reflect EVERY closed trade, not just
   // the visible page, so they are computed from a separate full fetch.
   const { data: allClosed } = await db.from('paper_trades')
-    .select('gain_loss, gain_loss_pct, entry_price, shares, commission, slippage_cost, status')
+    .select('*')
     .eq('status', 'closed')
     .order('closed_at', { ascending: false });
 
@@ -1825,7 +1954,9 @@ function computeAnalytics(trades) {
   const grossLoss  = Math.abs(losses.reduce((a, b) => a + b, 0));
   const profFactor = grossLoss > 0 ? grossWins / grossLoss : grossWins > 0 ? 999 : 0;
 
-  const totalComm  = trades.reduce((s, t) => s + (Number(t.commission) || 0), 0);
+  // Fees charged on each close; older rows recorded only a stock commission.
+  const totalComm  = trades.reduce((s, t) => s + (Number(t.fees_paid) > 0 ? Number(t.fees_paid)
+                       : (String(t.type).toLowerCase() === 'crypto' ? 0 : Number(t.commission) || 0)), 0);
   const totalSlip  = trades.reduce((s, t) => s + (Number(t.slippage_cost) || 0), 0);
 
   document.getElementById('win-rate').textContent   = Math.round(winRate * 100) + '%';
@@ -2653,25 +2784,20 @@ async function executeClose(id, trade) {
   const effectiveEntry = Number(trade.effective_entry || trade.entry_price);
   const shares        = Number(trade.shares);
   const direction     = (trade.direction || 'long').toLowerCase();
-  const slippageCost  = Number(trade.slippage_cost || 0);
-  const commissionCost = Number(trade.commission || 1.30);
 
-  let grossGL;
-  if (direction === 'long') {
-    grossGL = (currentPrice - effectiveEntry) * shares;
-  } else if (direction === 'short') {
-    grossGL = (effectiveEntry - currentPrice) * shares;
-  } else {
-    grossGL = (currentPrice - effectiveEntry) * shares;
-  }
-
-  const netGL    = grossGL - commissionCost - slippageCost;
-  const netGLPct = effectiveEntry > 0 ? (netGL / (effectiveEntry * shares)) * 100 : 0;
+  // Same costs as the monitor: exchange fees for crypto (a crypto close here
+  // used to be charged a stock's $1.30, since its commission of 0 read as
+  // missing), commission for stocks, and anything a scale-out banked earlier.
+  const fee      = tradeFee(trade, effectiveEntry, currentPrice, shares, await loadFeeRates());
+  const fig      = closeFigures(trade, effectiveEntry, currentPrice, shares, direction === 'short' ? 'short' : 'long', fee);
+  const grossGL  = fig.gross;
+  const netGL    = fig.net;
+  const netGLPct = fig.netPct;
 
   const swingExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
   const swingDirection = direction === 'long' ? 'short' : 'long';
 
-  await writeOrWarn('close trade', db.from('paper_trades').update({
+  await updateTradeRow('close trade', id, {
     status:          'closed',
     closed_at:       new Date().toISOString(),
     close_reason:    'manual_close',
@@ -2680,12 +2806,13 @@ async function executeClose(id, trade) {
     net_gain_loss:   parseFloat(netGL.toFixed(2)),
     gain_loss:       parseFloat(netGL.toFixed(2)),
     gain_loss_pct:   parseFloat(netGLPct.toFixed(4)),
+    fees_paid:       r2(fig.fees),
     swing_signal:    true,
     swing_direction: swingDirection,
     swing_expires_at: swingExpiry,
     swing_trigger:   'manual',
     swing_taken:     false,
-  }).eq('id', id));
+  });
 
   await updatePortfolioBalance();
   loadTrades();
@@ -2793,9 +2920,12 @@ async function takeSwing(originalId, swingDirection) {
     ? effectiveEntry * (1 + targetPct)
     : effectiveEntry * (1 - targetPct));
 
+  // After a scale-out only part of the position is left; the swing is sized as
+  // a whole position.
+  const fullShares = Number(orig.shares) + (Number(orig.scaled_shares) || 0);
   const { data: newTrade } = await db.from('paper_trades').insert({
     ticker:          orig.ticker,
-    shares:          orig.shares,
+    shares:          fullShares,
     direction:       swingDirection,
     strategy:        orig.strategy,
     instrument:      orig.instrument || 'stock',
@@ -2808,13 +2938,13 @@ async function takeSwing(originalId, swingDirection) {
     current_price:   effectiveEntry,
     stop_loss:       stop,
     target_price:    target,
-    position_value:  parseFloat((orig.shares * effectiveEntry).toFixed(2)),
+    position_value:  parseFloat((fullShares * effectiveEntry).toFixed(2)),
     gain_loss:       0,
     gain_loss_pct:   0,
     gross_gain_loss: 0,
     net_gain_loss:   0,
     unrealized_gl:   0,
-    slippage_cost:   parseFloat((slippageAmount * orig.shares).toFixed(4)),
+    slippage_cost:   parseFloat((slippageAmount * fullShares).toFixed(4)),
     commission:      orig.commission,
     slippage_pct:    orig.slippage_pct,
     note:            'Swing from ' + (orig.swing_trigger || 'close') + ' — ' + swingDirection.toUpperCase() + ' on ' + orig.ticker,
@@ -2852,12 +2982,14 @@ function dismissSwing(id) {
 // ── UPDATE PORTFOLIO BALANCE ──
 async function updatePortfolioBalance() {
   const { data: closed } = await db.from('paper_trades').select('gain_loss').eq('status', 'closed');
-  const { data: open }   = await db.from('paper_trades').select('unrealized_gl, gain_loss').eq('status', 'open');
+  const { data: open }   = await db.from('paper_trades').select('*').eq('status', 'open');
   const { data: port }   = await db.from('paper_portfolio').select('*').single();
   if (!port) return;
 
   const startBal    = Number(port.starting_balance) || 10000;
-  const realizedGL  = (closed || []).reduce((s, t) => s + Number(t.gain_loss || 0), 0);
+  // A scale-out's banked half is realized the moment it closes.
+  const realizedGL  = (closed || []).reduce((s, t) => s + Number(t.gain_loss || 0), 0) +
+                      (open || []).reduce((s, t) => s + Number(t.banked_gl || 0), 0);
   const unrealizedGL = (open  || []).reduce((s, t) => s + Number(t.unrealized_gl || t.gain_loss || 0), 0);
   const curBal      = startBal + realizedGL;
   const glPct       = startBal > 0 ? (realizedGL / startBal) * 100 : 0;
@@ -2940,6 +3072,7 @@ async function loadPositionAlerts() {
     const colors = {
       // Green: profit protected or banked. Gold: a swing. Red: a loss.
       stop_trailed:        'var(--positive)',
+      scaled_out:          'var(--positive)',
       trailing_stop:       'var(--positive)',
       target_reached:      'var(--positive)',
       swing_reversal:      'var(--gold)',
@@ -3408,6 +3541,322 @@ async function loadExperiment() {
   }
 }
 
+// ══════════════════════════════════════════════════════════════════
+// EXITS & FEES
+//
+// Which exit rule is in force, how many trades have closed under it, and what
+// this account pays in fees — and the replay, which walks every closed trade
+// through its real hourly prices under each rule, managed the way the monitor
+// manages a position, with fees. Losses are the same under every rule; the
+// replay shows which rule makes the most of the winners on your own trades.
+// ══════════════════════════════════════════════════════════════════
+const EXIT_RULE_SAMPLE = 50;     // trades to leave a rule alone for before judging it
+let replayPaths = {};            // trade id → [[ms, price], …], kept for this visit
+let replayKeyed = null;          // whether market-proxy has a CoinGecko key
+let lastReplay  = null;
+
+function money2(n) {
+  return (n >= 0 ? '+$' : '-$') + Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+async function loadExitRule() {
+  try {
+    const { data } = await db.from('trading_settings').select('*').limit(1);
+    const row = data && data[0];
+    exitRuleReady  = !!row && ('exit_rule' in row);
+    activeExitRule = row && EXIT_RULES[row.exit_rule] ? row.exit_rule : 'now';
+    exitRuleSince  = row && row.exit_rule_since ? row.exit_rule_since : null;
+  } catch (e) { exitRuleReady = false; }
+  await renderExitStatus();
+}
+
+async function renderExitStatus() {
+  const box = document.getElementById('exit-status');
+  if (!box) return;
+  const lines = ['<div><strong>In force:</strong> ' + expEsc(EXIT_RULE_NAMES[activeExitRule]) +
+    (exitRuleSince ? ' · since ' + parseDbTime(exitRuleSince).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '') + '</div>'];
+  if (exitRuleSince) {
+    try {
+      const { data } = await db.from('paper_trades').select('id').eq('status', 'closed')
+        .gte('opened_at', parseDbTime(exitRuleSince).toISOString());
+      const n = (data || []).length;
+      lines.push('<div>Closed under it: ' + n + ' of ' + EXIT_RULE_SAMPLE + (n >= EXIT_RULE_SAMPLE
+        ? ' — enough to judge it.'
+        : ' — leave it alone until ' + EXIT_RULE_SAMPLE + ' have closed, then judge it.') + '</div>');
+    } catch (e) {}
+  }
+  const rates = await loadFeeRates();
+  lines.push('<div>Fees: Kraken Pro tier ' + rates.tier + ' — ' + rates.spot + '% a side on longs (spot), ' + rates.perp +
+    '% on shorts (futures). Spot traded in the last 30 days: $' + Math.round(rates.volume).toLocaleString('en-US') + '.</div>');
+  if (!exitRuleReady) {
+    lines.push('<div style="color:var(--gold);">Run add_exit_rules_and_fees.sql in Supabase to switch rules and record fees.</div>');
+  }
+  box.innerHTML = lines.join('');
+}
+
+async function setExitRule(key) {
+  if (!EXIT_RULES[key] || key === activeExitRule) return;
+  if (!exitRuleReady) { alert('Run add_exit_rules_and_fees.sql in Supabase first.'); return; }
+  if (!confirm('Switch exits to: ' + EXIT_RULE_NAMES[key] + '?\n\nOpen positions follow it from the monitor\'s next check, and their stops only ever tighten. ' +
+               'The count of trades under the rule starts again from now.')) return;
+  const { data } = await db.from('trading_settings').select('id').limit(1);
+  if (!data || !data.length) return;
+  const since = new Date().toISOString();
+  const res = await writeOrWarn('exit rule', db.from('trading_settings')
+    .update({ exit_rule: key, exit_rule_since: since }).eq('id', data[0].id));
+  if (res.ok) { activeExitRule = key; exitRuleSince = since; }
+  await renderExitStatus();
+  if (lastReplay) renderReplay(lastReplay);
+}
+
+// The levels a trade opened with. Its stop has usually moved since, but its
+// target never does, and the target sits R:R times the original stop distance
+// from entry — so the original stop is recovered from it.
+function replayLevels(t) {
+  const d = String(t.direction || 'long').toLowerCase();
+  if (d !== 'long' && d !== 'short') return null;           // options are priced off a contract, not the coin
+  const entry = Number(t.effective_entry || t.entry_price) || 0;
+  const tgt   = Number(t.target_price) || 0;
+  const rrM   = /R:R\s*([\d.]+)/.exec(String(t.note || ''));
+  const rr    = rrM && Number(rrM[1]) > 0 ? Number(rrM[1]) : 2;
+  let vol  = Number(t.entry_volatility_pct) || 0;
+  let dist = tgt > 0 && entry > 0 ? Math.abs(tgt - entry) / rr : 0;
+  if (!(dist > 0) && vol > 0) dist = entry * 2 * vol / 100;
+  if (!(vol > 0) && dist > 0) vol = dist / entry * 100 / 2;
+  if (!(entry > 0) || !(dist > 0) || !(vol > 0)) return null;
+  return { entry, dir: d, vol, stop: d === 'long' ? entry - dist : entry + dist, target: tgt > 0 ? tgt : null };
+}
+
+// One trade under one rule, in the monitor's order: the timeouts, then the
+// rule's scale-out and stop, then the stop and target. Prices are hourly, so a
+// touch inside an hour is missed — the same for every rule.
+function replayTrade(t, path, ruleKey, rates) {
+  const L = replayLevels(t);
+  if (!L) return null;
+  const rule = EXIT_RULES[ruleKey];
+  const { entry, dir, vol } = L;
+  const isLong = dir === 'long';
+  const openMs = parseDbTime(t.opened_at).getTime();
+  const isSwing = String(t.strategy || 'swing').toLowerCase() === 'swing';
+  const STALE_H = isSwing ? 168 : 48, STALE_MOVE = isSwing ? 3.0 : 1.5, HARD_H = STALE_H * 2;
+  const crypto = String(t.type).toLowerCase() === 'crypto';
+  const full = Number(t.shares) + (Number(t.scaled_shares) || 0);
+  const tgt = rule.target ? L.target : null;
+  const move = px => (isLong ? px - entry : entry - px) / entry * 100;
+  let shares = full, stop = L.stop, banked = 0, fees = 0, scaled = false;
+  let exitPx = null, reason = 'open', lastPx = entry;
+  for (const [ms, px] of path) {
+    if (!(ms > openMs) || !(px > 0)) continue;
+    lastPx = px;
+    const g = move(px), ageH = (ms - openMs) / 3600000;
+    if ((ageH >= STALE_H && Math.abs(g) < STALE_MOVE && g < 0.5) || ageH >= HARD_H) {
+      exitPx = px; reason = ageH >= HARD_H ? 'max_hold' : 'stale_timeout'; break;
+    }
+    const plan = manageExit(rule, dir, entry, vol, px, scaled);
+    if (plan.scale) {
+      const sell = crypto ? Math.round(shares * SCALE_FRACTION * 1e6) / 1e6 : Math.floor(shares * SCALE_FRACTION);
+      if (sell > 0 && sell < shares) {
+        const fee = tradeFee(t, entry, px, sell, rates, true);
+        banked += (isLong ? px - entry : entry - px) * sell - fee;
+        fees   += fee;
+        shares  = Math.round((shares - sell) * 1e6) / 1e6;
+      }
+      scaled = true;
+    }
+    if (plan.stop !== null) {
+      const ns = roundPrice(plan.stop);
+      if ((isLong ? ns > stop : ns < stop) && Math.abs(ns - stop) > px * 0.001) stop = ns;
+    }
+    if (isLong ? px <= stop : px >= stop) {
+      const past = (isLong ? stop - px : px - stop) / stop * 100;
+      exitPx = past > 2 ? px : stop;            // a gap past the stop fills at the price, as in the monitor
+      reason = (isLong ? stop >= entry : stop <= entry) ? 'trailing_stop' : 'stop';
+      break;
+    }
+    if (tgt !== null && (isLong ? px >= tgt : px <= tgt)) { exitPx = tgt; reason = 'target'; break; }
+  }
+  const still = exitPx === null;
+  const px = still ? lastPx : exitPx;
+  const fig = closeFigures({ banked_gl: banked, fees_paid: fees, slippage_cost: t.slippage_cost, scaled_shares: full - shares },
+                           entry, px, shares, dir, tradeFee(t, entry, px, shares, rates));
+  return { net: fig.net, fees: fig.fees, reason, still, scaled };
+}
+
+// A closed trade's prices from the hour it opened, far enough ahead for any
+// rule to finish — the longest hold the monitor allows — or up to now.
+async function replayPath(t) {
+  if (replayPaths[t.id]) return replayPaths[t.id];
+  const openMs = parseDbTime(t.opened_at).getTime();
+  const isSwing = String(t.strategy || 'swing').toLowerCase() === 'swing';
+  const endMs = Math.min(openMs + ((isSwing ? 336 : 96) + 1) * 3600000, Date.now());
+  const call = async body => {
+    const res = await fetchWithTimeout(MARKET_PROXY_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + GOVERNOR_ANON_KEY },
+      body: JSON.stringify(body),
+    }, 60000);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || data.error || data.status === 'error') {
+      throw new Error(data.error || data.message || ('market-proxy returned HTTP ' + res.status));
+    }
+    return data;
+  };
+  let path = [];
+  if (String(t.type).toLowerCase() === 'crypto') {
+    const id = t.coingecko_id || COINGECKO_IDS_FULL[String(t.ticker).toUpperCase()];
+    if (!id) throw new Error('no CoinGecko id');
+    const data = await call({ endpoint: 'coingecko_range', id, from: Math.floor(openMs / 1000) - 3600, to: Math.floor(endMs / 1000) });
+    replayKeyed = !!data.keyed;
+    path = (data.prices || []).map(p => [Number(p[0]), Number(p[1])]);
+    // A keyed proxy may ask 100 times a minute; a keyless one only a handful.
+    await new Promise(r => setTimeout(r, replayKeyed ? 400 : 2500));
+  } else {
+    await twelvePace(1);
+    const day = ms => new Date(ms).toISOString().slice(0, 10);
+    const data = await call({ endpoint: 'twelve_time_series', symbol: String(t.ticker).toUpperCase(), interval: '1h',
+                              start_date: day(openMs), end_date: day(endMs + 86400000), outputsize: 500 });
+    // An hourly bar's close is the price at the end of its hour.
+    path = (data.values || []).map(v => [Date.parse(String(v.datetime).replace(' ', 'T') + 'Z') + 3600000, Number(v.close)]);
+  }
+  path = path.filter(p => p[0] > 0 && p[1] > 0 && p[0] <= endMs).sort((a, b) => a[0] - b[0]);
+  replayPaths[t.id] = path;
+  return path;
+}
+
+function buildReplay(items, rates, skipped, total) {
+  const sum = a => a.reduce((x, y) => x + y, 0);
+  const avg = a => a.length ? sum(a) / a.length : 0;
+  const rules = EXIT_RULE_ORDER.map(k => {
+    const res = items.map(it => replayTrade(it.t, it.path, k, rates)).filter(Boolean);
+    const nets = res.map(r => r.net), wins = nets.filter(n => n > 0), losses = nets.filter(n => n <= 0);
+    return { key: k, n: res.length, total: sum(nets), won: res.length ? wins.length / res.length : 0,
+             avgWin: avg(wins), avgLoss: avg(losses), fees: sum(res.map(r => r.fees)),
+             still: res.filter(r => r.still).length, scaled: res.filter(r => r.scaled).length };
+  });
+  // How far each trade went in its favour, and against it, while it was open.
+  const trades = items.map(it => {
+    const L = replayLevels(it.t);
+    const openMs = parseDbTime(it.t.opened_at).getTime();
+    const closeMs = it.t.closed_at ? parseDbTime(it.t.closed_at).getTime() : Date.now();
+    let best = 0, worst = 0;
+    it.path.forEach(([ms, px]) => {
+      if (ms <= openMs || ms > closeMs) return;
+      const g = (L.dir === 'long' ? px - L.entry : L.entry - px) / L.entry * 100;
+      best = Math.max(best, g); worst = Math.min(worst, g);
+    });
+    return { ticker: it.t.ticker, dir: L.dir, best, worst, days: best / L.vol, actual: Number(it.t.gain_loss) || 0, opened: openMs };
+  });
+  return { rules, trades, skipped, total, rates, actual: sum(trades.map(x => x.actual)), at: new Date() };
+}
+
+function renderReplay(r) {
+  const out = document.getElementById('replay-output');
+  if (!out) return;
+  const lead = r.rules.reduce((a, b) => (b.total > a.total ? b : a), r.rules[0]);
+  const html = [];
+  html.push('<div>Replayed ' + r.rules[0].n + ' of ' + r.total + ' closed trades through their hourly prices, with fees at tier ' + r.rates.tier + '.</div>');
+  html.push('<div style="color:#6B6560;">What they actually made: ' + money2(r.actual) + ' — recorded before crypto fees were charged.</div>');
+  r.rules.forEach(x => {
+    const tag = x.key === activeExitRule
+      ? '<span style="color:#6B6560; font-size:0.58rem; letter-spacing:0.12em;">IN FORCE</span>'
+      : (exitRuleReady ? '<button onclick="setExitRule(\'' + x.key + '\')" style="background:transparent; border:1px solid rgba(201,168,76,0.4); color:#C9A84C; font-family:\'IBM Plex Mono\',monospace; font-size:0.58rem; letter-spacing:0.12em; padding:0.2rem 0.55rem; cursor:pointer;">USE</button>' : '');
+    html.push(
+      '<div style="margin-top:0.6rem; border-top:1px solid rgba(107,101,96,0.25); padding-top:0.5rem; display:flex; justify-content:space-between; align-items:center; gap:0.5rem;">' +
+        '<span style="color:' + (x.key === lead.key ? 'var(--gold)' : '#B8B0A0') + ';">' + expEsc(EXIT_RULE_NAMES[x.key]) + '</span>' + tag + '</div>' +
+      '<div><span style="color:' + (x.total >= 0 ? 'var(--positive)' : 'var(--danger)') + ';">' + money2(x.total) + '</span> total · won ' +
+        Math.round(x.won * 100) + '% · average win ' + money2(x.avgWin) + ' · average loss ' + money2(x.avgLoss) + '</div>' +
+      '<div style="color:#6B6560;">fees $' + x.fees.toFixed(2) + (x.scaled ? ' · ' + x.scaled + ' banked a half' : '') +
+        (x.still ? ' · ' + x.still + ' still running, valued at the last price' : '') + '</div>');
+  });
+  const n = r.trades.length, reach = d => r.trades.filter(x => x.days >= d).length;
+  html.push('<div style="margin-top:0.7rem; border-top:1px solid rgba(107,101,96,0.25); padding-top:0.5rem;">How far your trades went your way while open: ' +
+    reach(0.5) + ' of ' + n + ' reached half a day&rsquo;s movement, ' + reach(1) + ' a full day, and ' + reach(2) +
+    ' two days &mdash; far enough to bank half under the scale-out rule.</div>');
+  html.push('<div style="max-height:220px; overflow-y:auto; -webkit-overflow-scrolling:touch; margin-top:0.3rem;">' +
+    r.trades.slice().sort((a, b) => b.opened - a.opened).map(x =>
+      '<div><span style="color:#B8B0A0;">' + expEsc(x.ticker) + ' ' + x.dir.toUpperCase() + '</span> best ' + expPct(x.best) +
+      ' (' + x.days.toFixed(1) + ' days) · worst ' + expPct(x.worst) + ' · <span style="color:' +
+      (x.actual >= 0 ? 'var(--positive)' : 'var(--danger)') + ';">' + money2(x.actual) + '</span></div>').join('') + '</div>');
+  if (r.skipped.length) html.push('<div style="color:#6B6560; margin-top:0.4rem;">Not replayed: ' + r.skipped.map(expEsc).join(' · ') + '</div>');
+  html.push('<div style="color:#6B6560; margin-top:0.4rem;">Hourly prices miss a touch inside an hour, for every rule alike. With a few dozen trades, a gap of a few dollars a trade is noise &mdash; switch only if one rule leads clearly, then leave it for ' + EXIT_RULE_SAMPLE + ' trades.</div>');
+  out.innerHTML = html.join('');
+  const cb = document.getElementById('replay-copy-btn');
+  if (cb) cb.style.display = 'inline-block';
+}
+
+function replayText(r) {
+  const L = ['AURUM exit replay — ' + r.at.toLocaleString(),
+             'Trades replayed: ' + r.rules[0].n + ' of ' + r.total + ' · fees at Kraken Pro tier ' + r.rates.tier +
+             ' (' + r.rates.spot + '% spot, ' + r.rates.perp + '% futures, a side)',
+             'Actual record, before crypto fees: ' + money2(r.actual), ''];
+  r.rules.forEach(x => L.push(EXIT_RULE_NAMES[x.key] + (x.key === activeExitRule ? '  [in force]' : '') + '\n  ' +
+    money2(x.total) + ' total · won ' + Math.round(x.won * 100) + '% · avg win ' + money2(x.avgWin) + ' · avg loss ' + money2(x.avgLoss) +
+    ' · fees $' + x.fees.toFixed(2) + (x.scaled ? ' · ' + x.scaled + ' banked a half' : '') + (x.still ? ' · ' + x.still + ' still running' : '')));
+  L.push('', 'Each trade — best and worst move while open, in % and days of movement, and what it made:');
+  r.trades.slice().sort((a, b) => b.opened - a.opened).forEach(x => L.push(x.ticker + ' ' + x.dir.toUpperCase() + '  best ' + expPct(x.best) +
+    ' (' + x.days.toFixed(1) + ' days)  worst ' + expPct(x.worst) + '  ' + money2(x.actual)));
+  if (r.skipped.length) L.push('', 'Not replayed: ' + r.skipped.join(', '));
+  return L.join('\n');
+}
+
+async function copyReplay() {
+  if (!lastReplay) return;
+  const btn = document.getElementById('replay-copy-btn');
+  const text = replayText(lastReplay);
+  let ok = false;
+  try { await navigator.clipboard.writeText(text); ok = true; }
+  catch (e) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:50vh;z-index:3000;background:#080808;color:#F0EDE6;font-size:0.7rem;';
+    document.body.appendChild(ta);
+    ta.focus(); ta.select();
+    try { ok = document.execCommand('copy'); } catch (e2) {}
+    setTimeout(function(){ ta.remove(); }, ok ? 300 : 15000);
+  }
+  if (btn) { btn.textContent = ok ? 'COPIED' : 'SELECT AND COPY'; setTimeout(function(){ btn.textContent = 'COPY'; }, 2500); }
+}
+
+async function runExitReplay() {
+  const btn = document.getElementById('replay-btn'), out = document.getElementById('replay-output');
+  if (!btn || !out) return;
+  btn.disabled = true; btn.textContent = 'REPLAYING...';
+  try {
+    const { data, error } = await db.from('paper_trades').select('*').eq('status', 'closed').order('opened_at', { ascending: true });
+    if (error) throw error;
+    const closed = (data || []).filter(t => t.opened_at);
+    const rates = await loadFeeRates();
+    const items = [], skipped = [];
+    for (let i = 0; i < closed.length; i++) {
+      const t = closed[i];
+      if (!replayLevels(t)) {
+        const d = String(t.direction || '').toLowerCase();
+        skipped.push(t.ticker + (d === 'long' || d === 'short' ? ' (no stop or volatility on record)' : ' (options)'));
+        continue;
+      }
+      out.innerHTML = '<div>Reading price history ' + (i + 1) + ' of ' + closed.length + ' — ' + expEsc(t.ticker) + '&hellip;</div>' +
+        (replayKeyed === false ? '<div style="color:#6B6560;">market-proxy has no CoinGecko key, so this runs at about 3 seconds a trade.</div>' : '');
+      try {
+        const path = await replayPath(t);
+        if (path.length < 2) throw new Error('no prices returned');
+        items.push({ t, path });
+      } catch (e) { skipped.push(t.ticker + ' (' + ((e && e.message) || 'failed') + ')'); }
+    }
+    if (!items.length) {
+      out.innerHTML = '<span style="color:#6B6560;">' + (closed.length
+        ? 'No trade could be replayed. ' + skipped.slice(0, 4).map(expEsc).join(' · ')
+        : 'No closed trades yet.') + '</span>';
+      return;
+    }
+    lastReplay = buildReplay(items, rates, skipped, closed.length);
+    renderReplay(lastReplay);
+  } catch (e) {
+    out.innerHTML = '<span style="color:var(--danger);">Replay failed: ' + expEsc((e && e.message) || String(e)) + '</span>';
+  } finally {
+    btn.disabled = false; btn.textContent = 'REPLAY MY TRADES';
+  }
+}
+
 async function collectDiagnostics() {
   const issues = [];
   const out = [];
@@ -3507,8 +3956,10 @@ async function collectDiagnostics() {
         : 'all valid'));
   if (badStops.length) issues.push('bad_stops');
 
-  // 6. Accounting identity: cash + deployed = start + realised
-  const realized = (closedT || []).reduce((a, t) => a + Number(t.gain_loss || 0), 0);
+  // 6. Accounting identity: cash + deployed = start + realised. A scale-out's
+  //    banked half is realised while the rest of its position is still open.
+  const realized = (closedT || []).reduce((a, t) => a + Number(t.gain_loss || 0), 0) +
+                   open.reduce((a, t) => a + Number(t.banked_gl || 0), 0);
   const deployed = open.reduce((a, t) =>
     a + (Number(t.effective_entry || t.entry_price) || 0) * (Number(t.shares) || 0), 0);
   const expectedBal = startBal + realized;
@@ -3615,12 +4066,13 @@ async function runRecalibration() {
 
     // Rebuild the portfolio from what the trades actually say
     const { data: closed } = await db.from('paper_trades').select('gain_loss').eq('status', 'closed');
-    const { data: openNow } = await db.from('paper_trades').select('unrealized_gl, gain_loss').eq('status', 'open');
+    const { data: openNow } = await db.from('paper_trades').select('*').eq('status', 'open');
     const { data: pf } = await db.from('paper_portfolio').select('*').limit(1);
 
     if (pf && pf.length) {
       const startBal   = Number(pf[0].starting_balance) || 10000;
-      const realized   = (closed  || []).reduce((a, t) => a + Number(t.gain_loss || 0), 0);
+      const realized   = (closed  || []).reduce((a, t) => a + Number(t.gain_loss || 0), 0) +
+                         (openNow || []).reduce((a, t) => a + Number(t.banked_gl || 0), 0);
       const unrealized = (openNow || []).reduce((a, t) => a + Number(t.unrealized_gl ?? t.gain_loss ?? 0), 0);
       await db.from('paper_portfolio').update({
         realized_gl:      Math.round(realized * 100) / 100,
@@ -5771,6 +6223,7 @@ loadLiveArmed();
 loadPhysicsSetting();
 checkOutcomeHealthOnOpen();
 loadExperiment();
+loadExitRule();
 </script>
 
 <script src="tickers.js"></script>
