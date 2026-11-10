@@ -615,7 +615,7 @@
         <div class="faq-question-text">What do position alerts mean?</div>
         <div class="faq-icon">+</div>
       </div>
-      <div class="faq-answer">Notices from the position monitor: stop or target hit, stop trailed, stale timeout, swing reversal, or a price it could not fetch. They show in every scoring mode, in a scrollable box with a count and a DELETE ALL button, each labelled and colour-coded: <strong>green</strong> when a stop has been raised or profit banked (<em>STOP TRAILED</em>, <em>TRAILING STOP</em>, <em>TARGET REACHED</em>), <strong>gold</strong> for a swing (<em>SWING REVERSAL</em>), <strong>red</strong> for a loss. These are how the system tells you where your stops are moving and when to swing. Momentary &ldquo;price unavailable&rdquo; misses are left out, since the monitor retries and falls back on its own — System Diagnostics &rarr; SCAN checks for any position that genuinely can&rsquo;t be priced.</div>
+      <div class="faq-answer">Notices from the position monitor: stop or target hit, stop trailed, stale timeout, swing reversal, or a price it could not fetch. They show in every scoring mode, in a scrollable box with a count and a DELETE ALL button, each labelled and colour-coded: <strong>green</strong> when a stop has been raised or profit banked (<em>STOP TRAILED</em>, <em>SCALED OUT</em>, <em>TRAILING STOP</em>, <em>TARGET REACHED</em>), <strong>gold</strong> for a swing (<em>SWING REVERSAL</em>), <strong>red</strong> for a loss. These are how the system tells you where your stops are moving and when to swing. Momentary &ldquo;price unavailable&rdquo; misses are left out, since the monitor retries and falls back on its own — System Diagnostics &rarr; SCAN checks for any position that genuinely can&rsquo;t be priced.</div>
     </div>
 
 
@@ -624,7 +624,7 @@
         <div class="faq-question-text">What does the MARKET REGIME switch do?</div>
         <div class="faq-icon">+</div>
       </div>
-      <div class="faq-answer">It stops the system buying longs while the whole market is falling. Before each crypto scan it checks <strong>BTC and ETH</strong> — BTC leads the market, ETH leads the altcoins. While <strong>either</strong> is in a confirmed downtrend (price at least 2% below its 50-day average, the 20-day below the 50-day and still falling), no new longs open. Shorts carry on, since a downtrend is when they should work. Each scan logs what BTC and ETH are reading. On October 27 the scan opened ten longs while ETH was in a confirmed downtrend, and most were stopped out; with this on, it would have opened only the two shorts. <strong>It starts OFF</strong>, for one honest reason: crypto has been in a bear market for a year, and your September record of 79% was made inside it. Whether this would have blocked those winners too is untested — so turn it on, watch what the log says it pauses, and turn it off if it&rsquo;s holding back longs that look strong.</div>
+      <div class="faq-answer">It stops the system buying longs while the whole market is falling. Before each crypto scan it checks <strong>BTC and ETH</strong> — BTC leads the market, ETH leads the altcoins. While <strong>either</strong> is in a confirmed downtrend (price at least 2% below its 50-day average, the 20-day below the 50-day and still falling), no new longs open. Shorts carry on, since a downtrend is when they should work. Each scan logs what BTC and ETH are reading. On October 27 the scan opened ten longs while ETH was in a confirmed downtrend, and most were stopped out; with this on, it would have opened only the two shorts. <strong>It is now ON</strong> — <span class="mono">add_exit_rules_and_fees.sql</span> switched it on, since seven of the eight biggest losses in late October were longs bought while the market was falling. One honest caveat: your September record of 79% was made inside the same bear market, and whether this would have blocked those winners too is untested — watch what the log says it pauses, and turn it off if it&rsquo;s holding back longs that look strong.</div>
     </div>
 
     <div class="faq-item" data-keywords="background experiment fast coin shorts shadow test theory">
@@ -717,7 +717,31 @@
         <div class="faq-question-text">What is the trailing stop?</div>
         <div class="faq-icon">+</div>
       </div>
-      <div class="faq-answer">Once a position is up <strong>half a day&rsquo;s normal movement</strong>, its stop moves to <strong>breakeven</strong>, then follows the price <strong>half a day&rsquo;s movement behind</strong>. It only ever tightens, so a position that has gained can no longer turn into a loss. On a coin moving 3.82% a day it activates at <span class="mono">+1.91%</span> and trails 1.91% behind. Shorts work the same way in reverse. It runs in every mode.</div>
+      <div class="faq-answer">It follows the <strong>exit rule</strong> in force (next question). Under the current rule, once a position is up <strong>half a day&rsquo;s normal movement</strong>, its stop moves to <strong>breakeven</strong>, then follows the price <strong>half a day&rsquo;s movement behind</strong>. It only ever tightens, so a position that has gained can no longer turn into a loss before fees. On a coin moving 3.82% a day it activates at <span class="mono">+1.91%</span> and trails 1.91% behind. Shorts work the same way in reverse. It runs in every mode.</div>
+    </div>
+
+    <div class="faq-item" data-keywords="exit rule rules scale out bank half let winners run wide trail choose">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">What are the exit rules, and how do I choose one?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">Every rule keeps the original stop, two days&rsquo; movement from entry, so a losing trade costs the same under all of them. They differ in how a winner is handled. <strong>Current</strong> — breakeven at half a day&rsquo;s movement, then trails half a day behind; the 2:1 target closes it. <strong>Wide trail</strong> — breakeven at one day&rsquo;s movement, then trails a day and a half behind; the target closes it. <strong>Scale out</strong> — breakeven at one day&rsquo;s movement; at two days&rsquo; movement, as much as the trade risked, <strong>half is closed and banked</strong>, and the rest trails a day and a half behind with no target, so a big move keeps paying. The banked half counts in your balance at once. <strong>No trailing</strong> — the original stop and target only. Choose in <strong>Exits &amp; Fees</strong> on the Simulator: run the replay, and tap <strong>USE</strong> on a rule only if it clearly leads on your own trades. Open positions follow a new rule from the monitor&rsquo;s next check. Then leave it alone until 50 trades have closed under it — the panel counts them. Changing rules sooner means no rule is ever judged on enough trades.</div>
+    </div>
+
+    <div class="faq-item" data-keywords="replay exit replay history hourly prices best move favour">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">What does the exit replay show?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer"><strong>REPLAY MY TRADES</strong> fetches each closed trade&rsquo;s real hourly prices from the hour it opened and walks it through every exit rule the way the position monitor manages a position — timeouts, stops, scale-outs and targets — with fees. For each rule it shows the total, the win rate, the average win and the average loss; the leader is in gold. It also lists how far each trade went your way while it was open, in percent and in days of movement: if few trades ever reach two days&rsquo; movement, scaling out rarely triggers. Hourly prices miss a touch inside an hour, the same for every rule, and with a few dozen trades a gap of a few dollars a trade is noise. Prices come through <em>market-proxy</em>; with a CoinGecko key set there it takes under a minute, without one about 3 seconds a trade. <strong>COPY</strong> copies the results as text.</div>
+    </div>
+
+    <div class="faq-item" data-keywords="fees cost commission kraken spot futures taker tier">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">What do trades cost?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">What a real exchange would charge, taken off each trade when it closes, for the way in and the way out. Rates are <strong>Kraken Pro&rsquo;s</strong> taker rates — what an order pays when it fills at once, as a stop does. Crypto <strong>longs</strong> are spot trades: <span class="mono">0.80%</span> a side for a new account, <span class="mono">0.60%</span> from $2,500 of spot trading in 30 days, <span class="mono">0.38%</span> from $10,000, and lower with more volume. Crypto <strong>shorts</strong> are perpetual futures, the regulated way to short crypto in the US: <span class="mono">0.05%</span> a side, falling with the same tiers. The tier comes from this account&rsquo;s own spot trading over the last 30 days, shown in <strong>Exits &amp; Fees</strong>. At the first tier a $500 long costs about $8 to open and close, and a $500 short about $0.50. Futures funding payments are not included. Stocks keep their commission of $0.65 an order. Crypto trades used to be recorded with no fees at all, which made every result look better than real money would have done. <strong>Trading Fees</strong> in Performance Analytics and the PDF report show the total.</div>
     </div>
 
     <div class="faq-item" data-keywords="stale timeout close going nowhere 168 48 hours">
@@ -749,7 +773,7 @@
         <div class="faq-question-text">What do the close reasons mean?</div>
         <div class="faq-icon">+</div>
       </div>
-      <div class="faq-answer"><strong>target_reached</strong> — hit its target. <strong>stop_loss_triggered</strong> — hit its original stop, a loss. <strong>trailing_stop</strong> — gained, then turned, and the trailed stop closed it. <strong>stale_timeout</strong> — flat past the stale window. <strong>max_hold</strong> — reached two weeks. <strong>swing_review</strong> — closed by Swing mode to reverse. <strong>manual_close</strong> — closed by you.</div>
+      <div class="faq-answer"><strong>target_reached</strong> — hit its target. <strong>stop_loss_triggered</strong> — hit its original stop, a loss. <strong>trailing_stop</strong> — gained, then turned, and the trailed stop closed it. <strong>stale_timeout</strong> — flat past the stale window. <strong>max_hold</strong> — reached two weeks. <strong>swing_review</strong> — closed by Swing mode to reverse. <strong>manual_close</strong> — closed by you. A position that <strong>scaled out</strong> keeps its final reason; the half banked earlier is included in its result, and a <em>SCALED OUT</em> alert marks when it happened.</div>
     </div>
 
   </div>
