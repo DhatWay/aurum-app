@@ -5935,9 +5935,14 @@ async function runLongShortCycle(manualTrigger) {
     // closed hit its stop — TRUMP, DASH, RENDER — while three of the four
     // scoring 60+ held. Those were flagged as marginal before they ran. The
     // contract is left alone, so the normal long-only scan is unchanged.
-    const longPool = (regime && regime.longsPaused) ? [] : quality.filter(c => c.composite >= LS_LONG_MIN && c.composite > lim.direction)
+    // A coin that reads bullish is never shorted, whether or not longs are
+    // paused. The pause used to empty this list before it screened the shorts,
+    // so while BTC and ETH were falling a coin reading bullish could be
+    // shorted — ETHFI at C61 on Nov 10.
+    const bullish  = quality.filter(c => c.composite >= LS_LONG_MIN && c.composite > lim.direction)
                             .sort((a, b) => b.composite - a.composite);
-    const longSet  = new Set(longPool.map(c => c.ticker));
+    const longPool = (regime && regime.longsPaused) ? [] : bullish;
+    const longSet  = new Set(bullish.map(c => c.ticker));
     const shortPool = quality.filter(c => c.shortSetup && c.shortSetup.qualifies && !longSet.has(c.ticker))
                              .sort((a, b) => b.shortSetup.score - a.shortSetup.score);
     const longs  = longPool.slice(0, needLong);
@@ -5971,7 +5976,8 @@ async function runLongShortCycle(manualTrigger) {
       return Math.min(basePct * Math.min(Math.max(LS_REF_VOL / vol, 0.5), 2.0), MAX_POSITION_PCT);
     };
 
-    autoLog('Scored ' + quality.length + ' — ' + longPool.length + ' read bullish, ' + shortPool.length +
+    autoLog('Scored ' + quality.length + ' — ' + bullish.length + ' read bullish' +
+            (bullish.length && !longPool.length ? ' (longs paused, and not shorted)' : '') + ', ' + shortPool.length +
             ' in a confirmed downtrend. Opening ' + longs.length + ' long, ' + shorts.length + ' short.' +
             (topRefusals ? ' Not shorted: ' + topRefusals + '.' : ''));
     if (!picked.length) {
