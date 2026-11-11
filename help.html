@@ -780,6 +780,67 @@
 
   <div class="gold-rule"></div>
 
+  <div class="help-section" id="section-books">
+    <div class="help-section-title">Platform <em>Books</em></div>
+
+    <div class="faq-item" data-keywords="books kraken coinbase platform dual paper account">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">What are the Kraken and Coinbase books?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">Two more paper accounts that run beside your main book, showing what the system would do on each platform. Each starts with its own <strong>$10,000</strong>, buys only coins its platform lists against US dollars, and pays that platform&rsquo;s fees. Both are <strong>longs only</strong> &mdash; shorting on either platform needs margin or futures approval. Your main book is unchanged. See them on the <strong>Books</strong> page.</div>
+    </div>
+
+    <div class="faq-item" data-keywords="books open picks scan bar long same scores">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">How do the books pick their positions?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">From the same scans as the main book. When the Simulator scans, each book takes the best longs from the same scores using the swing-long rule: a composite of at least 60, inside the volatility band, decent data, and no new longs while MARKET REGIME reads a downtrend. A coin the main book already holds can still be bought by a book. Each book has ten slots and its own cash, and positions are sized for equal risk, as the main book&rsquo;s are.</div>
+    </div>
+
+    <div class="faq-item" data-keywords="books fees kraken coinbase tier commission stocks">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">What does each book pay in fees?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">Crypto pays each platform&rsquo;s taker fee on the way in and the way out. <strong>Kraken:</strong> 0.80% a side, 0.60% from $2,500 of monthly volume, 0.38% from $10,000. <strong>Coinbase Advanced:</strong> 0.90% a side, 0.75% from $10,000, 0.30% from $50,000. Each book&rsquo;s own 30-day crypto volume sets its tier. Both platforms trade US stocks commission-free, so stock trades in the books pay no fee.</div>
+    </div>
+
+    <div class="faq-item" data-keywords="books switch toggle on off stop">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">What does switching a book off do?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">It stops that book opening anything new. Positions it already holds are still managed by the position monitor &mdash; stops, trailing and timeouts &mdash; until they close. Switch it back on and it fills again at the next scan.</div>
+    </div>
+
+    <div class="faq-item" data-keywords="books manage monitor exit rule stop trailing">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">How are book positions managed?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">By the same position monitor as the main book, every run, with the same exit rule, stops, trailing, gap protection and timeouts. Swing reviews and reversals don&rsquo;t apply, since the books hold longs only.</div>
+    </div>
+
+    <div class="faq-item" data-keywords="books coin list check listed kraken coinbase georgia">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">How do the books know which coins each platform lists?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">From each platform&rsquo;s own public list, read through market-proxy and refreshed every six hours. Kraken&rsquo;s list is filtered to what a Georgia account may trade. <strong>CHECK COIN LISTS</strong> on the Books page shows how many coins each list holds. If a list can&rsquo;t be read, that book opens nothing until it can.</div>
+    </div>
+
+    <div class="faq-item" data-keywords="books setup sql not set up empty">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">The Books page says the books aren't set up.</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">Run <strong>create_platform_books.sql</strong> in Supabase &rarr; SQL Editor, then refresh. It creates the two book tables beside your main ones and leaves the main ones alone.</div>
+    </div>
+
+  </div>
+
   <div class="help-section" id="section-swing">
     <div class="help-section-title">Swing Mode — <em>Long / Short</em></div>
 
