@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AURUM — Platform Books</title>
+<link rel="manifest" href="/aurum-app/manifest.json">
+<meta name="theme-color" content="#C9A84C">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;600&family=DM+Sans:wght@300;400;500&family=IBM+Plex+Mono:wght@300;400&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="auth-guard.js"></script>
+<style>
+:root {
+  --black: #080808;
+  --panel: #0E0E0D;
+  --gold: #C9A84C;
+  --white: #F0EDE6;
+  --muted: #6B6560;
+  --danger: #B5534F;
+  --positive: #5E9C6E;
+  --rule: rgba(201,168,76,0.2);
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: var(--black); color: var(--white); font-family: 'DM Sans', sans-serif; min-height: 100vh; }
+nav { display: flex; gap: 1.2rem; overflow-x: auto; padding: 0.9rem 1.2rem; border-bottom: 1px solid var(--rule); }
+nav a { color: var(--muted); text-decoration: none; font-size: 0.72rem; letter-spacing: 0.15em; text-transform: uppercase; white-space: nowrap; }
+nav a.active { color: var(--gold); }
+main { max-width: 980px; margin: 0 auto; padding: 1.4rem 1.1rem 4rem; }
+h1 { font-family: 'Cormorant Garamond', serif; font-weight: 300; font-size: 2.1rem; color: var(--gold); }
+.sub { color: var(--muted); font-size: 0.85rem; line-height: 1.5; margin: 0.4rem 0 1.4rem; }
+.label { font-family: 'IBM Plex Mono', monospace; font-size: 0.62rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--gold); }
+.mono { font-family: 'IBM Plex Mono', monospace; }
+.notice { border: 1px solid var(--rule); padding: 0.9rem 1rem; font-size: 0.82rem; line-height: 1.5; margin-bottom: 1.2rem; display: none; }
+.notice.warn { border-color: rgba(181,83,79,0.5); color: #E3B2AF; }
+.cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.8rem; margin-bottom: 1.6rem; }
+@media (max-width: 720px) { .cards { grid-template-columns: 1fr; } }
+.card { border: 1px solid var(--rule); background: var(--panel); padding: 1rem; }
+.card-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.7rem; }
+.card-name { font-family: 'Cormorant Garamond', serif; font-size: 1.35rem; }
+.big { font-family: 'IBM Plex Mono', monospace; font-size: 1.35rem; }
+.row { display: flex; justify-content: space-between; font-size: 0.8rem; padding: 0.22rem 0; color: var(--white); }
+.row span:first-child { color: var(--muted); }
+.pos { color: var(--positive); } .neg { color: var(--danger); } .dim { color: var(--muted); }
+button { background: transparent; border: 1px solid rgba(201,168,76,0.35); color: var(--gold); font-family: 'DM Sans', sans-serif;
+         font-size: 0.68rem; letter-spacing: 0.15em; padding: 0.45rem 0.8rem; cursor: pointer; text-transform: uppercase; }
+button:disabled { opacity: 0.4; cursor: default; }
+.toggle.off { color: var(--muted); border-color: rgba(107,101,96,0.45); }
+.bar { display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: center; margin-bottom: 1.4rem; }
+.bar .dim { font-size: 0.75rem; }
+section.book { margin-bottom: 2rem; }
+section.book h2 { font-family: 'Cormorant Garamond', serif; font-weight: 400; font-size: 1.5rem; margin-bottom: 0.6rem; }
+table { width: 100%; border-collapse: collapse; margin: 0.4rem 0 1rem; }
+th { text-align: left; font-family: 'IBM Plex Mono', monospace; font-size: 0.58rem; letter-spacing: 0.14em; text-transform: uppercase;
+     color: var(--muted); font-weight: 400; padding: 0.4rem 0.3rem; border-bottom: 1px solid var(--rule); }
+td { font-size: 0.78rem; padding: 0.45rem 0.3rem; border-bottom: 1px solid rgba(201,168,76,0.08); vertical-align: top; }
+td.num, th.num { text-align: right; font-family: 'IBM Plex Mono', monospace; }
+.empty { color: var(--muted); font-size: 0.8rem; padding: 0.5rem 0 1rem; }
+</style>
+</head>
+<body>
+<nav>
+  <a href="simulator.html">Simulator</a>
+  <a href="books.html" class="active">Books</a>
+  <a href="report.html">Report</a>
+  <a href="help.html">Help</a>
+</nav>
+
+<main>
+  <h1>Platform Books</h1>
+  <p class="sub">What the system would do on Kraken and on Coinbase, on paper, beside your main book. Same picks, but each
+    book only buys coins its platform lists, pays that platform's fees and keeps its own $10,000. Longs only.
+    The Simulator opens their positions when it scans; the position monitor manages them with the same exit rule.</p>
+
+  <div id="notice" class="notice"></div>
+
+  <div class="bar">
+    <button id="refresh-btn" onclick="loadAll()">Refresh</button>
+    <button id="lists-btn" onclick="checkLists()">Check coin lists</button>
+    <span id="lists-out" class="dim"></span>
+  </div>
+
+  <div class="cards" id="cards"></div>
+
+  <section class="book" id="book-kraken"></section>
+  <section class="book" id="book-coinbase"></section>
+</main>
+
+<script>
+const SUPABASE_URL = 'https://zpcbbwynvvyldavxzjng.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_K80lcfk8LsQNqo5enznRRA_lrzf2U9K';
+const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const MARKET_PROXY_URL = SUPABASE_URL + '/functions/v1/market-proxy';
+const BOOKS = ['kraken', 'coinbase'];
+const NAMES = { app: 'Main book', kraken: 'Kraken', coinbase: 'Coinbase' };
+const REASONS = {
+  target_reached: 'Target', trailing_stop: 'Trailing stop', stop_loss: 'Stop', stale_timeout: 'Timed out flat',
+  max_hold: 'Maximum hold', manual_close: 'Closed by hand', swing_review: 'Swing review',
+};
+let state = { ports: {}, trades: {}, app: null, ready: false };
+
+const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const usd = n => (n < 0 ? '−$' : '$') + Math.abs(Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const signed = n => (Number(n) > 0 ? '+' : Number(n) < 0 ? '−' : '') + '$' + Math.abs(Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const cls = n => Number(n) > 0 ? 'pos' : Number(n) < 0 ? 'neg' : 'dim';
+const pct = n => (Number(n) > 0 ? '+' : '') + (Number(n) || 0).toFixed(2) + '%';
+const px = n => { const v = Number(n); if (!(v > 0)) return '—'; return v >= 1 ? v.toFixed(2) : v >= 0.01 ? v.toFixed(4) : v.toPrecision(4); };
+// Timestamps without a zone are UTC.
+const when = v => { if (!v) return '—'; const t = /Z$|[+-]\d\d:?\d\d$/.test(v) ? v : String(v).replace(' ', 'T') + 'Z';
+  const d = new Date(t); return isNaN(d) ? '—' : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' ' +
+  d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }); };
+
+function notice(msg, warn) {
+  const el = document.getElementById('notice');
+  el.textContent = msg || '';
+  el.className = 'notice' + (warn ? ' warn' : '');
+  el.style.display = msg ? 'block' : 'none';
+}
+
+// Win rate, average win and loss, and fees, from closed trades. A main-book
+// trade from before fees were recorded falls back to its stock commission.
+function stats(closed) {
+  const gl = closed.map(t => Number(t.gain_loss) || 0);
+  const wins = gl.filter(x => x > 0), losses = gl.filter(x => x <= 0);
+  const avg = a => a.length ? a.reduce((s, x) => s + x, 0) / a.length : 0;
+  const fees = closed.reduce((s, t) => s + (Number(t.fees_paid) > 0 ? Number(t.fees_paid) : Number(t.commission) || 0), 0);
+  return { n: closed.length, winPct: closed.length ? wins.length / closed.length * 100 : 0,
+           avgWin: avg(wins), avgLoss: avg(losses), total: gl.reduce((s, x) => s + x, 0), fees };
+}
+
+async function loadAll() {
+  const btn = document.getElementById('refresh-btn');
+  btn.disabled = true;
+  try {
+    const [ports, trades, appPort, appClosed, appOpen] = await Promise.all([
+      db.from('book_portfolios').select('*'),
+      db.from('book_trades').select('*').order('opened_at', { ascending: false }),
+      db.from('paper_portfolio').select('*').limit(1),
+      db.from('paper_trades').select('*').eq('status', 'closed'),
+      db.from('paper_trades').select('*').eq('status', 'open'),
+    ]);
+    if (ports.error || trades.error) {
+      state.ready = false;
+      notice('The platform books are not set up yet. Run create_platform_books.sql in Supabase → SQL Editor, then refresh.', true);
+    } else {
+      state.ready = true;
+      notice('');
+      state.ports = {};
+      (ports.data || []).forEach(p => { state.ports[p.book] = p; });
+      state.trades = { kraken: [], coinbase: [] };
+      (trades.data || []).forEach(t => { if (state.trades[t.book]) state.trades[t.book].push(t); });
+    }
+    const ap = (appPort.data || [])[0] || null;
+    state.app = {
+      start: Number(ap && ap.starting_balance) || 10000,
+      balance: Number(ap && ap.current_balance) || 10000,
+      unrealized: Number(ap && ap.unrealized_gl) || 0,
+      closed: appClosed.data || [],
+      open: appOpen.data || [],
+    };
+    render();
+  } catch (e) {
+    notice('Could not load the books: ' + ((e && e.message) || e), true);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function card(key, d) {
+  const st = stats(d.closed);
+  const ret = (d.balance - d.start) / d.start * 100;
+  const toggle = key === 'app' ? '' :
+    '<button class="toggle' + (d.enabled ? '' : ' off') + '" onclick="toggleBook(\'' + key + '\')">' + (d.enabled ? 'On' : 'Off') + '</button>';
+  const fee = key === 'app' ? '' :
+    '<div class="row"><span>Fee rate</span><span class="mono">' + (d.feePct != null ? Number(d.feePct).toFixed(2) + '% a side · tier ' + (d.feeTier || 1) : '—') + '</span></div>';
+  return '<div class="card"><div class="card-head"><span class="card-name">' + NAMES[key] + '</span>' + toggle + '</div>' +
+    '<div class="big">' + usd(d.balance) + '</div>' +
+    '<div class="row"><span>Return</span><span class="mono ' + cls(ret) + '">' + pct(ret) + '</span></div>' +
+    '<div class="row"><span>Open</span><span class="mono">' + d.open.length + ' · ' + '<span class="' + cls(d.unrealized) + '">' + signed(d.unrealized) + '</span></span></div>' +
+    '<div class="row"><span>Closed</span><span class="mono">' + st.n + (st.n ? ' · won ' + st.winPct.toFixed(0) + '%' : '') + '</span></div>' +
+    '<div class="row"><span>Avg win / loss</span><span class="mono">' + (st.n ? '<span class="pos">' + signed(st.avgWin) + '</span> / <span class="neg">' + signed(st.avgLoss) + '</span>' : '—') + '</span></div>' +
+    '<div class="row"><span>Fees paid</span><span class="mono">' + usd(st.fees) + '</span></div>' + fee + '</div>';
+}
+
+function render() {
+  const cards = [card('app', { ...state.app })];
+  if (state.ready) {
+    BOOKS.forEach(b => {
+      const p = state.ports[b] || {};
+      const all = state.trades[b] || [];
+      const open = all.filter(t => t.status === 'open');
+      cards.push(card(b, {
+        start: Number(p.starting_balance) || 10000, balance: Number(p.current_balance) || Number(p.starting_balance) || 10000,
+        unrealized: open.reduce((s, t) => s + Number(t.unrealized_gl ?? t.gain_loss ?? 0), 0),
+        closed: all.filter(t => t.status === 'closed'), open, enabled: p.enabled !== false, feePct: p.fee_pct, feeTier: p.fee_tier,
+      }));
+      renderBook(b, open, all.filter(t => t.status === 'closed'), p);
+    });
+  } else {
+    BOOKS.forEach(b => { document.getElementById('book-' + b).innerHTML = ''; });
+  }
+  document.getElementById('cards').innerHTML = cards.join('');
+}
+
+function renderBook(b, open, closed, p) {
+  const openRows = open.map(t => {
+    const banked = Number(t.banked_gl) || 0;
+    return '<tr><td><strong>' + esc(t.ticker) + '</strong><div class="dim" style="font-size:0.66rem">' + esc(t.type) + ' · ' + when(t.opened_at) + '</div></td>' +
+      '<td class="num">' + px(t.entry_price) + '<div class="dim">→ ' + px(t.current_price) + '</div></td>' +
+      '<td class="num ' + cls(t.unrealized_gl) + '">' + signed(t.unrealized_gl) + '<div>' + pct(t.gain_loss_pct) + '</div>' +
+        (banked ? '<div class="pos" style="font-size:0.66rem">' + signed(banked) + ' banked</div>' : '') + '</td>' +
+      '<td class="num">' + px(t.stop_loss) + '</td></tr>';
+  }).join('');
+  const closedRows = closed.slice().sort((a, c) => String(c.closed_at || '').localeCompare(String(a.closed_at || ''))).slice(0, 25).map(t =>
+    '<tr><td><strong>' + esc(t.ticker) + '</strong><div class="dim" style="font-size:0.66rem">' + when(t.closed_at) + '</div></td>' +
+    '<td>' + esc(REASONS[t.close_reason] || t.close_reason || '—') + (Number(t.scaled_shares) > 0 ? '<div class="dim" style="font-size:0.66rem">half banked</div>' : '') + '</td>' +
+    '<td class="num ' + cls(t.gain_loss) + '">' + signed(t.gain_loss) + '<div>' + pct(t.gain_loss_pct) + '</div></td>' +
+    '<td class="num dim">' + usd(t.fees_paid) + '</td></tr>').join('');
+  document.getElementById('book-' + b).innerHTML =
+    '<h2>' + NAMES[b] + ' book' + (p.enabled === false ? ' <span class="dim" style="font-size:0.9rem">· off</span>' : '') + '</h2>' +
+    '<div class="label">Open positions</div>' +
+    (open.length ? '<table><tr><th>Coin</th><th class="num">Entry → now</th><th class="num">P&amp;L</th><th class="num">Stop</th></tr>' + openRows + '</table>'
+                 : '<div class="empty">Nothing open. Positions open when the Simulator scans and a listed coin clears the long bar.</div>') +
+    '<div class="label">Recent closed trades</div>' +
+    (closed.length ? '<table><tr><th>Coin</th><th>How it closed</th><th class="num">Result</th><th class="num">Fees</th></tr>' + closedRows + '</table>'
+                   : '<div class="empty">No closed trades yet.</div>');
+}
+
+// Off stops new positions in that book. Its open positions are still managed
+// by the monitor until they close.
+async function toggleBook(b) {
+  const p = state.ports[b];
+  if (!p) return;
+  const next = p.enabled === false;
+  const { error } = await db.from('book_portfolios').update({ enabled: next }).eq('book', b);
+  if (error) { notice('Could not switch the ' + NAMES[b] + ' book: ' + error.message, true); return; }
+  notice(NAMES[b] + ' book switched ' + (next ? 'on' : 'off') + '.' +
+         (next ? '' : ' It opens nothing new; positions it holds are still managed until they close.'));
+  await loadAll();
+}
+
+// How many coins each platform lists against US dollars, as the books see them.
+async function checkLists() {
+  const out = document.getElementById('lists-out');
+  const btn = document.getElementById('lists-btn');
+  btn.disabled = true;
+  out.textContent = 'Checking...';
+  const one = async (endpoint, name) => {
+    try {
+      const res = await fetch(MARKET_PROXY_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + SUPABASE_KEY },
+        body: JSON.stringify({ endpoint }),
+      });
+      const d = await res.json().catch(() => ({}));
+      return res.ok ? name + ' lists ' + d.count + ' coins (' + d.note + ')' : name + ': ' + (d.error || 'HTTP ' + res.status);
+    } catch (e) { return name + ': market-proxy could not be reached'; }
+  };
+  const [k, c] = await Promise.all([one('kraken_pairs', 'Kraken'), one('coinbase_products', 'Coinbase')]);
+  out.textContent = k + ' · ' + c;
+  btn.disabled = false;
+}
+
+loadAll();
+setInterval(loadAll, 120000);
+</script>
+</body>
+</html>
