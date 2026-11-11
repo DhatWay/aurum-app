@@ -683,6 +683,7 @@ footer p { font-size: 0.6rem; letter-spacing: 0.12em; color: var(--muted); text-
   <a href="trading.html">Trading</a>
   <a href="brokerage.html">Brokerage</a>
   <a href="simulator.html" class="active">Simulator</a>
+  <a href="books.html">Books</a>
   <a href="sectors.html">Sectors</a>
   <a href="admin.html">Admin</a>
   <a href="news.html">News</a>
@@ -879,7 +880,7 @@ footer p { font-size: 0.6rem; letter-spacing: 0.12em; color: var(--muted); text-
 
   <div style="display:flex; gap:0.6rem; margin-bottom:0.8rem; flex-wrap:wrap;">
     <button id="auto-mode-btn" onclick="toggleAutoMode()" style="flex:1; min-width:150px; background:transparent; border:1px solid rgba(107,101,96,0.4); color:#6B6560; font-family:'DM Sans',sans-serif; font-size:0.72rem; letter-spacing:0.15em; padding:0.7rem 1rem; cursor:pointer;">AUTONOMOUS: OFF</button>
-    <button onclick="runAutonomousCycle(true)" style="flex:1; min-width:150px; background:transparent; border:1px solid rgba(201,168,76,0.3); color:#C9A84C; font-family:'DM Sans',sans-serif; font-size:0.72rem; letter-spacing:0.15em; padding:0.7rem 1rem; cursor:pointer;">FILL TO 10 ONCE</button>
+    <button onclick="runCycleAndBooks(true)" style="flex:1; min-width:150px; background:transparent; border:1px solid rgba(201,168,76,0.3); color:#C9A84C; font-family:'DM Sans',sans-serif; font-size:0.72rem; letter-spacing:0.15em; padding:0.7rem 1rem; cursor:pointer;">FILL TO 10 ONCE</button>
   </div>
   <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.35rem;">
     <div style="font-size:0.6rem; letter-spacing:0.2em; color:#6B6560; font-family:'IBM Plex Mono',monospace;">SCAN LOG</div>
@@ -4974,7 +4975,9 @@ async function screenCryptoUniverse(watchSymbols) {
   return shortlist.map(c => String(c.symbol).toUpperCase());
 }
 
-async function getCandidateTickers() {
+// ignoreHeld: the platform books ask for the same list without dropping what
+// the main book already holds — those books hold their own positions.
+async function getCandidateTickers(ignoreHeld) {
   const isCrypto = activeMode === 'crypto';
 
   const [{ data: watchlist }, { data: open }] = await Promise.all([
@@ -5051,7 +5054,7 @@ async function getCandidateTickers() {
   watch.concat(universe.map(t => t.toUpperCase())).forEach(t => {
     if (seen.has(t)) return;
     seen.add(t);
-    if ((heldCount[t] || 0) >= MAX_PER_TICKER) return;
+    if (!ignoreHeld && (heldCount[t] || 0) >= MAX_PER_TICKER) return;
     merged.push(t);
   });
 
@@ -5808,7 +5811,7 @@ async function scoreForRanking(ticker, balance) {
     if (typeof g.det_composite !== 'number') { noteScoreFailure(ticker, 'no composite — Governor predates long/short'); return null; }
     if (!g.short_setup) { noteScoreFailure(ticker, 'no short setup — redeploy the latest clever-responder'); return null; }
     checkContractDrift(g);
-    return {
+    const ranked = {
       ticker,
       composite:      g.det_composite,
       rsi:            Number(g.rsi_14),
@@ -5819,6 +5822,9 @@ async function scoreForRanking(ticker, balance) {
       earnings_days:  g.earnings_days ?? null,
       gov:            g,
     };
+    // Kept briefly so the platform books can use this scan's scores.
+    LAST_SCORES.set(String(ticker).toUpperCase(), { c: ranked, at: Date.now() });
+    return ranked;
   } catch (e) {
     noteScoreFailure(ticker, (e && e.message) || 'unknown error');
     return null;
@@ -5991,6 +5997,197 @@ async function runLongShortCycle(manualTrigger) {
     FUNNEL_SHORTLIST = savedShortlist;
     autoCycleRunning = false;
   }
+}
+
+// ═══ PLATFORM BOOKS ═══
+// Two more paper accounts beside the main one: what the system would do on
+// Kraken and on Coinbase. After each scan, each book takes the best longs from
+// the same scores — the main book's swing-long rule: composite at least
+// LS_LONG_MIN, inside the volatility band, decent data, and no longs while
+// MARKET REGIME reads a downtrend — but only coins its platform lists against
+// US dollars. Both platforms list practically every US stock, so stocks are
+// open to both, commission-free. Longs only: shorting on either platform needs
+// margin or futures approval. Each book has its own $10,000, ten slots, sizing
+// and cash. The monitor (quick-service) manages their positions with the same
+// exit rule as the main book. Switch each book on or off on the Books page;
+// off stops new positions, and open ones are still managed until they close.
+// Tables from create_platform_books.sql: book_trades and book_portfolios.
+const BOOKS = ['kraken', 'coinbase'];
+const BOOK_NAMES = { kraken: 'Kraken', coinbase: 'Coinbase' };
+const LAST_SCORES = new Map();                  // ticker → { c, at }, from scoreForRanking
+const BOOK_SCORE_FRESH_MS = 30 * 60 * 1000;     // a score this recent is reused
+const BOOK_MAX_NEW_SCORES = 20;                 // Governor calls one books scan may add
+const BOOK_LIST_MS = 6 * 3600 * 1000;           // coin lists refreshed this often
+let platformLists = { at: 0, kraken: null, coinbase: null };
+let booksCycleRunning = false;
+let lastBooksScanAt = 0;
+
+// Each platform's USD coin list, through market-proxy. A list that cannot be
+// read keeps the last good one; with none at all, that book opens nothing.
+async function loadPlatformLists(force) {
+  if (!force && platformLists.kraken && platformLists.coinbase && Date.now() - platformLists.at < BOOK_LIST_MS) return platformLists;
+  const get = async endpoint => {
+    try {
+      const res = await fetchWithTimeout(MARKET_PROXY_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + GOVERNOR_ANON_KEY },
+        body: JSON.stringify({ endpoint }),
+      }, 20000);
+      const data = await res.json().catch(() => ({}));
+      return res.ok && Array.isArray(data.symbols) ? new Set(data.symbols.map(x => String(x).toUpperCase())) : null;
+    } catch (e) { return null; }
+  };
+  const [k, c] = await Promise.all([get('kraken_pairs'), get('coinbase_products')]);
+  platformLists = { at: Date.now(), kraken: k || platformLists.kraken, coinbase: c || platformLists.coinbase };
+  return platformLists;
+}
+
+async function openBookPosition(book, c, rank, ofN, bal, deployed) {
+  const isCrypto = activeMode === 'crypto';
+  const g = rankedSignal(c, 'LONG', rank, ofN, bal);
+  const entry = Number(g.entry_price);
+  if (!(entry > 0)) return false;
+  // Equal-risk sizing, as the main book's swing longs are sized.
+  const vol = Math.max(Number(c.volatility_pct) || LS_REF_VOL, 0.5);
+  const pct = Math.min(preset().sizePct * Math.min(Math.max(LS_REF_VOL / vol, 0.5), 2.0), MAX_POSITION_PCT);
+  let shares = bal * pct / 100 / entry;
+  shares = isCrypto ? parseFloat(shares.toFixed(6)) : Math.max(1, Math.floor(shares));
+  if (!(shares > 0) || !isFinite(shares)) return false;
+  const slippagePct = 0.0005;
+  const slipAmt = entry * slippagePct, eff = entry + slipAmt;
+  const value = shares * eff;
+  if (value > bal * MAX_POSITION_PCT / 100) return false;
+  if (deployed.v + value > bal) return false;          // this book is out of cash
+  const now = new Date().toISOString();
+  const { error } = await db.from('book_trades').insert({
+    book,
+    ticker:               c.ticker,
+    coingecko_id:         (window._funnelIds && window._funnelIds[String(c.ticker).toUpperCase()]) || (c.gov && c.gov.coingecko_id) || null,
+    entry_volatility_pct: Number(c.volatility_pct) > 0 ? Number(c.volatility_pct) : null,
+    stop_moved_at:        now,
+    shares,
+    direction:            'long',
+    strategy:             currentStrategy,
+    instrument:           isCrypto ? 'crypto' : 'stock',
+    type:                 activeMode,
+    status:               'open',
+    entry_price:          roundPrice(eff),
+    effective_entry:      roundPrice(eff),
+    current_price:        eff,
+    stop_loss:            g.stop_loss    ? Number(g.stop_loss)    : null,
+    target_price:         g.target_price ? Number(g.target_price) : null,
+    position_value:       parseFloat(value.toFixed(2)),
+    gain_loss:            0,
+    gain_loss_pct:        0,
+    gross_gain_loss:      0,
+    net_gain_loss:        0,
+    unrealized_gl:        0,
+    slippage_cost:        parseFloat((slipAmt * shares).toFixed(6)),
+    commission:           0,
+    slippage_pct:         slippagePct * 100,
+    note:                 'C' + c.composite + ' · ' + BOOK_NAMES[book] + ' book · ' + g.confidence + ' · size ' + pct.toFixed(1) + '%',
+    entry_signal_quality: c.signal_quality || 50,
+    live_signal_quality:  c.signal_quality || 50,
+    opened_at:            now,
+    auto_generated:       true,
+    scoring_mode:         scoringMode,
+    scale_preset:         activePreset,
+    is_live:              false,
+  });
+  if (error) { autoLog(BOOK_NAMES[book] + ' book — could not record ' + c.ticker + ': ' + error.message); return false; }
+  deployed.v += value;
+  return true;
+}
+
+async function runBooksCycle(manualTrigger) {
+  if (booksCycleRunning) return;
+  if (!autoModeEnabled && !manualTrigger) return;
+  if (activeMode !== 'crypto' && !isUSMarketOpen()) return;
+  if (!manualTrigger && Date.now() - lastBooksScanAt < RESCAN_COOLDOWN_MS) return;
+  booksCycleRunning = true;
+  const savedShortlist = FUNNEL_SHORTLIST;
+  try {
+    const { data: ports, error } = await db.from('book_portfolios').select('*');
+    if (error || !ports) {
+      if (manualTrigger) autoLog('Platform books are not set up — run create_platform_books.sql in Supabase.');
+      return;
+    }
+    const on = ports.filter(p => p.enabled !== false && BOOKS.includes(p.book));
+    if (!on.length) return;
+    const { data: held } = await db.from('book_trades').select('book, ticker, type, position_value').eq('status', 'open');
+    const modeKey = activeMode === 'crypto' ? 'crypto' : 'stock';
+    const heldBy = {}, need = {}, deployed = {};
+    on.forEach(p => {
+      const mine = (held || []).filter(t => t.book === p.book);
+      const inMode = mine.filter(t => (t.type === 'crypto' ? 'crypto' : 'stock') === modeKey).length;
+      heldBy[p.book] = new Set(mine.map(t => String(t.ticker).toUpperCase()));
+      need[p.book] = Math.max(0, Math.min(preset().positions - mine.length, preset().maxPerMode - inMode));
+      deployed[p.book] = { v: mine.reduce((s, t) => s + Number(t.position_value || 0), 0) };
+    });
+    const hungry = on.filter(p => need[p.book] > 0);
+    if (!hungry.length) { if (manualTrigger) autoLog('Platform books full.'); return; }
+    lastBooksScanAt = Date.now();
+
+    const lists = activeMode === 'crypto' ? await loadPlatformLists(false) : null;
+    const listed = (book, t) => activeMode !== 'crypto' || !!(lists && lists[book] && lists[book].has(String(t).toUpperCase()));
+    const missingList = hungry.filter(p => activeMode === 'crypto' && !(lists && lists[p.book]));
+    if (missingList.length) autoLog('Platform books — no coin list from ' + missingList.map(p => BOOK_NAMES[p.book]).join(' or ') + ' yet, so it opens nothing this scan.');
+
+    if (physicsEnabled && activeMode === 'crypto') {
+      const regime = await readMarketRegime();
+      if (regime && regime.longsPaused) { autoLog('Platform books — no new longs. ' + regime.line); return; }
+    }
+
+    FUNNEL_SHORTLIST = LS_SHORTLIST;
+    const pool = await getCandidateTickers(true);
+    const wanted = pool.filter(t => hungry.some(p => listed(p.book, t) && !heldBy[p.book].has(String(t).toUpperCase())));
+    if (!wanted.length) { autoLog('Platform books — none of this scan\'s candidates are listed where a book has room.'); return; }
+
+    // This scan's scores where fresh; the rest scored now, within a budget.
+    const scored = [], toScore = [];
+    wanted.forEach(t => {
+      const hit = LAST_SCORES.get(String(t).toUpperCase());
+      if (hit && Date.now() - hit.at < BOOK_SCORE_FRESH_MS) scored.push(hit.c); else toScore.push(t);
+    });
+    const batch = toScore.slice(0, BOOK_MAX_NEW_SCORES);
+    if (batch.length) {
+      const refBalance = await getPortfolioBalance();
+      scoreFailures = [];
+      for (let i = 0; i < batch.length; i += GOVERNOR_BATCH) {
+        const out = await Promise.all(batch.slice(i, i + GOVERNOR_BATCH).map(t => scoreForRanking(t, refBalance)));
+        out.forEach(x => { if (x) scored.push(x); });
+      }
+      if (scoreFailures.length) autoLog('Platform books — ' + scoreFailures.length + ' could not be scored: ' + summariseScoreFailures());
+    }
+    const lim = limits();
+    const longs = scored.filter(c => !entryRejection(c) && c.signal_quality >= lim.signalQuality &&
+                                     c.composite >= LS_LONG_MIN && c.composite > lim.direction)
+                        .sort((a, b) => b.composite - a.composite);
+
+    for (const p of hungry) {
+      const picks = longs.filter(c => listed(p.book, c.ticker) && !heldBy[p.book].has(String(c.ticker).toUpperCase()))
+                         .slice(0, need[p.book]);
+      const bal = Number(p.current_balance) || Number(p.starting_balance) || 10000;
+      const opened = [];
+      for (let i = 0; i < picks.length; i++) {
+        if (await openBookPosition(p.book, picks[i], i + 1, picks.length, bal, deployed[p.book])) opened.push(picks[i].ticker);
+      }
+      autoLog(BOOK_NAMES[p.book] + ' book — ' + (opened.length
+        ? 'opened ' + opened.join(', ') + '.'
+        : 'nothing cleared the long bar among its listed coins (' + scored.filter(c => listed(p.book, c.ticker)).length + ' scored).'));
+    }
+  } catch (e) {
+    autoLog('Platform books scan failed: ' + ((e && e.message) || e));
+  } finally {
+    FUNNEL_SHORTLIST = savedShortlist;
+    booksCycleRunning = false;
+  }
+}
+
+// The main scan, then the platform books from the same scores.
+async function runCycleAndBooks(manualTrigger) {
+  await runAutonomousCycle(manualTrigger);
+  await runBooksCycle(manualTrigger);
 }
 
 async function runAutonomousCycle(manualTrigger) {
@@ -6195,8 +6392,8 @@ function toggleAutoMode() {
   clearInterval(autoCycleTimer);
   if (autoModeEnabled) {
     autoLog('Autonomous mode on — maintaining ' + preset().positions + ' positions.');
-    runAutonomousCycle();
-    autoCycleTimer = setInterval(runAutonomousCycle, AUTO_CYCLE_MS);
+    runCycleAndBooks();
+    autoCycleTimer = setInterval(runCycleAndBooks, AUTO_CYCLE_MS);
   } else {
     autoLog('Manual mode. Autonomous cycle stopped.');
   }
