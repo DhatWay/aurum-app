@@ -788,55 +788,79 @@
         <div class="faq-question-text">What are the Kraken and Coinbase books?</div>
         <div class="faq-icon">+</div>
       </div>
-      <div class="faq-answer">Two more paper accounts that run beside your main book, showing what the system would do on each platform. Each starts with its own <strong>$10,000</strong>, buys only coins its platform lists against US dollars, and pays that platform&rsquo;s fees. Both are <strong>longs only</strong> &mdash; shorting on either platform needs margin or futures approval. Your main book is unchanged. See them on the <strong>Books</strong> page.</div>
+      <div class="faq-answer">Two paper accounts showing what the system would do on Kraken and on Coinbase, each with its own <strong>$10,000</strong>. Each trades only what its platform allows a US account in Georgia: it buys only coins on that platform's list, shorts only coins that platform lets you short, and pays that platform's real costs. They run on the server, so the Simulator doesn't need to be open. Your main book is separate and unchanged.</div>
     </div>
 
-    <div class="faq-item" data-keywords="books open picks scan bar long same scores">
+    <div class="faq-item" data-keywords="books page control scan now close report pdf tabs">
       <div class="faq-question" onclick="toggleFaq(this)">
-        <div class="faq-question-text">How do the books pick their positions?</div>
+        <div class="faq-question-text">What can I do on the Books page?</div>
         <div class="faq-icon">+</div>
       </div>
-      <div class="faq-answer">From the same scans as the main book. When the Simulator scans, each book takes the best longs from the same scores using the swing-long rule: a composite of at least 60, inside the volatility band, decent data, and no new longs while MARKET REGIME reads a downtrend. A coin the main book already holds can still be bought by a book. Each book has ten slots and its own cash, and positions are sized for equal risk, as the main book&rsquo;s are.</div>
+      <div class="faq-answer">Switch each book on or off, run a scan with <strong>SCAN NOW</strong>, close any book position at the current price, and download a <strong>REPORT PDF</strong> for each book. The Kraken, Coinbase and Main book tabs show open positions, closed trades, win rate, average win and loss, profit factor and fees. Each platform tab also shows its latest scan: the market direction it read, what it opened, and what it passed on and why.</div>
     </div>
 
-    <div class="faq-item" data-keywords="books fees kraken coinbase tier commission stocks">
+    <div class="faq-item" data-keywords="books scan hourly schedule server when">
       <div class="faq-question" onclick="toggleFaq(this)">
-        <div class="faq-question-text">What does each book pay in fees?</div>
+        <div class="faq-question-text">When do the books scan?</div>
         <div class="faq-icon">+</div>
       </div>
-      <div class="faq-answer">Crypto pays each platform&rsquo;s taker fee on the way in and the way out. <strong>Kraken:</strong> 0.80% a side, 0.60% from $2,500 of monthly volume, 0.38% from $10,000. <strong>Coinbase Advanced:</strong> 0.90% a side, 0.75% from $10,000, 0.30% from $50,000. Each book&rsquo;s own 30-day crypto volume sets its tier. Both platforms trade US stocks commission-free, so stock trades in the books pay no fee.</div>
+      <div class="faq-answer">Every hour at 22 minutes past, on the server, plus whenever you tap SCAN NOW. Each scan scores up to 10 coins through the Governor, starting further down the list each hour so every candidate gets its turn. It only scores coins that at least one book could actually trade at that moment.</div>
     </div>
 
-    <div class="faq-item" data-keywords="books switch toggle on off stop">
+    <div class="faq-item" data-keywords="books long short rules regime bullish downtrend">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">How do the books decide what to trade?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">With the main book's rules. A long needs a composite of at least 60 and MARKET REGIME not pausing longs. A short needs a confirmed downtrend and must not read bullish. Both must move 1&ndash;4.5% a day. Each position is sized for about $30 of risk at a stop two days' movement away, with a 2:1 target. Each book holds up to 10 longs and 10 shorts.</div>
+    </div>
+
+    <div class="faq-item" data-keywords="books short kraken margin futures coins which">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">Which coins can each book short?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer"><strong>Kraken:</strong> 26 coins through its US margin program &mdash; BTC, ADA, AVAX, DOGE, ETH, LINK, LTC, SOL, SUI, XRP, AAVE, BCH, CRV, DOT, HBAR, HYPE, PEPE, SHIB, TRX, UNI, ZEC, PENGU, NEAR, RENDER, ALGO and XLM. BTC, ETH and SOL go through its US futures instead when a whole contract fits the position. <strong>Coinbase:</strong> only through its US perpetual-style futures &mdash; BTC, ETH, SOL, XRP, DOGE, XLM, ADA, BCH, LTC, AVAX, LINK, DOT, HBAR, SUI, ZEC, ENA, NEAR, ONDO, AAVE, BNB, PEPE, HYPE and SHIB.</div>
+    </div>
+
+    <div class="faq-item" data-keywords="books fees costs margin rollover futures contract funding">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">What does each book pay?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">Buying pays the platform's spot taker fee each way: Kraken from 0.80% and Coinbase from 0.90% a side, falling with the book's own 30-day volume. A Kraken margin short also pays an opening fee and a rollover fee every 4 hours; Kraken publishes 0.01&ndash;0.05% for each, varying with the market, so the book uses 0.05%. Kraken futures cost $0.0113 a contract each way. Coinbase futures cost about 0.02% each way, at least $0.15 an order. Futures trade in whole contracts where the size is published. <strong>Futures funding payments are not included</strong> &mdash; there is no free feed of the rates.</div>
+    </div>
+
+    <div class="faq-item" data-keywords="books trailing stop exit rule managed monitor">
+      <div class="faq-question" onclick="toggleFaq(this)">
+        <div class="faq-question-text">Does the trailing stop apply to the books?</div>
+        <div class="faq-icon">+</div>
+      </div>
+      <div class="faq-answer">Yes. Every book position, long or short, is managed by the position monitor every 15 minutes with the main book's exit rule &mdash; the same trailing stop, breakeven floor, 2:1 target, gap protection and timeouts.</div>
+    </div>
+
+    <div class="faq-item" data-keywords="books switch toggle on off">
       <div class="faq-question" onclick="toggleFaq(this)">
         <div class="faq-question-text">What does switching a book off do?</div>
         <div class="faq-icon">+</div>
       </div>
-      <div class="faq-answer">It stops that book opening anything new. Positions it already holds are still managed by the position monitor &mdash; stops, trailing and timeouts &mdash; until they close. Switch it back on and it fills again at the next scan.</div>
+      <div class="faq-answer">It stops that book opening anything new. Positions it already holds are still managed until they close. Switch it back on and it fills again at the next scan.</div>
     </div>
 
-    <div class="faq-item" data-keywords="books manage monitor exit rule stop trailing">
+    <div class="faq-item" data-keywords="books stocks not included">
       <div class="faq-question" onclick="toggleFaq(this)">
-        <div class="faq-question-text">How are book positions managed?</div>
+        <div class="faq-question-text">Do the books trade stocks?</div>
         <div class="faq-icon">+</div>
       </div>
-      <div class="faq-answer">By the same position monitor as the main book, every run, with the same exit rule, stops, trailing, gap protection and timeouts. Swing reviews and reversals don&rsquo;t apply, since the books hold longs only.</div>
+      <div class="faq-answer">Not at the moment. The platform books trade crypto only; stocks stay in your main book in the Simulator.</div>
     </div>
 
-    <div class="faq-item" data-keywords="books coin list check listed kraken coinbase georgia">
-      <div class="faq-question" onclick="toggleFaq(this)">
-        <div class="faq-question-text">How do the books know which coins each platform lists?</div>
-        <div class="faq-icon">+</div>
-      </div>
-      <div class="faq-answer">From each platform&rsquo;s own public list, read through market-proxy and refreshed every six hours. Kraken&rsquo;s list is filtered to what a Georgia account may trade. <strong>CHECK COIN LISTS</strong> on the Books page shows how many coins each list holds. If a list can&rsquo;t be read, that book opens nothing until it can.</div>
-    </div>
-
-    <div class="faq-item" data-keywords="books setup sql not set up empty">
+    <div class="faq-item" data-keywords="books setup sql deploy not set up">
       <div class="faq-question" onclick="toggleFaq(this)">
         <div class="faq-question-text">The Books page says the books aren't set up.</div>
         <div class="faq-icon">+</div>
       </div>
-      <div class="faq-answer">Run <strong>create_platform_books.sql</strong> in Supabase &rarr; SQL Editor, then refresh. It creates the two book tables beside your main ones and leaves the main ones alone.</div>
+      <div class="faq-answer">Run <strong>create_platform_books.sql</strong> and then <strong>add_platform_shorts.sql</strong> in Supabase &rarr; SQL Editor. Deploy the <strong>platform-books</strong> function with JWT verification off, then run <strong>schedule_platform_books.sql</strong> to start the hourly scans.</div>
     </div>
 
   </div>
